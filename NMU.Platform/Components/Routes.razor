@@ -1,0 +1,15 @@
+<Router AppAssembly="typeof(NMU.Platform.Components.Layout.MainLayout).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" DefaultLayout="typeof(NMU.Platform.Components.Layout.MainLayout)" />
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <PageTitle>Not found</PageTitle>
+        <LayoutView Layout="typeof(NMU.Platform.Components.Layout.MainLayout)">
+            <div class="page-container" dir="ltr" lang="en" style="justify-content: center; align-items: center; text-align: center;">
+                <h1 style="color: var(--primary); font-size: 48px; margin-bottom: 20px;">404</h1>
+                <p style="color: var(--text-secondary);">Sorry, there's nothing at this address.</p>
+            </div>
+        </LayoutView>
+    </NotFound>
+</Router>

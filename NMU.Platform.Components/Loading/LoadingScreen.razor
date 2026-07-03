@@ -1,0 +1,23 @@
+<div id="loading-screen" style="display: @(IsVisible ? "flex" : "none")">
+    <div class="check-text">جاري فحص البيانات...</div>
+    <div class="glow-line-container">
+        <div class="glow-line"></div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback OnComplete { get; set; }
+    private bool completed;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || completed || !IsVisible) return;
+        completed = true;
+        await Task.Delay(1500);
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync();
+        }
+    }
+}

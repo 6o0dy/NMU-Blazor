@@ -1,0 +1,14 @@
+#loading-screen {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: var(--bg-main); z-index: 10000;
+    display: none; flex-direction: column; justify-content: center; align-items: center;
+}
+.check-text { font-size: 20px; font-weight: 800; color: var(--primary); margin-bottom: 15px; letter-spacing: 1px; }
+.glow-line-container { width: 250px; height: 2px; background: rgba(255,255,255,0.05); position: relative; overflow: hidden; border-radius: 2px; }
+.glow-line {
+    position: absolute; height: 100%; width: 100%; background: var(--primary);
+    box-shadow: 0 0 15px var(--primary), 0 0 5px #fff;
+    transform: scaleX(0); transform-origin: center;
+    animation: openGlow 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes openGlow { from { transform: scaleX(0); } to { transform: scaleX(1); } }

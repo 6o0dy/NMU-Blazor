@@ -1,0 +1,94 @@
+@page "/"
+@using NMU.Platform.Components.Models
+@using NMU.Platform.Components.Services
+@using NMU.Platform.Components.Loading
+@using NMU.Platform.Components.Setup
+@inject StudentService StudentService
+
+<LoadingScreen IsVisible="@showLoading" OnComplete="@OnLoadingDone" />
+
+@if (showSetup)
+{
+    <SetupModal IsVisible="true" OnSave="@OnSetupSaved" />
+}
+
+@if (showWelcome && currentStudent != null)
+{
+    <div class="page-container" dir="ltr" lang="en">
+        <div class="welcome-header">
+            <h1>Welcome to NMU Platform</h1>
+            <div class="welcome-subtitle">Hello @currentStudent.Name!</div>
+        </div>
+
+        <div class="card-grid">
+            <a class="card-item" href="#">
+                <div class="card-icon blue">📄</div>
+                <div class="card-text">
+                    <h2>PDF Library</h2>
+                    <p>Access your course materials</p>
+                </div>
+            </a>
+
+            <a class="card-item" href="#">
+                <div class="card-icon purple">🎬</div>
+                <div class="card-text">
+                    <h2>Videos</h2>
+                    <p>Watch educational content</p>
+                </div>
+            </a>
+
+            <a class="card-item" href="#">
+                <div class="card-icon red">📝</div>
+                <div class="card-text">
+                    <h2>Quizzes</h2>
+                    <p>Test your knowledge</p>
+                </div>
+            </a>
+        </div>
+    </div>
+}
+
+@code {
+    private bool showLoading = true;
+    private bool showSetup = false;
+    private bool showWelcome = false;
+    private StudentProfile? currentStudent;
+
+    private async Task OnLoadingDone()
+    {
+        await Task.Delay(500);
+        try
+        {
+            var hasStudent = await StudentService.HasStudentDataAsync();
+            if (hasStudent)
+            {
+                currentStudent = await StudentService.GetStudentAsync();
+                showLoading = false;
+                showWelcome = true;
+            }
+            else
+            {
+                showLoading = false;
+                showSetup = true;
+            }
+        }
+        catch
+        {
+            showLoading = false;
+            showSetup = true;
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnSetupSaved()
+    {
+        try
+        {
+            currentStudent = await StudentService.GetStudentAsync();
+        }
+        catch { }
+        showSetup = false;
+        showWelcome = true;
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="NMU.Platform.Components/NMU.Platform.Components.csproj" />
+  <Project Path="NMU.Platform.Web/NMU.Platform.Web.csproj" />
+  <Project Path="NMU.Platform/NMU.Platform.csproj" />
+</Solution>

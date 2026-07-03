@@ -1,0 +1,66 @@
+@using NMU.Platform.Components.Services
+@inject StudentService StudentService
+
+@if (IsVisible)
+{
+    <div id="setup-modal" dir="ltr" lang="en">
+        <div class="setup-card">
+            <h2>THE INFORMATION</h2>
+            <div class="field-group">
+                <label>Your Name</label>
+                <input type="text" placeholder="Enter Your Name Here..." @bind="studentName" />
+            </div>
+            <div class="field-group">
+                <label>Academic Level</label>
+                <select @bind="academicLevel">
+                    <option value="Level 1">Level 1</option>
+                    <option value="Level 2">Level 2</option>
+                    <option value="Level 3">Level 3</option>
+                    <option value="Level 4">Level 4</option>
+                    <option value="Level 5">Level 5</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label>Select The Semester</label>
+                <div class="term-tiles">
+                    <label class="tile-item">
+                        <input type="radio" name="term-select" value="Semester 1"
+                               checked="@(semester == "Semester 1")"
+                               @onchange="() => semester = Semester1" />
+                        <span class="tile-btn">Semester 1</span>
+                    </label>
+                    <label class="tile-item">
+                        <input type="radio" name="term-select" value="Semester 2"
+                               checked="@(semester == "Semester 2")"
+                               @onchange="() => semester = Semester2" />
+                        <span class="tile-btn">Semester 2</span>
+                    </label>
+                </div>
+            </div>
+            <button class="save-btn" @onclick="SaveData">Save Data</button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback OnSave { get; set; }
+
+    private string studentName = string.Empty;
+    private string academicLevel = "Level 1";
+    private string semester = string.Empty;
+    private const string Semester1 = "Semester 1";
+    private const string Semester2 = "Semester 2";
+
+    private async Task SaveData()
+    {
+        if (string.IsNullOrWhiteSpace(studentName) || string.IsNullOrEmpty(semester)) return;
+        await StudentService.SaveStudentAsync(new StudentProfile
+        {
+            Name = studentName,
+            AcademicLevel = academicLevel,
+            Semester = semester
+        });
+        await OnSave.InvokeAsync();
+    }
+}

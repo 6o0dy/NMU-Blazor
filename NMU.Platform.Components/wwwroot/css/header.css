@@ -1,0 +1,102 @@
+.header {
+    position: fixed;
+    top: 0;
+    height: 50px;
+    width: 100%;
+    padding: 5px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(5, 11, 20, 0.3);
+    backdrop-filter: blur(20px);
+    z-index: 100;
+    border-bottom: 1px solid rgba(0, 242, 255, 0.1);
+}
+
+.header h2 {
+    font-size: 20px;
+    font-weight: 700;
+    background: linear-gradient(to right, var(--primary), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: 0 0 20px rgba(0, 242, 255, 0.3);
+    margin: 0;
+    letter-spacing: 1px;
+}
+
+.icon-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: 0.3s;
+    color: var(--primary);
+}
+.icon-btn:hover {
+    background: rgba(0, 242, 255, 0.1);
+    box-shadow: 0 0 15px var(--primary);
+    color: White;
+}
+
+#fullscreen-btn {
+    background: rgba(0, 242, 255, 0.05);
+    border: 1px solid rgba(0, 242, 255, 0.2);
+    color: var(--primary);
+    margin-left: 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.3s all ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#fullscreen-btn:hover {
+    background: var(--primary);
+    color: var(--bg-main);
+    box-shadow: 0 0 15px var(--primary);
+}
+
+.win-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    width: 36px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: 0.2s;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.win-btn-max:hover {
+    background: #00f2ff;
+    color: #050b14;
+    box-shadow: 0 0 12px rgba(0, 242, 255, 0.5);
+}
+
+.win-btn-min:hover {
+    background: #ffb800;
+    color: #050b14;
+    box-shadow: 0 0 12px rgba(255, 184, 0, 0.5);
+}
+
+.win-btn-fs:hover {
+    background: #00ff88;
+    color: #050b14;
+    box-shadow: 0 0 12px rgba(0, 255, 136, 0.5);
+}
+
+.win-btn-close:hover {
+    background: #e81123;
+    color: #fff;
+}

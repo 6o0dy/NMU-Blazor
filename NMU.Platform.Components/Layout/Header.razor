@@ -1,0 +1,83 @@
+@using NMU.Platform.Components.Services
+@implements IDisposable
+@inject FullscreenService FullscreenService
+@inject IPlatformService Platform
+
+<header class="header" dir="ltr" lang="en">
+    <h2>NMU-CE &amp; AIE</h2>
+    <div style="display: flex; gap: 10px; align-items: center;">
+        @if (Platform.IsDesktop)
+        {
+            @if (!Platform.IsFullScreen)
+            {
+                <button class="win-btn win-btn-fs" @onclick="ToggleFullscreen" title="Full Screen">
+                    <i class="fas fa-expand"></i>
+                </button>
+                <button class="win-btn win-btn-min" @onclick="Minimize" title="Minimize">
+                    <i class="fas fa-minus"></i>
+                </button>
+                <button class="win-btn win-btn-max" @onclick="ToggleMaximize" title="Maximize">
+                    <i class="fas fa-square"></i>
+                </button>
+            }
+            else
+            {
+                <button class="win-btn win-btn-fs" @onclick="ToggleFullscreen" title="Exit Full Screen">
+                    <i class="fas fa-compress"></i>
+                </button>
+            }
+            <button class="win-btn win-btn-close" @onclick="CloseApp" title="Close">
+                <i class="fas fa-times"></i>
+            </button>
+        }
+        else
+        {
+            <button id="fullscreen-btn" class="icon-btn" @onclick="ToggleFullscreen">
+                <i class="fas fa-expand"></i>
+            </button>
+        }
+    </div>
+</header>
+
+@code {
+    protected override void OnInitialized()
+    {
+        if (Platform.IsDesktop)
+        {
+            Platform.FullScreenChanged += OnFullScreenChanged;
+        }
+    }
+
+    private void OnFullScreenChanged() => StateHasChanged();
+
+    public void Dispose()
+    {
+        if (Platform.IsDesktop)
+        {
+            Platform.FullScreenChanged -= OnFullScreenChanged;
+        }
+    }
+
+    private async Task ToggleFullscreen()
+    {
+        if (Platform.IsDesktop)
+            await Platform.ToggleFullScreenAsync();
+        else
+            await FullscreenService.ToggleAsync();
+    }
+
+    private async Task ToggleMaximize()
+    {
+        await Platform.ToggleMaximizeAsync();
+    }
+
+    private async Task Minimize()
+    {
+        await Platform.MinimizeAsync();
+    }
+
+    private async Task CloseApp()
+    {
+        await Platform.CloseAsync();
+    }
+}
