@@ -13,10 +13,25 @@
     });
 })();
 
+// Android hardware back → خطوة للوراء
+window.__goBack = function() {
+    var path = location.pathname.replace(/\/+$/, '');
+    var parts = path.split('/').filter(Boolean);
+    var target;
+    if (parts.length >= 3 && parts[0] === 'materials' && parts[parts.length - 1] === 'viewer')
+        target = parts[0] + '/' + parts[1];
+    else if (parts.length >= 2 && parts[0] === 'materials')
+        target = 'materials';
+    else
+        target = '';
+    history.pushState(null, '', '/' + target);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+};
+
 // Android hardware back → يروح للهوم
 window.__goHome = function() {
     if (document.location.pathname === '/') return;
-    history.replaceState(null, '', '/');
+    history.pushState(null, '', '/');
     window.dispatchEvent(new PopStateEvent('popstate'));
 };
 

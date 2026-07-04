@@ -99,21 +99,23 @@
             try
             {
                 var resolvedUrl = await JS.InvokeAsync<string>("nmuFunctions.resolveDirectUrl", fileUrl);
-                var blobUrl = await JS.InvokeAsync<string>("nmuFunctions.fetchPdfAsBlob", resolvedUrl);
+                _resolvedUrl = resolvedUrl;
+                _showLoader = false;
+                StateHasChanged();
 
+                var blobUrl = await JS.InvokeAsync<string>("nmuFunctions.fetchPdfAsBlob", resolvedUrl);
                 if (!string.IsNullOrEmpty(blobUrl))
                 {
                     _resolvedUrl = blobUrl;
+                    StateHasChanged();
+                    return;
                 }
-                else
-                {
-                    _resolvedUrl = resolvedUrl;
 
-                    var ua = await JS.InvokeAsync<string>("nmuFunctions.getUserAgent");
-                    if (ua.Contains("Chrome") || ua.Contains("Chromium"))
-                    {
-                        _fallbackUrl = resolvedUrl;
-                    }
+                var ua = await JS.InvokeAsync<string>("nmuFunctions.getUserAgent");
+                if (ua.Contains("Chrome") || ua.Contains("Chromium"))
+                {
+                    _fallbackUrl = resolvedUrl;
+                    StateHasChanged();
                 }
             }
             catch
