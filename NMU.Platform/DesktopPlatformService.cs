@@ -98,6 +98,18 @@ public class DesktopPlatformService : IPlatformService
         return Task.CompletedTask;
     }
 
+    public async Task OpenPdfAsync(byte[] pdfData, string fileName)
+    {
+#if ANDROID
+        var path = Path.Combine(FileSystem.CacheDirectory, fileName);
+        await File.WriteAllBytesAsync(path, pdfData);
+        await Launcher.OpenAsync(new OpenFileRequest
+        {
+            File = new ReadOnlyFile(path, "application/pdf")
+        });
+#endif
+    }
+
 #if WINDOWS
     static Microsoft.UI.Xaml.Window? GetNativeWindow()
         => Application.Current?.Windows.FirstOrDefault()?.Handler?.PlatformView as Microsoft.UI.Xaml.Window;

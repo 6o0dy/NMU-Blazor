@@ -3,15 +3,39 @@
     top: 0;
     width: 100%;
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
     padding: 5px 25px;
     padding-top: calc(5px + var(--safe-area-top, env(safe-area-inset-top, 0px)));
     background: rgba(5, 11, 20, 0.3);
     backdrop-filter: blur(20px);
-    z-index: 100;
+    z-index: 20000;
     border-bottom: 1px solid rgba(0, 242, 255, 0.1);
     box-sizing: border-box;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.header-center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    justify-content: flex-end;
+    min-width: 0;
 }
 
 .header h2 {
@@ -49,7 +73,6 @@
     background: rgba(0, 242, 255, 0.05);
     border: 1px solid rgba(0, 242, 255, 0.2);
     color: var(--primary);
-    margin-left: 15px;
     border-radius: 8px;
     cursor: pointer;
     transition: 0.3s all ease;

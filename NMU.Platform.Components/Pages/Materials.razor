@@ -1,9 +1,91 @@
 @page "/materials"
+@using NMU.Platform.Components.Models
+@inject MaterialsService MaterialsService
+@inject StudentService StudentService
 @inject NavigationManager Navigation
+@inject NavigationState NavState
 
-<div class="placeholder-page" dir="ltr" lang="en">
-    <div class="placeholder-icon">🧠</div>
-    <h1>Study Materials</h1>
-    <p>Structure Programming, Mechanics...</p>
-    <button class="placeholder-btn" @onclick='() => Navigation.NavigateTo("/")'>Back to Home</button>
-</div>
+@if (_loading)
+{
+    <div class="loading-state">
+        <i class="fas fa-circle-notch fa-spin fa-2x" style="color:var(--primary)"></i>
+        <br /><br />Loading data...
+    </div>
+}
+else if (_error)
+{
+    <div class="loading-state" style="color:#ef4444;">
+        Failed to connect to server.
+        <br /><br />
+        <button class="placeholder-btn" @onclick="Reload">Retry</button>
+    </div>
+}
+else
+{
+    <div class="materials-container">
+        <div class="grid-view">
+            @for (int i = 0; i < _subjects.Count; i++)
+            {
+                var sub = _subjects[i];
+                var style = MaterialsService.GetMaterialStyle(sub);
+                <div class="subject-card" @onclick="() => OpenSubject(sub)"
+                     style="animation: fadeIn 0.5s ease forwards @(i * 0.1)s; opacity: 0;">
+                    <div class="card-icon @style.colorClass"><i class="@style.icon"></i></div>
+                    <div class="card-label">@sub.Replace("_", " ")</div>
+                </div>
+            }
+            @if (_noData)
+            {
+                <div style="color:#94a3b8; text-align:center; grid-column:1/-1; padding-top:50px;">
+                    No study materials available yet.
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _error;
+    private bool _noData;
+    private List<ArchiveFile> _allFiles = new();
+    private List<string> _subjects = new();
+    private string _studentLevel = "Level_1";
+    private string _studentSemester = "First_Term";
+
+    protected override async Task OnInitializedAsync()
+    {
+        NavState.PageTitle = "MATERIALS";
+        try
+        {
+            var student = await StudentService.GetStudentAsync();
+            if (student != null)
+            {
+                _studentLevel = student.AcademicLevel.Replace(" ", "_");
+                _studentSemester = student.Semester.Replace(" ", "_");
+            }
+
+            _allFiles = await MaterialsService.GetFilesAsync(_studentLevel, _studentSemester);
+            _subjects = MaterialsService.GetSubjects(_allFiles, _studentLevel, _studentSemester);
+            _noData = _subjects.Count == 0;
+        }
+        catch
+        {
+            _error = true;
+        }
+        _loading = false;
+    }
+
+    private void Reload()
+    {
+        _error = false;
+        _loading = true;
+        StateHasChanged();
+        _ = OnInitializedAsync();
+    }
+
+    private void OpenSubject(string subject)
+    {
+        Navigation.NavigateTo($"/materials/{Uri.EscapeDataString(subject)}");
+    }
+}

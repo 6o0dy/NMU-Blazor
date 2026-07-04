@@ -10,4 +10,5 @@ public class DefaultPlatformService : IPlatformService
     public Task ToggleFullScreenAsync() => Task.CompletedTask;
     public Task MinimizeAsync() => Task.CompletedTask;
     public Task CloseAsync() => Task.CompletedTask;
+    public Task OpenPdfAsync(byte[] pdfData, string fileName) => Task.CompletedTask;
 }

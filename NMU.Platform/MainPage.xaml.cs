@@ -13,7 +13,7 @@ public partial class MainPage : ContentPage
 		try
 		{
 			var webView = blazorWebView.Handler?.PlatformView as Android.Webkit.WebView;
-			webView?.EvaluateJavascript("window.history.back()", null);
+			webView?.EvaluateJavascript("window.__goHome()", null);
 		}
 		catch { }
 		return true;

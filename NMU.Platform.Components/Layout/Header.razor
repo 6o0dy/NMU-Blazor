@@ -5,9 +5,10 @@
 @inject IPlatformService Platform
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject NavigationState NavState
 
 <header class="header" dir="ltr" lang="en">
-    <div style="display: flex; align-items: center; gap: 10px;">
+    <div class="header-left">
         @if (!IsHome)
         {
             <button class="back-btn" @onclick="GoBack" title="Back">
@@ -17,16 +18,19 @@
         @if (IsHome)
         {
             <button class="info-btn" @onclick="GoToFeedback" title="About / Feedback">
-            <svg viewBox="0 0 24 24" width="22" height="22">
-                <path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="currentColor"/>
-            </svg>
-        </button>
+                <svg viewBox="0 0 24 24" width="22" height="22">
+                    <path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="currentColor"/>
+                </svg>
+            </button>
         }
-        <h2>NMU<span style="color: var(--primary);">-CE &amp; AIE</span></h2>
     </div>
 
-    <div style="display: flex; gap: 10px; align-items: center;">
-        @if (Platform.IsWeb)
+    <div class="header-center">
+        <h2>@NavState.PageTitle</h2>
+    </div>
+
+    <div class="header-right">
+        @if (Platform.IsWeb && IsHome)
         {
             <button class="download-btn" @onclick="DownloadApp">
                 <span>Download App</span>
@@ -89,10 +93,9 @@
         Navigation.LocationChanged -= OnLocationChanged;
     }
 
-    private async Task GoBack()
+    private void GoBack()
     {
-        try { await JS.InvokeVoidAsync("history.back"); }
-        catch { Navigation.NavigateTo("/"); }
+        Navigation.NavigateTo("/", replace: true);
     }
 
     private async Task ToggleFullscreen()

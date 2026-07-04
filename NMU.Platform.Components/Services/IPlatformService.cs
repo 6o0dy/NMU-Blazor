@@ -10,4 +10,5 @@ public interface IPlatformService
     Task ToggleFullScreenAsync();
     Task MinimizeAsync();
     Task CloseAsync();
+    Task OpenPdfAsync(byte[] pdfData, string fileName);
 }

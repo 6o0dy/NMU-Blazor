@@ -207,9 +207,18 @@
         catch { }
     }
 
-    private void GoToMaterials() => Navigation.NavigateTo("/materials");
-    private void GoToYouTube() => Navigation.NavigateTo("/youtube");
-    private void GoToRecorded() => Navigation.NavigateTo("/recorded");
-    private void GoToQuizzes() => Navigation.NavigateTo("/quizzes");
-    private void GoToLaboratory() => Navigation.NavigateTo("/laboratory");
+    private void NavigateTo(string url)
+    {
+        var baseUri = Navigation.BaseUri.TrimEnd('/');
+        var current = Navigation.Uri.TrimEnd('/');
+        var target = baseUri + url;
+        if (current == target) return;
+        Navigation.NavigateTo(url);
+    }
+
+    private void GoToMaterials() => NavigateTo("/materials");
+    private void GoToYouTube() => NavigateTo("/youtube");
+    private void GoToRecorded() => NavigateTo("/recorded");
+    private void GoToQuizzes() => NavigateTo("/quizzes");
+    private void GoToLaboratory() => NavigateTo("/laboratory");
 }

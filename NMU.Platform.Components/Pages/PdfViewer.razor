@@ -1,0 +1,153 @@
+﻿@page "/materials/{Subject}/viewer"
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject NavigationState NavState
+@inject HttpClient Http
+@inject IPlatformService Platform
+
+<div class="viewer-page">
+    <div id="pdf-loading-overlay" style="opacity: @(_showLoader ? "1" : "0"); display: @(_showLoader ? "flex" : "none");">
+        <div class="spinner-view"></div>
+        <div class="loading-text-viewer">@_loadingText</div>
+    </div>
+
+    @if (_useCanvas)
+    {
+        <div class="pdf-canvas-container" id="pdf-canvas-container">
+            <div id="pdf-pages"></div>
+        </div>
+    }
+    else
+    {
+        <div class="pdf-container">
+            <iframe class="pdf-frame" id="viewer-frame"
+                    src="@_resolvedUrl"
+                    style="touch-action: auto;">
+            </iframe>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(_fallbackUrl))
+    {
+        <button class="download-fallback" @onclick="OpenFallback">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" width="20" height="20">
+                <path d="M480-320 280-520l56-58 104 104v-320h80v320l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z" fill="currentColor"/>
+            </svg>
+            Open PDF
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter] public string Subject { get; set; } = "";
+
+    private string _resolvedUrl = "";
+    private string _fallbackUrl = "";
+    private string _loadingText = "ESTABLISHING CONNECTION...";
+    private bool _showLoader = true;
+    private bool _useCanvas;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var fileUrl = NavState.CurrentFileUrl ?? "";
+        var fileName = NavState.CurrentFileName ?? "";
+
+        if (string.IsNullOrEmpty(fileUrl))
+        {
+            Navigation.NavigateTo($"/materials/{Uri.EscapeDataString(Subject)}");
+            return;
+        }
+
+        NavState.PageTitle = fileName;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var fileUrl = NavState.CurrentFileUrl ?? "";
+
+        if (!Platform.IsWeb && !Platform.IsDesktop)
+        {
+            try
+            {
+                _useCanvas = true;
+                StateHasChanged();
+                _loadingText = "LOADING PDF...";
+                StateHasChanged();
+
+                var resolvedUrl = await JS.InvokeAsync<string>("nmuFunctions.resolveDirectUrl", fileUrl);
+                var bytes = await Http.GetByteArrayAsync(resolvedUrl);
+                var b64 = Convert.ToBase64String(bytes);
+                await JS.InvokeVoidAsync("nmuFunctions.renderPdfWithPdfJs", b64);
+            }
+            catch { }
+        }
+        else if (!Platform.IsWeb)
+        {
+            try
+            {
+                _resolvedUrl = await JS.InvokeAsync<string>("nmuFunctions.resolveDirectUrl", fileUrl);
+            }
+            catch
+            {
+                _resolvedUrl = fileUrl;
+            }
+        }
+        else
+        {
+            try
+            {
+                var resolvedUrl = await JS.InvokeAsync<string>("nmuFunctions.resolveDirectUrl", fileUrl);
+                var blobUrl = await JS.InvokeAsync<string>("nmuFunctions.fetchPdfAsBlob", resolvedUrl);
+
+                if (!string.IsNullOrEmpty(blobUrl))
+                {
+                    _resolvedUrl = blobUrl;
+                }
+                else
+                {
+                    _resolvedUrl = resolvedUrl;
+
+                    var ua = await JS.InvokeAsync<string>("nmuFunctions.getUserAgent");
+                    if (ua.Contains("Chrome") || ua.Contains("Chromium"))
+                    {
+                        _fallbackUrl = resolvedUrl;
+                    }
+                }
+            }
+            catch
+            {
+                _resolvedUrl = fileUrl;
+            }
+        }
+
+        StateHasChanged();
+
+        if (string.IsNullOrEmpty(_fallbackUrl) && !_useCanvas)
+        {
+            _ = HideLoaderAfterDelay();
+        }
+    }
+
+    private async Task HideLoaderAfterDelay()
+    {
+        await Task.Delay(2000);
+        _showLoader = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void Close()
+    {
+        _ = JS.InvokeVoidAsync("nmuFunctions.disablePinchZoom");
+        NavState.CurrentFileUrl = null;
+        NavState.CurrentFileName = null;
+        Navigation.NavigateTo($"/materials/{Uri.EscapeDataString(Subject)}");
+    }
+
+    private void OpenFallback()
+    {
+        if (!string.IsNullOrEmpty(_fallbackUrl))
+            Navigation.NavigateTo(_fallbackUrl);
+    }
+}
