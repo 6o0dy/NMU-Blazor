@@ -4,7 +4,18 @@ namespace NMU.Platform;
 
 public class DesktopPlatformService : IPlatformService
 {
-    public bool IsDesktop => true;
+    public bool IsWeb => false;
+    public bool IsDesktop
+    {
+        get
+        {
+#if WINDOWS || MACCATALYST
+            return true;
+#else
+            return false;
+#endif
+        }
+    }
     public bool IsFullScreen { get; private set; }
     public event Action? FullScreenChanged;
 

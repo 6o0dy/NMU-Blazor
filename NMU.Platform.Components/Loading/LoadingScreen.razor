@@ -1,7 +1,24 @@
 <div id="loading-screen" style="display: @(IsVisible ? "flex" : "none")">
-    <div class="check-text">جاري فحص البيانات...</div>
-    <div class="glow-line-container">
-        <div class="glow-line"></div>
+    <div class="loader-container">
+        <div class="loader-ring"></div>
+        <svg class="loader-ring-svg" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="var(--primary)" stroke-width="4"
+                    stroke-linecap="round"
+                    stroke-dasharray="326.7" stroke-dashoffset="326.7"
+                    transform="rotate(-90, 60, 60)">
+                <animate attributeName="stroke-dashoffset" from="326.7" to="0" dur="3s" fill="freeze" />
+            </circle>
+        </svg>
+        <div class="loader-logo">
+            <img src="_content/NMU.Platform.Components/logo.png" alt="NMU-CE & AIE" />
+        </div>
+        <div class="loader-glow"></div>
+    </div>
+    <div class="loader-text">
+        <span class="loader-text-label">جاري فحص البيانات</span>
+        <span class="loader-dots">
+            <span>.</span><span>.</span><span>.</span>
+        </span>
     </div>
 </div>
 
@@ -14,7 +31,7 @@
     {
         if (!firstRender || completed || !IsVisible) return;
         completed = true;
-        await Task.Delay(1500);
+        await Task.Delay(3000);
         if (OnComplete.HasDelegate)
         {
             await OnComplete.InvokeAsync();

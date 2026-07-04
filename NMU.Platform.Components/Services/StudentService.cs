@@ -32,6 +32,15 @@ public class StudentService
         catch { }
     }
 
+    public async Task DeleteStudentAsync()
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("localStorage.removeItem", StorageKey);
+        }
+        catch { }
+    }
+
     public async Task<bool> HasStudentDataAsync()
     {
         var s = await GetStudentAsync();

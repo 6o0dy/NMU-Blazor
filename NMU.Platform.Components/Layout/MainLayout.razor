@@ -1,7 +1,91 @@
+@using NMU.Platform.Components.Services
+@using NMU.Platform.Components.Loading
+@using NMU.Platform.Components.Setup
+@using NMU.Platform.Components.Models
+@implements IDisposable
 @inherits LayoutComponentBase
+@inject StudentService StudentService
+@inject IPlatformService Platform
 
 <Header />
 
-<div class="page-container">
-    @Body
-</div>
+@if (showLoading)
+{
+    <LoadingScreen IsVisible="true" OnComplete="@OnLoadingDone" />
+}
+else if (showSetup)
+{
+    <SetupModal IsVisible="true" OnSave="@OnSetupSaved" />
+}
+else
+{
+    <div class="page-container">
+        @Body
+    </div>
+}
+
+@code {
+    private static bool _initialLoadDone;
+    private bool showLoading;
+    private bool showSetup;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Platform.IsDesktop)
+            Platform.FullScreenChanged += OnFullScreenChanged;
+
+        if (_initialLoadDone)
+        {
+            try
+            {
+                var hasStudent = await StudentService.HasStudentDataAsync();
+                if (!hasStudent)
+                    showSetup = true;
+            }
+            catch
+            {
+                showSetup = true;
+            }
+            return;
+        }
+
+        showLoading = true;
+        _initialLoadDone = true;
+    }
+
+    private async Task OnLoadingDone()
+    {
+        await Task.Delay(500);
+        try
+        {
+            var hasStudent = await StudentService.HasStudentDataAsync();
+            if (hasStudent)
+                showLoading = false;
+            else
+            {
+                showLoading = false;
+                showSetup = true;
+            }
+        }
+        catch
+        {
+            showLoading = false;
+            showSetup = true;
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnSetupSaved()
+    {
+        showSetup = false;
+        StateHasChanged();
+    }
+
+    private void OnFullScreenChanged() => StateHasChanged();
+
+    public void Dispose()
+    {
+        if (Platform.IsDesktop)
+            Platform.FullScreenChanged -= OnFullScreenChanged;
+    }
+}

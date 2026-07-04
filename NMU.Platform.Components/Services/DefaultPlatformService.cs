@@ -3,6 +3,7 @@ namespace NMU.Platform.Components.Services;
 public class DefaultPlatformService : IPlatformService
 {
     public bool IsDesktop => false;
+    public bool IsWeb => true;
     public bool IsFullScreen => false;
     public event Action? FullScreenChanged { add { } remove { } }
     public Task ToggleMaximizeAsync() => Task.CompletedTask;

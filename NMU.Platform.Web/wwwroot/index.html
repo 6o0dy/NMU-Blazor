@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>NMU-CE &amp; AIE</title>
     <base href="/" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,25 +16,34 @@
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/modal.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/header.css" />
 
+    <link rel="stylesheet" href="_content/NMU.Platform.Components/css/home.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/welcome.css" />
     <link rel="stylesheet" href="NMU.Platform.Web.styles.css" />
-    <link rel="icon" href="data:,">
+    <link rel="icon" href="favicon.ico">
+
+    <style>
+        #loading-placeholder {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            background: #0a0a0f; z-index: 9999;
+        }
+        #loading-placeholder img { width: 80px; height: 80px; margin-bottom: 20px; }
+        #loading-placeholder span {
+            font-family: 'Cairo', sans-serif; font-size: 22px;
+            font-weight: 800; color: #00f2ff;
+        }
+    </style>
 </head>
 
 <body>
     <div id="app">
-        <svg class="loading-progress">
-            <circle r="40%" cx="50%" cy="50%" />
-            <circle r="40%" cx="50%" cy="50%" />
-        </svg>
-        <div class="loading-progress-text"></div>
+        <div id="loading-placeholder">
+            <img src="_content/NMU.Platform.Components/logo.png" alt="NMU-CE &amp; AIE" />
+            <span>NMU-CE &amp; AIE</span>
+        </div>
     </div>
 
-    <div id="blazor-error-ui">
-        An unhandled error has occurred.
-        <a href="." class="reload">Reload</a>
-        <span class="dismiss">🗙</span>
-    </div>
     <script src="_content/NMU.Platform.Components/js/app.js"></script>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
 </body>

@@ -1,94 +1,215 @@
 @page "/"
 @using NMU.Platform.Components.Models
 @using NMU.Platform.Components.Services
-@using NMU.Platform.Components.Loading
-@using NMU.Platform.Components.Setup
 @inject StudentService StudentService
+@inject NavigationManager Navigation
+@inject IPlatformService Platform
 
-<LoadingScreen IsVisible="@showLoading" OnComplete="@OnLoadingDone" />
-
-@if (showSetup)
+@if (currentStudent != null)
 {
-    <SetupModal IsVisible="true" OnSave="@OnSetupSaved" />
-}
-
-@if (showWelcome && currentStudent != null)
-{
-    <div class="page-container" dir="ltr" lang="en">
-        <div class="welcome-header">
-            <h1>Welcome to NMU Platform</h1>
-            <div class="welcome-subtitle">Hello @currentStudent.Name!</div>
+    <div class="home-container">
+        <div class="hero-section">
+            <div class="hero-glow"></div>
+            <h1 dir="rtl" lang="ar">
+                مرحباً بك يا
+                <span class="hero-name">@currentStudent.Name</span>
+                🚀
+            </h1>
+            <p>&lt; Everything you need is here /&gt;</p>
         </div>
 
-        <div class="card-grid">
-            <a class="card-item" href="#">
-                <div class="card-icon blue">📄</div>
-                <div class="card-text">
-                    <h2>PDF Library</h2>
-                    <p>Access your course materials</p>
+        <div class="grid">
+            <div class="card card-full" @onclick="GoToMaterials">
+                <div class="card-icon">🧠</div>
+                <div class="text-content">
+                    <div class="card-title">Study Materials</div>
+                    <div class="card-desc">Structure Programming, Mechanics...</div>
                 </div>
-            </a>
+            </div>
 
-            <a class="card-item" href="#">
-                <div class="card-icon purple">🎬</div>
-                <div class="card-text">
-                    <h2>Videos</h2>
-                    <p>Watch educational content</p>
-                </div>
-            </a>
+            <div class="card" @onclick="GoToYouTube">
+                <div class="card-icon">🤖</div>
+                <div class="card-title">YouTube Videos</div>
+                <div class="card-desc">Explanations From YouTube</div>
+            </div>
 
-            <a class="card-item" href="#">
-                <div class="card-icon red">📝</div>
-                <div class="card-text">
-                    <h2>Quizzes</h2>
-                    <p>Test your knowledge</p>
+            <div class="card" @onclick="GoToRecorded">
+                <div class="card-icon">💾</div>
+                <div class="card-title">Recorded Lecturer</div>
+                <div class="card-desc">Videos And Audio Recordings</div>
+            </div>
+
+            <div class="card" @onclick="GoToQuizzes">
+                <div class="card-icon">⚡</div>
+                <div class="card-title">Tests</div>
+                <div class="card-desc">Test Your Skills</div>
+            </div>
+
+            <div class="card" @onclick="GoToLaboratory">
+                <div class="card-icon">🔌</div>
+                <div class="card-title">Laboratory</div>
+                <div class="card-desc">Some practical experiments</div>
+            </div>
+        </div>
+
+        <div class="fab-wrapper @(fabActive ? "active" : "")" id="main-fab">
+            <button class="fab-main" @onclick="ToggleFab" aria-label="setting">
+                <i class="fas fa-plus"></i>
+            </button>
+            <div class="fab-menu">
+                <div class="fab-item" @onclick="OpenWhatsApp" title="WhatsApp">
+                    <i class="fab fa-whatsapp"></i>
                 </div>
-            </a>
+                <div class="fab-item" @onclick="GoToFeedback" title="Evaluation">
+                    <i class="fas fa-star"></i>
+                </div>
+                <div class="fab-item" @onclick="OpenManageModal" title="My Data">
+                    <i class="fas fa-user-shield"></i>
+                </div>
+            </div>
         </div>
     </div>
+
+    @if (showManageModal)
+    {
+        <div class="custom-modal" dir="ltr" id="manage-modal" style="display: flex;">
+            <div class="modal-card">
+                <button class="close-modal" @onclick="CloseManageModal">&times;</button>
+                <h2>YOUR INFORMATION</h2>
+
+                <div class="field-group">
+                    <label>Your Name</label>
+                    <input type="text" id="edit-name" @bind="editName" disabled="@(!isEditing)" placeholder="Enter name" />
+                </div>
+
+                <div class="field-group">
+                    <label>Academic Level</label>
+                    <select id="edit-year" @bind="editYear" disabled="@(!isEditing)">
+                        <option value="Level 1">Level 1</option>
+                        <option value="Level 2">Level 2</option>
+                        <option value="Level 3">Level 3</option>
+                    </select>
+                </div>
+
+                <div class="field-group">
+                    <label>The Semester</label>
+                    <div class="edit-term-container">
+                        <div class="term-radio @(editTerm == "Semester 1" ? "selected" : "")"
+                             @onclick='() => { if (isEditing) editTerm = "Semester 1"; }'>
+                            Semester 1
+                        </div>
+                        <div class="term-radio @(editTerm == "Semester 2" ? "selected" : "")"
+                             @onclick='() => { if (isEditing) editTerm = "Semester 2"; }'>
+                            Semester 2
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="action-btn @(isEditing ? "save-mode" : "edit-mode")" @onclick="HandleEditSave">
+                        @(isEditing ? "Save Changes" : "Change")
+                    </button>
+                    <button class="action-btn delete-mode" @onclick="DeleteProfile">Delete Data</button>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @code {
-    private bool showLoading = true;
-    private bool showSetup = false;
-    private bool showWelcome = false;
     private StudentProfile? currentStudent;
+    private bool fabActive;
+    private bool showManageModal;
+    private bool isEditing;
 
-    private async Task OnLoadingDone()
-    {
-        await Task.Delay(500);
-        try
-        {
-            var hasStudent = await StudentService.HasStudentDataAsync();
-            if (hasStudent)
-            {
-                currentStudent = await StudentService.GetStudentAsync();
-                showLoading = false;
-                showWelcome = true;
-            }
-            else
-            {
-                showLoading = false;
-                showSetup = true;
-            }
-        }
-        catch
-        {
-            showLoading = false;
-            showSetup = true;
-        }
-        StateHasChanged();
-    }
+    private string editName = "";
+    private string editYear = "Level 1";
+    private string editTerm = "Semester 1";
 
-    private async Task OnSetupSaved()
+    protected override async Task OnInitializedAsync()
     {
         try
         {
             currentStudent = await StudentService.GetStudentAsync();
         }
         catch { }
-        showSetup = false;
-        showWelcome = true;
+    }
+
+    private void ToggleFab() => fabActive = !fabActive;
+
+    private void OpenWhatsApp()
+    {
+        fabActive = false;
+        var url = "https://wa.me/201029691937";
+        if (Platform.IsDesktop)
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
+        else
+            Navigation.NavigateTo(url);
+    }
+
+    private void GoToFeedback()
+    {
+        fabActive = false;
+        Navigation.NavigateTo("/feedback");
+    }
+
+    private void OpenManageModal()
+    {
+        fabActive = false;
+        if (currentStudent != null)
+        {
+            editName = currentStudent.Name;
+            editYear = currentStudent.AcademicLevel;
+            editTerm = currentStudent.Semester;
+            showManageModal = true;
+        }
+    }
+
+    private void CloseManageModal()
+    {
+        showManageModal = false;
+        isEditing = false;
+    }
+
+    private async Task HandleEditSave()
+    {
+        if (!isEditing)
+        {
+            isEditing = true;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editName) || editName.Length < 3)
+            return;
+
+        var updated = new StudentProfile
+        {
+            Name = editName,
+            AcademicLevel = editYear,
+            Semester = editTerm
+        };
+
+        await StudentService.SaveStudentAsync(updated);
+        currentStudent = updated;
+        showManageModal = false;
+        isEditing = false;
         StateHasChanged();
     }
+
+    private async Task DeleteProfile()
+    {
+        try
+        {
+            await StudentService.DeleteStudentAsync();
+            currentStudent = null;
+            Navigation.NavigateTo("/", true);
+        }
+        catch { }
+    }
+
+    private void GoToMaterials() => Navigation.NavigateTo("/materials");
+    private void GoToYouTube() => Navigation.NavigateTo("/youtube");
+    private void GoToRecorded() => Navigation.NavigateTo("/recorded");
+    private void GoToQuizzes() => Navigation.NavigateTo("/quizzes");
+    private void GoToLaboratory() => Navigation.NavigateTo("/laboratory");
 }

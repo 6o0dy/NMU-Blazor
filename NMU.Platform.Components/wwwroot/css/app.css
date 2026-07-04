@@ -5,7 +5,7 @@ body {
     background-image: linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px), radial-gradient(circle at 50% 0%, #1a2c4e 0%, var(--bg-main) 80%);
     background-size: 40px 40px, 40px 40px, 100% 100%; background-attachment: fixed;
     -webkit-user-select: none; user-select: none;
-    padding-top: 60px;
+    padding-top: calc(50px + var(--safe-area-top, env(safe-area-inset-top, 0px)));
 }
 body::-webkit-scrollbar { width: 6px; }
 body::-webkit-scrollbar-track { background: var(--bg-main); }
@@ -13,4 +13,23 @@ body::-webkit-scrollbar-thumb {
     background: var(--primary);
     border-radius: 10px;
     box-shadow: 0 0 10px var(--primary);
+}
+
+.placeholder-page {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: 50vh; text-align: center;
+    gap: 15px;
+}
+.placeholder-icon { font-size: 4rem; }
+.placeholder-page h1 { color: white; font-weight: 700; margin: 0; }
+.placeholder-page p { color: var(--text-secondary); margin: 0; font-size: 1rem; }
+.placeholder-btn {
+    background: transparent; border: 1px solid var(--primary);
+    color: var(--primary); padding: 10px 25px; border-radius: 10px;
+    font-weight: 700; cursor: pointer; transition: 0.3s; margin-top: 10px;
+}
+.placeholder-btn:hover {
+    background: var(--primary); color: #000;
+    box-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
 }

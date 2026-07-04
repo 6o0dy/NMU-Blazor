@@ -1,10 +1,15 @@
 @using NMU.Platform.Components.Services
 @inject StudentService StudentService
+@inject IPlatformService Platform
 
 @if (IsVisible)
 {
     <div id="setup-modal" dir="ltr" lang="en">
         <div class="setup-card">
+            @if (Platform.IsDesktop)
+            {
+                <button class="close-setup" @onclick="CloseApp">&times;</button>
+            }
             <h2>THE INFORMATION</h2>
             <div class="field-group">
                 <label>Your Name</label>
@@ -25,14 +30,14 @@
                 <div class="term-tiles">
                     <label class="tile-item">
                         <input type="radio" name="term-select" value="Semester 1"
-                               checked="@(semester == "Semester 1")"
-                               @onchange="() => semester = Semester1" />
+                               checked="@(semester == Sem1)"
+                               @onchange="() => semester = Sem1" />
                         <span class="tile-btn">Semester 1</span>
                     </label>
                     <label class="tile-item">
                         <input type="radio" name="term-select" value="Semester 2"
-                               checked="@(semester == "Semester 2")"
-                               @onchange="() => semester = Semester2" />
+                               checked="@(semester == Sem2)"
+                               @onchange="() => semester = Sem2" />
                         <span class="tile-btn">Semester 2</span>
                     </label>
                 </div>
@@ -49,8 +54,14 @@
     private string studentName = string.Empty;
     private string academicLevel = "Level 1";
     private string semester = string.Empty;
-    private const string Semester1 = "Semester 1";
-    private const string Semester2 = "Semester 2";
+
+    const string Sem1 = "Semester 1";
+    const string Sem2 = "Semester 2";
+
+    private async Task CloseApp()
+    {
+        await Platform.CloseAsync();
+    }
 
     private async Task SaveData()
     {

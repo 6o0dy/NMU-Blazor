@@ -39,7 +39,7 @@ public partial class App : Application
 				RemoveTitleBar(nativeWindow);
 
 				var t = new Microsoft.UI.Xaml.DispatcherTimer();
-				t.Interval = TimeSpan.FromMilliseconds(800);
+				t.Interval = TimeSpan.FromMilliseconds(300);
 				t.Tick += (_, _) => { t.Stop(); RemoveTitleBar(nativeWindow); };
 				t.Start();
 			}
