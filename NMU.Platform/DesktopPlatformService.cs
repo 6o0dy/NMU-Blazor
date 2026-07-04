@@ -110,6 +110,30 @@ public class DesktopPlatformService : IPlatformService
 #endif
     }
 
+    public async Task DownloadFileAsync(string url, string fileName)
+    {
+#if ANDROID
+        try
+        {
+            using var client = new HttpClient();
+            var bytes = await client.GetByteArrayAsync(url);
+
+            var intent = new Android.Content.Intent(Android.Content.Intent.ActionCreateDocument);
+            intent.AddCategory(Android.Content.Intent.CategoryOpenable);
+            intent.SetType("application/pdf");
+            intent.PutExtra(Android.Content.Intent.ExtraTitle, fileName ?? "document.pdf");
+
+            var resultUri = await MainActivity.StartSaveFileIntent(intent);
+            if (resultUri == null) return;
+
+            using var stream = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.ContentResolver?.OpenOutputStream(resultUri);
+            if (stream == null) return;
+            await stream.WriteAsync(bytes, 0, bytes.Length);
+        }
+        catch { }
+#endif
+    }
+
 #if WINDOWS
     static Microsoft.UI.Xaml.Window? GetNativeWindow()
         => Application.Current?.Windows.FirstOrDefault()?.Handler?.PlatformView as Microsoft.UI.Xaml.Window;

@@ -66,21 +66,53 @@
                 <i class="fas fa-expand"></i>
             </button>
         }
+        @if (!Platform.IsWeb && !Platform.IsDesktop && NavState.CurrentFileUrl != null)
+        {
+            <button class="icon-btn" @onclick="DownloadCurrentFile" title="Download">
+                <i class="fas fa-download"></i>
+            </button>
+        }
     </div>
 </header>
 
 @code {
     private bool IsHome => Navigation.Uri.TrimEnd('/').EndsWith("/") || Navigation.Uri.EndsWith("/");
 
+    private readonly Stack<string> _navStack = new();
+    private bool _isGoingBack;
+    private string _prevPath = "";
+
     protected override void OnInitialized()
     {
         if (Platform.IsDesktop)
             Platform.FullScreenChanged += OnFullScreenChanged;
         Navigation.LocationChanged += OnLocationChanged;
+        _prevPath = Navigation.ToBaseRelativePath(Navigation.Uri).TrimEnd('/');
+        if (_prevPath == "") _prevPath = "/";
     }
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
+        var newPath = Navigation.ToBaseRelativePath(e.Location).TrimEnd('/');
+        if (newPath == "") newPath = "/";
+
+        if (!_isGoingBack && _prevPath != newPath && _prevPath != "")
+        {
+            var pp = _prevPath.Trim('/').Split('/');
+            var isViewer = pp.Length >= 3 && pp[0] == "materials" && pp[^1] == "viewer";
+            if (!(isViewer && NavState.CurrentFileUrl == null))
+                _navStack.Push(_prevPath);
+        }
+
+        _isGoingBack = false;
+        _prevPath = newPath;
+
+        var parts = newPath.Split('/');
+        if (!(parts.Length >= 3 && parts[0] == "materials" && parts[^1] == "viewer"))
+        {
+            NavState.CurrentFileUrl = null;
+            NavState.CurrentFileName = null;
+        }
         StateHasChanged();
     }
 
@@ -95,7 +127,28 @@
 
     private void GoBack()
     {
-        Navigation.NavigateTo("/", replace: true);
+        while (_navStack.Count > 0)
+        {
+            var target = _navStack.Pop();
+            var parts = target.Trim('/').Split('/');
+            var isViewer = parts.Length >= 3 && parts[0] == "materials" && parts[^1] == "viewer";
+            if (isViewer && NavState.CurrentFileUrl == null)
+                continue;
+            NavState.CurrentFileUrl = null;
+            NavState.CurrentFileName = null;
+            _isGoingBack = true;
+            Navigation.NavigateTo(target, replace: true);
+            return;
+        }
+        NavState.CurrentFileUrl = null;
+        NavState.CurrentFileName = null;
+        _isGoingBack = true;
+        var cur = Navigation.ToBaseRelativePath(Navigation.Uri).TrimEnd('/');
+        var segs = cur.Split('/');
+        if (segs.Length >= 2 && segs[0] == "materials")
+            Navigation.NavigateTo("/materials", replace: true);
+        else
+            Navigation.NavigateTo("/");
     }
 
     private async Task ToggleFullscreen()
@@ -109,6 +162,14 @@
     private async Task ToggleMaximize() => await Platform.ToggleMaximizeAsync();
     private async Task Minimize() => await Platform.MinimizeAsync();
     private async Task CloseApp() => await Platform.CloseAsync();
+
+    private async Task DownloadCurrentFile()
+    {
+        var url = NavState.CurrentFileUrl;
+        var name = NavState.CurrentFileName ?? "document.pdf";
+        if (!string.IsNullOrEmpty(url))
+            await Platform.DownloadFileAsync(url, name);
+    }
 
     private void GoToFeedback() => Navigation.NavigateTo("/feedback");
 

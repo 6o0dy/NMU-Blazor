@@ -4,6 +4,7 @@
 @inject StudentService StudentService
 @inject NavigationManager Navigation
 @inject IPlatformService Platform
+@inject NavigationState NavState
 
 @if (currentStudent != null)
 {
@@ -128,6 +129,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        NavState.PageTitle = "NMU-CE & AIE";
         try
         {
             currentStudent = await StudentService.GetStudentAsync();

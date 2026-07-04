@@ -1,24 +1,24 @@
-// تعطيل أزرار المتصفح بالكامل
+// منع تكرار الـ history و منع باك/فورورد المتصفح خالص
 (function() {
-    var allowNext = false;
+    var _appUrl = location.href;
 
-    history.back = function() {};
-    history.forward = function() {};
-    history.go = function() {};
+    history.pushState = function(d, t, u) {
+        if (u) _appUrl = u;
+        history.replaceState(d, t, u);
+    };
 
     window.addEventListener('popstate', function() {
-        if (allowNext) { allowNext = false; return; }
-        history.pushState(null, '');
+        if (location.href !== _appUrl)
+            history.replaceState(null, '', _appUrl);
     });
-
-    // Android back → يروح للهوم عبر Blazor
-    window.__goHome = function() {
-        if (document.location.pathname === '/') return;
-        allowNext = true;
-        history.replaceState(null, '', '/');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-    };
 })();
+
+// Android hardware back → يروح للهوم
+window.__goHome = function() {
+    if (document.location.pathname === '/') return;
+    history.replaceState(null, '', '/');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+};
 
 window.nmuFunctions = {
     toggleFullScreen: function () {
@@ -59,58 +59,6 @@ window.nmuFunctions = {
             .catch(function () {
                 return downloadUrl;
             });
-    },
-
-    downloadFile: function (url, fileName) {
-        var btn = document.getElementById('download-fab');
-        var originalContent = btn ? btn.innerHTML : '';
-        if (btn) {
-            btn.innerHTML = '<div style="width:24px;height:24px;border:3px solid var(--primary);border-top-color:transparent;border-radius:50%;animation:spin-anim 1s linear infinite;"></div>';
-            btn.style.pointerEvents = 'none';
-        }
-
-        var doDownload = function (directUrl) {
-            fetch(directUrl)
-                .then(function (res) {
-                    if (!res.ok) throw new Error('Network response was not ok');
-                    return res.blob();
-                })
-                .then(function (blob) {
-                    var a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
-                    a.download = fileName || 'document.pdf';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(a.href);
-                    if (btn) { btn.innerHTML = originalContent; btn.style.pointerEvents = 'auto'; }
-                })
-                .catch(function () {
-                    window.open(directUrl, '_blank');
-                    if (btn) { btn.innerHTML = originalContent; btn.style.pointerEvents = 'auto'; }
-                });
-        };
-
-        var parts = url.split('/download/');
-        if (parts.length > 1) {
-            var rest = parts[1].split('/');
-            var itemName = rest[0];
-            var filePath = rest.slice(1).join('/');
-
-            fetch('https://archive.org/metadata/' + itemName)
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    var server = data.d1 || (data.workable_servers && data.workable_servers[0]) || 'ia800100.us.archive.org';
-                    var dir = data.dir || '';
-                    var cleanDir = dir.startsWith('/') ? dir : '/' + dir;
-                    doDownload('https://' + server + cleanDir + '/' + filePath);
-                })
-                .catch(function () {
-                    doDownload(url);
-                });
-        } else {
-            doDownload(url);
-        }
     },
 
     enablePinchZoom: function () {
