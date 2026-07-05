@@ -68,8 +68,8 @@
         }
         @if (!Platform.IsWeb && !Platform.IsDesktop && NavState.CurrentFileUrl != null)
         {
-            <button class="icon-btn" @onclick="DownloadCurrentFile" title="Download" disabled="@_isDownloading">
-                <i class="fas @(_isDownloading ? "fa-spinner fa-spin" : "fa-download")"></i>
+            <button class="icon-btn" @onclick="DownloadCurrentFile" title="Download">
+                <i class="fas fa-download"></i>
             </button>
         }
     </div>
@@ -80,7 +80,6 @@
 
     private readonly Stack<string> _navStack = new();
     private bool _isGoingBack;
-    private bool _isDownloading;
     private string _prevPath = "";
 
     protected override void OnInitialized()
@@ -166,21 +165,10 @@
 
     private async Task DownloadCurrentFile()
     {
-        if (_isDownloading) return;
-        _isDownloading = true;
-        StateHasChanged();
-        try
-        {
-            var url = NavState.CurrentFileUrl;
-            var name = NavState.CurrentFileName ?? "document.pdf";
-            if (!string.IsNullOrEmpty(url))
-                await Platform.DownloadFileAsync(url, name);
-        }
-        finally
-        {
-            _isDownloading = false;
-            StateHasChanged();
-        }
+        var url = NavState.CurrentFileUrl;
+        var name = NavState.CurrentFileName ?? "document.pdf";
+        if (!string.IsNullOrEmpty(url))
+            await Platform.DownloadFileAsync(url, name);
     }
 
     private void GoToFeedback() => Navigation.NavigateTo("/feedback");

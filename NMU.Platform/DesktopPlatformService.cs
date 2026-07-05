@@ -115,6 +115,9 @@ public class DesktopPlatformService : IPlatformService
 #if ANDROID
         try
         {
+            using var client = new HttpClient();
+            var bytes = await client.GetByteArrayAsync(url);
+
             var intent = new Android.Content.Intent(Android.Content.Intent.ActionCreateDocument);
             intent.AddCategory(Android.Content.Intent.CategoryOpenable);
             intent.SetType("application/pdf");
@@ -122,9 +125,6 @@ public class DesktopPlatformService : IPlatformService
 
             var resultUri = await MainActivity.StartSaveFileIntent(intent);
             if (resultUri == null) return;
-
-            using var client = new HttpClient();
-            var bytes = await client.GetByteArrayAsync(url);
 
             using var stream = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.ContentResolver?.OpenOutputStream(resultUri);
             if (stream == null) return;
