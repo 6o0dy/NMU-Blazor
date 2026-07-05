@@ -28,8 +28,7 @@ else
             {
                 var sub = _subjects[i];
                 var style = MaterialsService.GetMaterialStyle(sub);
-                <div class="subject-card" @onclick="() => OpenSubject(sub)"
-                     style="animation: fadeIn 0.5s ease forwards @(i * 0.1)s; opacity: 0;">
+                <div class="subject-card" @onclick="() => OpenSubject(sub)">
                     <div class="card-icon @style.colorClass"><i class="@style.icon"></i></div>
                     <div class="card-label">@sub.Replace("_", " ")</div>
                 </div>

@@ -153,6 +153,15 @@ window.nmuFunctions = {
         });
     },
 
+    getViewerUrl: function (downloadUrl) {
+        var isAndroid = /Android/i.test(navigator.userAgent);
+        var isChrome = /Chrome|Chromium/i.test(navigator.userAgent) || /Google Inc/i.test(navigator.vendor);
+        if (!(isAndroid && isChrome)) return Promise.resolve('');
+        return this.resolveDirectUrl(downloadUrl).then(function (directUrl) {
+            return 'https://docs.google.com/viewer?url=' + encodeURIComponent(directUrl) + '&embedded=true';
+        });
+    },
+
     fetchPdfAsBlob: function (url) {
         var proxies = [
             'https://corsproxy.io/?url=' + encodeURIComponent(url),
