@@ -1,4 +1,4 @@
-.page-container { max-width: 800px; margin: 0 auto; padding: 10px 20px 20px; flex: 1; display: flex; flex-direction: column; }
+.page-container { max-width: 800px; margin: 0 auto; padding: 10px 20px 20px; display: flex; flex-direction: column; }
 .welcome-header { text-align: center; margin-bottom: 35px; }
 .welcome-header h1 { color: var(--primary); font-size: 34px; font-weight: 900; margin: 0; text-shadow: 0 0 25px rgba(0, 242, 255, 0.25); }
 .welcome-subtitle { text-align: center; color: var(--text-secondary); font-size: 15px; margin-top: 10px; }

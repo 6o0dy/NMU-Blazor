@@ -6,6 +6,7 @@ public class DefaultPlatformService : IPlatformService
     public bool IsWeb => true;
     public bool IsFullScreen => false;
     public event Action? FullScreenChanged { add { } remove { } }
+    public Task DragMoveAsync() => Task.CompletedTask;
     public Task ToggleMaximizeAsync() => Task.CompletedTask;
     public Task ToggleFullScreenAsync() => Task.CompletedTask;
     public Task MinimizeAsync() => Task.CompletedTask;

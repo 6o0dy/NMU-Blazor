@@ -14,8 +14,9 @@ public partial class App : Application
 	static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
 	const int GWL_STYLE = -16;
-	const int WS_CAPTION = 0x00C00000;
 	const int WS_SYSMENU = 0x00080000;
+	const int WS_MINIMIZEBOX = 0x00020000;
+	const int WS_MAXIMIZEBOX = 0x00010000;
 
 	const int SWP_NOMOVE = 0x0002;
 	const int SWP_NOSIZE = 0x0001;
@@ -29,18 +30,18 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		var window = new Window(new MainPage()) { Title = "NMU.Platform" };
+		var window = new Window(new MainPage()) { Title = "" };
 
 		window.HandlerChanged += (s, e) =>
 		{
 #if WINDOWS
 			if (window.Handler?.PlatformView is Microsoft.UI.Xaml.Window nativeWindow)
 			{
-				RemoveTitleBar(nativeWindow);
+				HideTitleBarLogo(nativeWindow);
 
 				var t = new Microsoft.UI.Xaml.DispatcherTimer();
 				t.Interval = TimeSpan.FromMilliseconds(300);
-				t.Tick += (_, _) => { t.Stop(); RemoveTitleBar(nativeWindow); };
+				t.Tick += (_, _) => { t.Stop(); HideTitleBarLogo(nativeWindow); };
 				t.Start();
 			}
 #endif
@@ -50,7 +51,7 @@ public partial class App : Application
 	}
 
 #if WINDOWS
-	internal static void RemoveTitleBar(Microsoft.UI.Xaml.Window? nativeWindow)
+	internal static void HideTitleBarLogo(Microsoft.UI.Xaml.Window? nativeWindow)
 	{
 		try
 		{
@@ -58,10 +59,26 @@ public partial class App : Application
 			nativeWindow.ExtendsContentIntoTitleBar = true;
 
 			var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(nativeWindow);
+			var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
+			var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+
+			var titleBar = appWindow.TitleBar;
+			titleBar.ExtendsContentIntoTitleBar = true;
+			titleBar.PreferredHeightOption = Microsoft.UI.Windowing.TitleBarHeightOption.Collapsed;
+
+			titleBar.ButtonBackgroundColor = Microsoft.UI.Colors.Transparent;
+			titleBar.ButtonForegroundColor = Microsoft.UI.Colors.Transparent;
+			titleBar.ButtonInactiveBackgroundColor = Microsoft.UI.Colors.Transparent;
+			titleBar.ButtonInactiveForegroundColor = Microsoft.UI.Colors.Transparent;
+			titleBar.ButtonHoverBackgroundColor = Microsoft.UI.Colors.Transparent;
+			titleBar.ButtonHoverForegroundColor = Microsoft.UI.Colors.Transparent;
+			titleBar.ButtonPressedBackgroundColor = Microsoft.UI.Colors.Transparent;
+			titleBar.ButtonPressedForegroundColor = Microsoft.UI.Colors.Transparent;
 
 			var style = GetWindowLong(hwnd, GWL_STYLE);
-			style &= ~WS_CAPTION;
 			style &= ~WS_SYSMENU;
+			style &= ~WS_MINIMIZEBOX;
+			style &= ~WS_MAXIMIZEBOX;
 			SetWindowLong(hwnd, GWL_STYLE, style);
 
 			SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);

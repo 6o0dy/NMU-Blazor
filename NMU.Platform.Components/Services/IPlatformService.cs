@@ -6,6 +6,7 @@ public interface IPlatformService
     bool IsWeb { get; }
     bool IsFullScreen { get; }
     event Action? FullScreenChanged;
+    Task DragMoveAsync();
     Task ToggleMaximizeAsync();
     Task ToggleFullScreenAsync();
     Task MinimizeAsync();

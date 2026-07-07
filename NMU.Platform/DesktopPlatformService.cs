@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using NMU.Platform.Components.Services;
 
 namespace NMU.Platform;
@@ -56,7 +57,7 @@ public class DesktopPlatformService : IPlatformService
                 appWindow.SetPresenter(Microsoft.UI.Windowing.AppWindowPresenterKind.Overlapped);
                 IsFullScreen = false;
                 nw.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-                    App.RemoveTitleBar(nw));
+                    App.HideTitleBarLogo(nw));
             }
             else
             {
@@ -110,6 +111,21 @@ public class DesktopPlatformService : IPlatformService
 #endif
     }
 
+    public Task DragMoveAsync()
+    {
+#if WINDOWS
+        var nw = GetNativeWindow();
+        if (nw == null) return Task.CompletedTask;
+        try
+        {
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(nw);
+            SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        }
+        catch { }
+#endif
+        return Task.CompletedTask;
+    }
+
     public async Task DownloadFileAsync(string url, string fileName)
     {
 #if ANDROID
@@ -135,6 +151,12 @@ public class DesktopPlatformService : IPlatformService
     }
 
 #if WINDOWS
+    [DllImport("user32.dll")]
+    static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    const uint WM_NCLBUTTONDOWN = 0x00A1;
+    static readonly IntPtr HTCAPTION = new IntPtr(2);
+
     static Microsoft.UI.Xaml.Window? GetNativeWindow()
         => Application.Current?.Windows.FirstOrDefault()?.Handler?.PlatformView as Microsoft.UI.Xaml.Window;
 #endif
