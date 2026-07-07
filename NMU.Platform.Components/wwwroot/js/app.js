@@ -1,23 +1,16 @@
-// منع تكرار الـ history و منع باك/فورورد المتصفح خالص
-(function() {
-    var _appUrl = location.href;
+// Browser & Android hardware back → يرجع للصفحة السابقة
+window.nmuBrowserBack = function() {
+    history.back();
+};
 
-    history.pushState = function(d, t, u) {
-        if (u) _appUrl = u;
-        history.replaceState(d, t, u);
-    };
+window.__goBack = function() {
+    window.dispatchEvent(new CustomEvent('nmu-goback'));
+};
 
-    window.addEventListener('popstate', function() {
-        if (location.href !== _appUrl)
-            history.replaceState(null, '', _appUrl);
+window.nmuAddGoBackListener = function(dotNetRef) {
+    window.addEventListener('nmu-goback', function() {
+        dotNetRef.invokeMethodAsync('HandleGoBack');
     });
-})();
-
-// Android hardware back → يروح للهوم
-window.__goHome = function() {
-    if (document.location.pathname === '/') return;
-    history.replaceState(null, '', '/');
-    window.dispatchEvent(new PopStateEvent('popstate'));
 };
 
 window.nmuFunctions = {

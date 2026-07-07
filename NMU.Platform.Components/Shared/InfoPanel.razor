@@ -1,0 +1,23 @@
+@using NMU.Platform.Components.Services
+@inject IPlatformService Platform
+
+<div class="info-panel-overlay" @onclick="Close">
+    <div class="info-panel" @onclick:stopPropagation>
+        <button class="info-close" @onclick="Close">&times;</button>
+        <h3>About</h3>
+        <p>NMU-CE &amp; AIE</p>
+        <p>College of Engineering &amp; Artificial Intelligence Engineering</p>
+        <p>Faculty of Engineering - Nahda University</p>
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+
+    private async Task Close()
+    {
+        IsVisible = false;
+        await IsVisibleChanged.InvokeAsync(false);
+    }
+}
