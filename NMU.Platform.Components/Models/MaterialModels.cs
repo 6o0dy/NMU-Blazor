@@ -48,3 +48,13 @@ public class ArchiveDirectMetadata
     [JsonPropertyName("dir")]
     public string? Dir { get; set; }
 }
+
+public class RecordedFile
+{
+    public string Name { get; set; } = "";
+    public long? Size { get; set; }
+    public string? ThumbName { get; set; }
+    public string DisplayName { get; set; } = "";
+    public string SubFolder { get; set; } = "";
+    public bool IsAudio { get; set; }
+}

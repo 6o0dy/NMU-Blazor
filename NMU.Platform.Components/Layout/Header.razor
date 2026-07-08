@@ -85,6 +85,7 @@
 
 @code {
     private bool IsHome => Navigation.Uri.TrimEnd('/').EndsWith("/") || Navigation.Uri.EndsWith("/");
+    private bool IsVideoPlayer => Navigation.Uri.Contains("/player");
     private bool _isDownloading;
 
     private DotNetObjectReference<Header>? _dotNetRef;
@@ -137,13 +138,21 @@
 
     private async Task GoBack()
     {
+        if (IsVideoPlayer)
+            try { await JS.InvokeVoidAsync("videoPlayer.destroy"); } catch { }
         NavState.CurrentFileUrl = null;
         NavState.CurrentFileName = null;
+        NavState.IsFullScreen = false;
         await JS.InvokeVoidAsync("window.nmuBrowserBack");
     }
 
     private async Task ToggleFullscreen()
     {
+        if (IsVideoPlayer)
+        {
+            await JS.InvokeVoidAsync("videoPlayer.toggleFullscreen");
+            return;
+        }
         if (Platform.IsDesktop)
             await Platform.ToggleFullScreenAsync();
         else

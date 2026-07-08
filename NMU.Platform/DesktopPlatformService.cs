@@ -152,10 +152,19 @@ public class DesktopPlatformService : IPlatformService
 #if ANDROID
         try
         {
+            var ext = System.IO.Path.GetExtension(fileName ?? "").ToLowerInvariant();
+            var mime = ext switch
+            {
+                ".mp4" or ".mkv" or ".webm" => "video/*",
+                ".mp3" or ".wav" or ".m4a" => "audio/*",
+                ".pdf" => "application/pdf",
+                _ => "*/*"
+            };
+
             var intent = new Android.Content.Intent(Android.Content.Intent.ActionCreateDocument);
             intent.AddCategory(Android.Content.Intent.CategoryOpenable);
-            intent.SetType("application/pdf");
-            intent.PutExtra(Android.Content.Intent.ExtraTitle, fileName ?? "document.pdf");
+            intent.SetType(mime);
+            intent.PutExtra(Android.Content.Intent.ExtraTitle, fileName ?? "document");
 
             var resultUri = await MainActivity.StartSaveFileIntent(intent);
             if (resultUri == null) return DownloadResult.Cancelled;

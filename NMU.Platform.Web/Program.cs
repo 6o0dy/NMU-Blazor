@@ -13,6 +13,7 @@ builder.Services.AddScoped<NavigationState>();
 builder.Services.AddScoped<LayoutState>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<MaterialsService>();
+builder.Services.AddScoped<RecordedService>();
 builder.Services.AddScoped<IPlatformService, DefaultPlatformService>();
 
 await builder.Build().RunAsync();

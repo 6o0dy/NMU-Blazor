@@ -8,6 +8,7 @@
 @inject IPlatformService Platform
 @inject LayoutState LayoutState
 @inject ToastService Toast
+@inject NavigationState NavState
 
 <Header />
 
@@ -21,18 +22,25 @@ else if (showSetup)
 }
 else
 {
-    @if (LayoutState.SearchBar != null)
+    @if (NavState.IsFullScreen)
     {
-        <div class="search-section">@LayoutState.SearchBar</div>
+        @Body
     }
-    <div class="scroll-frame">
-        <div class="page-container">
-            @Body
-        </div>
-    </div>
-    @if (LayoutState.BottomBar != null)
+    else
     {
-        <div class="bottom-section">@LayoutState.BottomBar</div>
+        @if (LayoutState.SearchBar != null)
+        {
+            <div class="search-section">@LayoutState.SearchBar</div>
+        }
+        <div class="scroll-frame">
+            <div class="page-container">
+                @Body
+            </div>
+        </div>
+        @if (LayoutState.BottomBar != null)
+        {
+            <div class="bottom-section">@LayoutState.BottomBar</div>
+        }
     }
 }
 

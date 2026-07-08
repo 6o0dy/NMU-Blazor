@@ -1,0 +1,190 @@
+@page "/recorded/{Group}"
+@using NMU.Platform.Components.Models
+@implements IDisposable
+@inject RecordedService RecordedService
+@inject StudentService StudentService
+@inject NavigationManager Navigation
+@inject NavigationState NavState
+@inject LayoutState LayoutState
+@inject IJSRuntime JS
+@inject IPlatformService Platform
+
+@if (_loading)
+{
+    <div class="loading-state">
+        <i class="fas fa-circle-notch fa-spin fa-2x" style="color:var(--primary)"></i>
+        <br /><br />Loading data...
+    </div>
+}
+else if (_errorMsg != null)
+{
+    <div class="loading-state" style="color:#ef4444;">
+        @_errorMsg
+        <br /><br />
+        <button class="placeholder-btn" @onclick="Reload">Retry</button>
+    </div>
+}
+else
+{
+    <div class="recorded-files">
+        @if (_filteredFiles.Count == 0)
+        {
+            <div style="text-align:center; color:#94a3b8; padding:20px;">
+                @(_searchQuery != "" ? "No matching files." : "No files found.")
+            </div>
+        }
+        else
+        {
+            @foreach (var file in _filteredFiles)
+            {
+                var f = file;
+                <div class="recorded-card" @onclick="() => PlayFile(f)">
+                    @if (f.IsAudio)
+                    {
+                        <div class="recorded-thumb audio-placeholder">
+                            <i class="fa-solid fa-music"></i>
+                        </div>
+                    }
+                    else if (!string.IsNullOrEmpty(f.ThumbName))
+                    {
+                        var thumbUrl = $"https://archive.org/download/nmu.ce/{f.ThumbName}";
+                        <img src="@thumbUrl" class="recorded-thumb" loading="lazy" />
+                    }
+                    else
+                    {
+                        <div class="recorded-thumb audio-placeholder">
+                            <i class="fa-solid fa-video"></i>
+                        </div>
+                    }
+                    <div class="recorded-info">
+                        <div class="recorded-title">@f.DisplayName</div>
+                        <div class="recorded-meta">
+                            <span class="badge @(f.IsAudio ? "badge-aud" : "badge-vid")">@(f.IsAudio ? "AUDIO" : "VIDEO")</span>
+                            <span class="recorded-sub">@f.SubFolder</span>
+                        </div>
+                    </div>
+                    <div class="recorded-dl" @onclick:stopPropagation @onclick="() => DownloadFile(f)">
+                        <i class="fa-solid fa-download"></i>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string Group { get; set; } = "";
+
+    private bool _loading = true;
+    private string? _errorMsg;
+    private List<RecordedFile> _allFiles = new();
+    private List<RecordedFile> _allGroupFiles = new();
+    private List<RecordedFile> _filteredFiles = new();
+    private string _searchQuery = "";
+    private string _studentLevel = "Level_1";
+    private string _studentSemester = "First_Term";
+
+    private RenderFragment _searchBarFragment => @<div class="files-search-fixed">
+        <div class="search-wrapper">
+            <i class="fa-solid fa-magnifying-glass search-icon-inside"></i>
+            <input type="text" class="search-input" placeholder="Search in media..."
+                   value="@_searchQuery"
+                   @oninput="OnSearchInput" />
+        </div>
+    </div>;
+
+    protected override void OnInitialized()
+    {
+        LayoutState.StateChanged += OnLayoutStateChanged;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var decodedGroup = Uri.UnescapeDataString(Group);
+        NavState.PageTitle = decodedGroup.Replace("_", " ");
+        _errorMsg = null;
+        try
+        {
+            var student = await StudentService.GetStudentAsync();
+            if (student != null)
+            {
+                _studentLevel = student.AcademicLevel.Replace(" ", "_");
+                _studentSemester = student.Semester.Replace(" ", "_");
+            }
+
+            _allFiles = await RecordedService.GetFilesAsync(_studentLevel, _studentSemester);
+
+            if (_allFiles.Count == 0)
+                _errorMsg = "No data received from server.";
+            else
+            {
+                _allGroupFiles = RecordedService.GetFilesForGroup(_allFiles, _studentLevel, _studentSemester, decodedGroup);
+                if (_allGroupFiles.Count == 0)
+                    _errorMsg = $"No files found for \"{decodedGroup}\".";
+                else
+                    ApplyFilter();
+            }
+
+            LayoutState.SearchBar = _searchBarFragment;
+            LayoutState.NotifyStateChanged();
+        }
+        catch (Exception ex)
+        {
+            _errorMsg = $"Error: {ex.Message}";
+        }
+        _loading = false;
+    }
+
+    private void OnLayoutStateChanged() => StateHasChanged();
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        _searchQuery = e.Value?.ToString() ?? "";
+        ApplyFilter();
+        LayoutState.NotifyStateChanged();
+    }
+
+    private void ApplyFilter()
+    {
+        if (string.IsNullOrWhiteSpace(_searchQuery))
+        {
+            _filteredFiles = _allGroupFiles;
+        }
+        else
+        {
+            var q = _searchQuery.ToLower();
+            _filteredFiles = _allGroupFiles.Where(f => f.DisplayName.ToLower().Contains(q)).ToList();
+        }
+    }
+
+    private void Reload()
+    {
+        _loading = true;
+        _errorMsg = null;
+        StateHasChanged();
+        _ = OnInitializedAsync();
+    }
+
+    private void PlayFile(RecordedFile file)
+    {
+        NavState.CurrentFileUrl = RecordedService.GetDownloadUrl(file.Name);
+        NavState.CurrentFileName = file.DisplayName + (file.IsAudio ? ".mp3" : ".mp4");
+        Navigation.NavigateTo($"/recorded/{Uri.EscapeDataString(Uri.UnescapeDataString(Group))}/player");
+    }
+
+    private async Task DownloadFile(RecordedFile file)
+    {
+        var url = RecordedService.GetDownloadUrl(file.Name);
+        var name = file.DisplayName + (file.IsAudio ? ".mp3" : ".mp4");
+        if (Platform.IsWeb)
+            await JS.InvokeVoidAsync("window.open", url, "_blank");
+        else
+            await Platform.DownloadFileAsync(url, name);
+    }
+
+    public void Dispose()
+    {
+        LayoutState.StateChanged -= OnLayoutStateChanged;
+        LayoutState.Clear();
+    }
+}

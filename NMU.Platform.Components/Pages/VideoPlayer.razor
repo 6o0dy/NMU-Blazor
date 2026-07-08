@@ -1,0 +1,321 @@
+@page "/recorded/{Group}/player"
+@using System.Globalization
+@implements IDisposable
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject NavigationState NavState
+@inject IPlatformService Platform
+
+<div class="vp-root @(_idle ? "idle" : "")" id="vp-body"
+     @onmousemove="OnActivity" @ontouchstart="OnActivity">
+    <div class="vp-player-wrapper @(_isAudio ? "audio-mode" : "")" id="vp-player-wrapper"
+         @onclick="TogglePlay">
+        <video id="vp-video" src="" playsinline preload="metadata"
+               @onloadeddata="OnLoadedData"
+               @ontimeupdate="OnTimeUpdate"
+               @onplay="OnPlay"
+               @onpause="OnPause"
+               @onwaiting="OnWaiting"
+               @onplaying="OnPlaying"
+               @oncanplay="OnCanPlay"
+               @onloadstart="OnLoadStart"
+               @onclick:stopPropagation>
+        </video>
+
+        <div class="vp-audio-visual">
+            <div class="vp-audio-icon"><i class="fa-solid fa-music"></i></div>
+            <div class="vp-audio-bars">
+                <div class="vp-bar"></div><div class="vp-bar"></div>
+                <div class="vp-bar"></div><div class="vp-bar"></div>
+                <div class="vp-bar"></div>
+            </div>
+        </div>
+
+        <div class="vp-buffer" id="vp-buffer" style="display:@(_isBuffering ? "block" : "none")"></div>
+
+        <div class="vp-center-play" style="opacity:@(_showCenterPlay ? "1" : "0")">
+            <i class="fa-solid fa-play"></i>
+        </div>
+    </div>
+
+    <div class="vp-controls" @onclick:stopPropagation @onmousedown:stopPropagation>
+        <div class="vp-progress-area">
+            <span class="vp-time-current">@FormatTime(_currentTime)</span>
+            <div class="vp-progress-bg"></div>
+            <div class="vp-progress-bar" style="width:@ProgressPercent%"></div>
+            <div class="vp-progress-thumb" style="left:@ProgressPercent%"></div>
+            <input type="range" class="vp-range" min="0" max="@_duration" step="0.1"
+                   value="@_currentTime" @oninput="OnSeek" @onchange="OnSeekCommitted" />
+            <span class="vp-time-duration">@FormatTime(_duration)</span>
+        </div>
+
+        <div class="vp-controls-row">
+            <div class="vp-left">
+                <button class="vp-btn vp-play-btn" @onclick="TogglePlay" type="button">
+                    <i class="fa-solid fa-@(_isPaused ? "play" : "pause")"></i>
+                </button>
+                <div class="vp-volume">
+                    <i class="fa-solid fa-volume-high" style="font-size:12px; opacity:0.7"></i>
+                    <input type="range" min="0" max="1" step="0.05" value="@_volume"
+                           @oninput="OnVolumeChange"
+                           style="width:50px; height:3px; accent-color:var(--primary)" />
+                </div>
+            </div>
+            <div class="vp-right">
+                <button class="vp-btn" @onclick="TogglePiP" type="button" title="PiP"><i class="fa-solid fa-images"></i></button>
+                <button class="vp-btn" @onclick="DownloadCurrentFile" type="button" title="Download"><i class="fa-solid fa-download"></i></button>
+                <button class="vp-btn" @onclick="() => Skip(-10)" type="button" title="-10s"><i class="fa-solid fa-rotate-left"></i></button>
+                <button class="vp-btn" @onclick="() => Skip(10)" type="button" title="+10s"><i class="fa-solid fa-rotate-right"></i></button>
+                <button class="vp-btn vp-speed-btn" @onclick="ToggleSpeed" type="button">@_playbackRate.ToString("0.#")x</button>
+                <button class="vp-btn" @onclick="ToggleFullscreen" type="button"><i class="fa-solid fa-expand"></i></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Group { get; set; } = "";
+
+    private string _fileUrl = "";
+    private string _fileName = "";
+    private string _group = "";
+    private bool _isAudio;
+    private double _currentTime;
+    private double _duration;
+    private bool _isPaused = true;
+    private bool _isBuffering;
+    private double _volume = 1;
+    private double _playbackRate = 1;
+    private bool _showCenterPlay;
+    private bool _idle;
+    private bool _seeking;
+    private DateTime _lastActivity = DateTime.UtcNow;
+    private Timer? _idleTimer;
+    private bool _disposed;
+    private int _saveCounter;
+
+    private double ProgressPercent => _duration > 0 ? Math.Round(_currentTime / _duration * 100, 1) : 0;
+
+    protected override void OnInitialized()
+    {
+        _group = Uri.UnescapeDataString(Group);
+        _fileUrl = NavState.CurrentFileUrl ?? "";
+        _fileName = NavState.CurrentFileName ?? "Untitled";
+        if (string.IsNullOrEmpty(_fileUrl))
+        {
+            Navigation.NavigateTo($"/recorded/{Uri.EscapeDataString(_group)}");
+            return;
+        }
+        _isAudio = _fileName.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ||
+                   _fileName.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ||
+                   _fileName.EndsWith(".m4a", StringComparison.OrdinalIgnoreCase);
+        NavState.IsFullScreen = true;
+        NavState.PageTitle = _fileName;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var key = "nmu_prog_" + _fileUrl;
+            await JS.InvokeVoidAsync("videoPlayer.init", _fileUrl, key);
+            StartIdleTimer();
+        }
+    }
+
+    private async Task OnLoadedData()
+    {
+        try
+        {
+            var saved = await JS.InvokeAsync<string>("videoPlayer.loadSavedTime");
+            if (double.TryParse(saved, NumberStyles.Any, CultureInfo.InvariantCulture, out var t) && t > 0)
+            {
+                _currentTime = t;
+                await JS.InvokeVoidAsync("videoPlayer.seekTo", t.ToString(CultureInfo.InvariantCulture));
+                StateHasChanged();
+            }
+        }
+        catch { }
+    }
+
+    private async Task OnTimeUpdate()
+    {
+        if (_seeking) return;
+        try
+        {
+            var state = await JS.InvokeAsync<string>("videoPlayer.getState");
+            var parts = state.Split('|');
+            if (parts.Length == 2)
+            {
+                _currentTime = double.TryParse(parts[0], NumberStyles.Any, CultureInfo.InvariantCulture, out var ct) ? ct : 0;
+                _duration = double.TryParse(parts[1], NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : 0;
+                _saveCounter++;
+                if (_saveCounter % 10 == 0)
+                    await JS.InvokeVoidAsync("videoPlayer.saveTime", _currentTime.ToString(CultureInfo.InvariantCulture));
+                StateHasChanged();
+            }
+        }
+        catch { }
+    }
+
+    private void OnPlay()
+    {
+        _isPaused = false;
+        _showCenterPlay = false;
+        StateHasChanged();
+        ResetIdle();
+    }
+
+    private void OnPause()
+    {
+        _isPaused = true;
+        _showCenterPlay = true;
+        StateHasChanged();
+        _ = HideCenterPlayDelayed();
+    }
+
+    private async Task HideCenterPlayDelayed()
+    {
+        await Task.Delay(600);
+        _showCenterPlay = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void OnWaiting() { _isBuffering = true; StateHasChanged(); }
+    private void OnPlaying() { _isBuffering = false; StateHasChanged(); }
+    private void OnCanPlay() { _isBuffering = false; StateHasChanged(); }
+    private void OnLoadStart() { _isBuffering = true; StateHasChanged(); }
+
+    private async Task TogglePlay()
+    {
+        try
+        {
+            if (_isPaused)
+                await JS.InvokeVoidAsync("videoPlayer.play");
+            else
+                await JS.InvokeVoidAsync("videoPlayer.pause");
+        }
+        catch { }
+    }
+
+    private async Task OnSeek(ChangeEventArgs e)
+    {
+        _seeking = true;
+        if (double.TryParse(e.Value?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var t))
+        {
+            _currentTime = t;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnSeekCommitted(ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var t))
+        {
+            _currentTime = t;
+            await JS.InvokeVoidAsync("videoPlayer.seekTo", t.ToString(CultureInfo.InvariantCulture));
+        }
+        _seeking = false;
+        ResetIdle();
+    }
+
+    private async Task OnVolumeChange(ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var v))
+        {
+            _volume = v;
+            await JS.InvokeVoidAsync("videoPlayer.setVolume", v.ToString(CultureInfo.InvariantCulture));
+        }
+    }
+
+    private async Task Skip(double sec)
+    {
+        try
+        {
+            var state = await JS.InvokeAsync<string>("videoPlayer.getState");
+            var parts = state.Split('|');
+            if (parts.Length > 0 && double.TryParse(parts[0], NumberStyles.Any, CultureInfo.InvariantCulture, out var cur))
+            {
+                var newTime = Math.Max(0, cur + sec);
+                _currentTime = newTime;
+                await JS.InvokeVoidAsync("videoPlayer.seekTo", newTime.ToString(CultureInfo.InvariantCulture));
+                StateHasChanged();
+            }
+        }
+        catch { }
+        ResetIdle();
+    }
+
+    private async Task ToggleSpeed()
+    {
+        _playbackRate = _playbackRate switch { 1 => 1.5, 1.5 => 2, 2 => 3, _ => 1 };
+        await JS.InvokeVoidAsync("videoPlayer.setSpeed", _playbackRate.ToString(CultureInfo.InvariantCulture));
+        StateHasChanged();
+    }
+
+    private async Task ToggleFullscreen()
+    {
+        await JS.InvokeVoidAsync("videoPlayer.toggleFullscreen");
+    }
+
+    private async Task TogglePiP()
+    {
+        try { await JS.InvokeVoidAsync("videoPlayer.togglePiP"); } catch { }
+    }
+
+    private async Task DownloadCurrentFile()
+    {
+        if (string.IsNullOrEmpty(_fileUrl)) return;
+        var name = _fileName;
+        if (Platform.IsWeb)
+            Navigation.NavigateTo(_fileUrl);
+        else
+            await Platform.DownloadFileAsync(_fileUrl, name);
+    }
+
+    private void OnActivity() { _lastActivity = DateTime.UtcNow; if (_idle) { _idle = false; StateHasChanged(); } }
+
+    private void ResetIdle()
+    {
+        _lastActivity = DateTime.UtcNow;
+        if (_idle) { _idle = false; InvokeAsync(StateHasChanged); }
+    }
+
+    private void StartIdleTimer()
+    {
+        _idleTimer?.Dispose();
+        _idleTimer = new Timer(_ =>
+        {
+            if (_disposed) return;
+            if (!_isPaused && (DateTime.UtcNow - _lastActivity).TotalSeconds >= 3 && !_idle)
+            {
+                _idle = true;
+                InvokeAsync(StateHasChanged);
+            }
+        }, null, 1000, 1000);
+    }
+
+    private async Task Close()
+    {
+        _idleTimer?.Dispose();
+        try { await JS.InvokeVoidAsync("videoPlayer.destroy"); } catch { }
+        NavState.IsFullScreen = false;
+        NavState.CurrentFileUrl = null;
+        NavState.CurrentFileName = null;
+        NavState.PageTitle = "NMU-CE & AIE";
+        Navigation.NavigateTo($"/recorded/{Uri.EscapeDataString(_group)}");
+    }
+
+    private static string FormatTime(double t)
+    {
+        if (double.IsNaN(t) || t <= 0) return "0:00";
+        var ts = TimeSpan.FromSeconds(t);
+        return $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _idleTimer?.Dispose();
+    }
+}
