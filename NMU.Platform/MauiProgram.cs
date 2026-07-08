@@ -18,6 +18,8 @@ public static class MauiProgram
 		builder.Services.AddScoped<NMU.Platform.Components.Services.StudentService>();
 		builder.Services.AddScoped<NMU.Platform.Components.Services.FullscreenService>();
 		builder.Services.AddScoped<NMU.Platform.Components.Services.NavigationState>();
+		builder.Services.AddScoped<NMU.Platform.Components.Services.LayoutState>();
+		builder.Services.AddScoped<NMU.Platform.Components.Services.ToastService>();
 		builder.Services.AddScoped<NMU.Platform.Components.Services.MaterialsService>();
 		builder.Services.AddScoped<NMU.Platform.Components.Services.IPlatformService, DesktopPlatformService>();
 		builder.Services.AddScoped<HttpClient>();

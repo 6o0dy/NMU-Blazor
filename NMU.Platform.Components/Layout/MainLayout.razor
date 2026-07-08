@@ -6,6 +6,8 @@
 @inherits LayoutComponentBase
 @inject StudentService StudentService
 @inject IPlatformService Platform
+@inject LayoutState LayoutState
+@inject ToastService Toast
 
 <Header />
 
@@ -19,9 +21,27 @@ else if (showSetup)
 }
 else
 {
+    @if (LayoutState.SearchBar != null)
+    {
+        <div class="search-section">@LayoutState.SearchBar</div>
+    }
     <div class="scroll-frame">
         <div class="page-container">
             @Body
+        </div>
+    </div>
+    @if (LayoutState.BottomBar != null)
+    {
+        <div class="bottom-section">@LayoutState.BottomBar</div>
+    }
+}
+
+@if (_toastVisible)
+{
+    <div class="toast-overlay" @onclick="HideToast">
+        <div class="toast-box toast-@_toastType.ToString().ToLower()" @onclick:stopPropagation>
+            <span class="toast-icon">@GetToastIcon()</span>
+            <span class="toast-text">@_toastMessage</span>
         </div>
     </div>
 }
@@ -30,6 +50,24 @@ else
     private static bool _initialLoadDone;
     private bool showLoading;
     private bool showSetup;
+    private bool _toastVisible;
+    private string _toastMessage = "";
+    private ToastType _toastType;
+    private CancellationTokenSource? _toastCts;
+
+    private string GetToastIcon() => _toastType switch
+    {
+        ToastType.Success => "✓",
+        ToastType.Cancelled => "✕",
+        ToastType.Error => "✕",
+        _ => "✓"
+    };
+
+    protected override void OnInitialized()
+    {
+        LayoutState.StateChanged += OnLayoutStateChanged;
+        Toast.Show += OnToastShow;
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -54,6 +92,8 @@ else
         showLoading = true;
         _initialLoadDone = true;
     }
+
+    private void OnLayoutStateChanged() => StateHasChanged();
 
     private async Task OnLoadingDone()
     {
@@ -85,9 +125,43 @@ else
 
     private void OnFullScreenChanged() => StateHasChanged();
 
+    private void OnToastShow((string message, ToastType type) data)
+    {
+        _toastCts?.Cancel();
+        _toastCts = new CancellationTokenSource();
+        _toastMessage = data.message;
+        _toastType = data.type;
+        _toastVisible = true;
+        StateHasChanged();
+        _ = AutoHideToast(_toastCts.Token);
+    }
+
+    private async Task AutoHideToast(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(4000, ct);
+            if (!ct.IsCancellationRequested)
+            {
+                _toastVisible = false;
+                StateHasChanged();
+            }
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private void HideToast()
+    {
+        _toastVisible = false;
+        StateHasChanged();
+    }
+
     public void Dispose()
     {
+        _toastCts?.Cancel();
         if (Platform.IsDesktop)
             Platform.FullScreenChanged -= OnFullScreenChanged;
+        LayoutState.StateChanged -= OnLayoutStateChanged;
+        Toast.Show -= OnToastShow;
     }
 }

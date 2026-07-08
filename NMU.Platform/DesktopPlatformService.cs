@@ -52,6 +52,9 @@ public class DesktopPlatformService : IPlatformService
             var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(nw);
             var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd));
 
+            appWindow.Changed -= OnAppWindowChanged;
+            appWindow.Changed += OnAppWindowChanged;
+
             if (appWindow.Presenter.Kind == Microsoft.UI.Windowing.AppWindowPresenterKind.FullScreen)
             {
                 appWindow.SetPresenter(Microsoft.UI.Windowing.AppWindowPresenterKind.Overlapped);
@@ -71,6 +74,25 @@ public class DesktopPlatformService : IPlatformService
         return Task.CompletedTask;
     }
 
+#if WINDOWS
+    private void OnAppWindowChanged(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowChangedEventArgs args)
+    {
+        if (args.DidPresenterChange &&
+            sender.Presenter.Kind != Microsoft.UI.Windowing.AppWindowPresenterKind.FullScreen &&
+            IsFullScreen)
+        {
+            IsFullScreen = false;
+            var nw = GetNativeWindow();
+            if (nw != null)
+            {
+                nw.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                    App.HideTitleBarLogo(nw));
+            }
+            FullScreenChanged?.Invoke();
+        }
+    }
+#endif
+    
     public Task MinimizeAsync()
     {
 #if WINDOWS
@@ -125,28 +147,61 @@ public class DesktopPlatformService : IPlatformService
 #endif
         return Task.CompletedTask;
     }
-
-    public async Task DownloadFileAsync(string url, string fileName)
+    public async Task<DownloadResult> DownloadFileAsync(string url, string fileName)
     {
 #if ANDROID
         try
         {
-            using var client = new HttpClient();
-            var bytes = await client.GetByteArrayAsync(url);
-
             var intent = new Android.Content.Intent(Android.Content.Intent.ActionCreateDocument);
             intent.AddCategory(Android.Content.Intent.CategoryOpenable);
             intent.SetType("application/pdf");
             intent.PutExtra(Android.Content.Intent.ExtraTitle, fileName ?? "document.pdf");
 
             var resultUri = await MainActivity.StartSaveFileIntent(intent);
-            if (resultUri == null) return;
+            if (resultUri == null) return DownloadResult.Cancelled;
+
+            using var client = new HttpClient();
+            var bytes = await client.GetByteArrayAsync(url);
 
             using var stream = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.ContentResolver?.OpenOutputStream(resultUri);
-            if (stream == null) return;
+            if (stream == null) return DownloadResult.Error;
             await stream.WriteAsync(bytes, 0, bytes.Length);
+
+            return DownloadResult.Success;
         }
-        catch { }
+        catch { return DownloadResult.Error; }
+#elif IOS
+        try
+        {
+            using var client = new HttpClient();
+            var bytes = await client.GetByteArrayAsync(url);
+
+            var tempPath = Path.Combine(FileSystem.CacheDirectory, fileName ?? "document.pdf");
+            await File.WriteAllBytesAsync(tempPath, bytes);
+
+            var urlObj = Foundation.NSUrl.FromFilename(tempPath);
+            var picker = new UIKit.UIDocumentPickerViewController(
+                new Foundation.NSUrl[] { urlObj },
+                UIKit.UIDocumentPickerMode.ExportToService);
+
+            TaskCompletionSource<DownloadResult> tcs = new();
+            picker.DidPickDocument += (_, _) => tcs.TrySetResult(DownloadResult.Success);
+            picker.WasCancelled += (_, _) => tcs.TrySetResult(DownloadResult.Cancelled);
+
+            var vc = UIKit.UIApplication.SharedApplication.KeyWindow?.RootViewController;
+            while (vc?.PresentedViewController != null)
+                vc = vc.PresentedViewController;
+
+            if (vc != null)
+            {
+                await vc.PresentViewControllerAsync(picker, true);
+                return await tcs.Task;
+            }
+            return DownloadResult.Error;
+        }
+        catch { return DownloadResult.Error; }
+#else
+        return DownloadResult.Error;
 #endif
     }
 

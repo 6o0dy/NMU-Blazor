@@ -1,9 +1,11 @@
 @page "/materials/{Subject}"
 @using NMU.Platform.Components.Models
+@implements IDisposable
 @inject MaterialsService MaterialsService
 @inject StudentService StudentService
 @inject NavigationManager Navigation
 @inject NavigationState NavState
+@inject LayoutState LayoutState
 
 @if (_loading)
 {
@@ -22,63 +24,30 @@ else if (_errorMsg != null)
 }
 else
 {
-    <div class="files-page">
-        @* Search bar *@
-        <div class="files-search-fixed">
-            <div class="search-wrapper">
-                <i class="fa-solid fa-magnifying-glass search-icon-inside"></i>
-                <input type="text" class="search-input" placeholder="Search files..."
-                       @bind="_searchQuery" @bind:event="oninput" @bind:after="ApplyFileFilter" />
+    <div class="files-list-container">
+        @if (_filteredFiles.Count == 0)
+        {
+            <div style="text-align:center; color:#94a3b8; padding:20px; grid-column:1/-1;">
+                No PDF files found.
             </div>
-        </div>
-
-        @* Files list *@
-        <div class="files-list-container">
-            @if (_filteredFiles.Count == 0)
+        }
+        else
+        {
+            @foreach (var file in _filteredFiles)
             {
-                <div style="text-align:center; color:#94a3b8; padding:20px; grid-column:1/-1;">
-                    No PDF files found.
+                var f = file;
+                var displayName = f.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
+                    ? f.Name[..^4] : f.Name;
+                var downloadUrl = $"https://archive.org/download/nmu.ce/{f.Path}";
+                <div class="file-item" @onclick="() => OpenFile(downloadUrl, f.Name)"
+                     style="animation: slideIn 0.3s ease;">
+                    <div class="file-icon"><i class="fa-regular fa-file-pdf"></i></div>
+                    <div class="file-text">
+                        <span class="file-name">@displayName</span>
+                        <span class="file-size">@(f.Size.HasValue ? $"{(f.Size.Value / 1024.0 / 1024.0):F1} MB" : "? MB")</span>
+                    </div>
                 </div>
             }
-            else
-            {
-                @foreach (var file in _filteredFiles)
-                {
-                    var f = file;
-                    var displayName = f.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
-                        ? f.Name[..^4] : f.Name;
-                    var downloadUrl = $"https://archive.org/download/nmu.ce/{f.Path}";
-                    <div class="file-item" @onclick="() => OpenFile(downloadUrl, f.Name)"
-                         style="animation: slideIn 0.3s ease;">
-                        <div class="file-icon"><i class="fa-regular fa-file-pdf"></i></div>
-                        <div class="file-text">
-                            <span class="file-name">@displayName</span>
-                            <span class="file-size">@(f.Size.HasValue ? $"{(f.Size.Value / 1024.0 / 1024.0):F1} MB" : "? MB")</span>
-                        </div>
-                    </div>
-                }
-            }
-        </div>
-
-        @* Folder tabs *@
-        @if (_folders.Count > 1)
-        {
-            <div class="bottom-nav" dir="ltr">
-                @foreach (var folder in _folders)
-                {
-                    var f = folder;
-                    var icon = "fa-folder";
-                    var lower = f.ToLower();
-                    if (lower.Contains("lec")) icon = "fa-person-chalkboard";
-                    else if (lower.Contains("lab")) icon = "fa-flask";
-                    else if (lower.Contains("tut")) icon = "fa-file-pen";
-                    <button class="nav-item @(f == _currentFolder ? "active" : "")"
-                            @onclick="() => ChangeFolder(f)">
-                        <span class="nav-icon"><i class="fa-solid @icon"></i></span>
-                        @f.ToUpper()
-                    </button>
-                }
-            </div>
         }
     </div>
 }
@@ -96,6 +65,39 @@ else
     private List<ArchiveFile> _allFiles = new();
     private string _studentLevel = "Level_1";
     private string _studentSemester = "First_Term";
+
+    RenderFragment _searchBarFragment => @<div class="files-search-fixed">
+        <div class="search-wrapper">
+            <i class="fa-solid fa-magnifying-glass search-icon-inside"></i>
+            <input type="text" class="search-input" placeholder="Search files..."
+                   value="@_searchQuery"
+                   @oninput="OnSearchInput" />
+        </div>
+    </div>;
+
+    RenderFragment _bottomNavFragment => @<div class="bottom-nav" dir="ltr">
+        @foreach (var folder in _folders)
+        {
+            var f = folder;
+            var icon = "fa-folder";
+            var lower = f.ToLower();
+            if (lower.Contains("lec")) icon = "fa-person-chalkboard";
+            else if (lower.Contains("lab")) icon = "fa-flask";
+            else if (lower.Contains("tut")) icon = "fa-file-pen";
+            <button class="nav-item @(f == _currentFolder ? "active" : "")"
+                    @onclick="() => ChangeFolder(f)">
+                <span class="nav-icon"><i class="fa-solid @icon"></i></span>
+                @f.ToUpper()
+            </button>
+        }
+    </div>;
+
+    protected override void OnInitialized()
+    {
+        LayoutState.SearchBar = _searchBarFragment;
+        LayoutState.BottomBar = _bottomNavFragment;
+        LayoutState.NotifyStateChanged();
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -122,12 +124,23 @@ else
                 _errorMsg = "No data received from server.";
             else if (_allSubjectFiles.Count == 0)
                 _errorMsg = $"No files found for \"{Subject}\".";
+
+            LayoutState.SearchBar = _searchBarFragment;
+            LayoutState.BottomBar = _folders.Count > 1 ? _bottomNavFragment : null;
+            LayoutState.NotifyStateChanged();
         }
         catch (Exception ex)
         {
             _errorMsg = $"Error: {ex.Message}";
         }
         _loading = false;
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        _searchQuery = e.Value?.ToString() ?? "";
+        ApplyFileFilter();
+        LayoutState.NotifyStateChanged();
     }
 
     private void Reload()
@@ -142,6 +155,7 @@ else
     {
         _currentFolder = folder;
         ApplyFileFilter();
+        LayoutState.NotifyStateChanged();
     }
 
     private void ApplyFileFilter()
@@ -166,5 +180,10 @@ else
         NavState.CurrentFileUrl = url;
         NavState.CurrentFileName = name;
         Navigation.NavigateTo($"/materials/{Uri.EscapeDataString(Subject)}/viewer");
+    }
+
+    public void Dispose()
+    {
+        LayoutState.Clear();
     }
 }

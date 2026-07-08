@@ -5,13 +5,8 @@
 }
 
 .files-search-fixed {
-    position: fixed;
-    top: 45px;
-    left: 0;
-    width: 100%;
-    z-index: 99;
     backdrop-filter: blur(15px);
-    padding: 5px 20px 5px;
+    padding: 5px 20px;
     border-bottom: 1px solid rgba(0, 242, 255, 0.1);
     box-sizing: border-box;
 }
@@ -54,9 +49,8 @@
 }
 
 .files-list-container {
-    margin-top: 20px;
-    padding: 20px;
-    padding-bottom: 90px;
+    margin-top: 5px;
+    padding: 10px;
     display: grid;
     grid-template-columns: 1fr;
     gap: 15px;
@@ -152,10 +146,7 @@
     display: flex;
     justify-content: space-around;
     align-items: center;
-    position: fixed;
-    left: 0; bottom: 0;
     width: 100%;
-    z-index: 9999;
 }
 
 .nav-item {

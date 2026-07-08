@@ -1,5 +1,12 @@
 namespace NMU.Platform.Components.Services;
 
+public enum DownloadResult
+{
+    Success,
+    Cancelled,
+    Error
+}
+
 public interface IPlatformService
 {
     bool IsDesktop { get; }
@@ -12,5 +19,5 @@ public interface IPlatformService
     Task MinimizeAsync();
     Task CloseAsync();
     Task OpenPdfAsync(byte[] pdfData, string fileName);
-    Task DownloadFileAsync(string url, string fileName);
+    Task<DownloadResult> DownloadFileAsync(string url, string fileName);
 }

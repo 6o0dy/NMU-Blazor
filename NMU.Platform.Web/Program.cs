@@ -10,6 +10,8 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.
 builder.Services.AddScoped<StudentService>();
 builder.Services.AddScoped<FullscreenService>();
 builder.Services.AddScoped<NavigationState>();
+builder.Services.AddScoped<LayoutState>();
+builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<MaterialsService>();
 builder.Services.AddScoped<IPlatformService, DefaultPlatformService>();
 

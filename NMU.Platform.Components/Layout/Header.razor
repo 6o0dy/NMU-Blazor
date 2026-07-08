@@ -6,6 +6,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject NavigationState NavState
+@inject ToastService Toast
 
 <header class="header" dir="ltr" lang="en">
     <div class="header-left">
@@ -68,8 +69,15 @@
         }
         @if (!Platform.IsWeb && !Platform.IsDesktop && NavState.CurrentFileUrl != null)
         {
-            <button class="icon-btn" @onclick="DownloadCurrentFile" title="Download">
-                <i class="fas fa-download"></i>
+            <button class="icon-btn" @onclick="DownloadCurrentFile" disabled="@_isDownloading" title="Download">
+                @if (_isDownloading)
+                {
+                    <span class="btn-spinner"></span>
+                }
+                else
+                {
+                    <i class="fas fa-download"></i>
+                }
             </button>
         }
     </div>
@@ -77,6 +85,7 @@
 
 @code {
     private bool IsHome => Navigation.Uri.TrimEnd('/').EndsWith("/") || Navigation.Uri.EndsWith("/");
+    private bool _isDownloading;
 
     private DotNetObjectReference<Header>? _dotNetRef;
 
@@ -149,12 +158,34 @@
     {
         var url = NavState.CurrentFileUrl;
         var name = NavState.CurrentFileName ?? "document.pdf";
-        if (!string.IsNullOrEmpty(url))
-            await Platform.DownloadFileAsync(url, name);
+        if (string.IsNullOrEmpty(url)) return;
+        _isDownloading = true;
+        StateHasChanged();
+        try
+        {
+            var result = await Platform.DownloadFileAsync(url, name);
+            switch (result)
+            {
+                case DownloadResult.Success:
+                    Toast.ShowToast($"تم تحميل {name}", ToastType.Success);
+                    break;
+                case DownloadResult.Cancelled:
+                    Toast.ShowToast("تم إلغاء التحميل", ToastType.Cancelled);
+                    break;
+                case DownloadResult.Error:
+                    Toast.ShowToast("حدث خطأ", ToastType.Error);
+                    break;
+            }
+        }
+        finally
+        {
+            _isDownloading = false;
+            StateHasChanged();
+        }
     }
 
     private void GoToFeedback() => Navigation.NavigateTo("/feedback");
-
+     
     private void DownloadApp()
     {
         var url = "https://drive.google.com/uc?export=download&id=1PjC905nxFVN9LbdGov5gNtZyc7dqOmqs";

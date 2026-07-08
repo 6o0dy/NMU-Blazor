@@ -32,12 +32,16 @@ public partial class App : Application
 	{
 		var window = new Window(new MainPage()) { Title = "" };
 
+		window.MinimumWidth = 415;
+		window.MinimumHeight = 700;
+
 		window.HandlerChanged += (s, e) =>
 		{
 #if WINDOWS
 			if (window.Handler?.PlatformView is Microsoft.UI.Xaml.Window nativeWindow)
 			{
 				HideTitleBarLogo(nativeWindow);
+				MaximizeOnStartup(nativeWindow);
 
 				var t = new Microsoft.UI.Xaml.DispatcherTimer();
 				t.Interval = TimeSpan.FromMilliseconds(300);
@@ -82,6 +86,32 @@ public partial class App : Application
 			SetWindowLong(hwnd, GWL_STYLE, style);
 
 			SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+		}
+		catch { }
+	}
+
+	internal static void MaximizeOnStartup(Microsoft.UI.Xaml.Window? nativeWindow)
+	{
+		try
+		{
+			if (nativeWindow == null) return;
+			var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(nativeWindow);
+			var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
+			var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+
+			var displayArea = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(windowId, Microsoft.UI.Windowing.DisplayAreaFallback.Nearest);
+			var workArea = displayArea.WorkArea;
+			int w = 1200, h = 700;
+			appWindow.MoveAndResize(new Windows.Graphics.RectInt32
+			{
+				X = (workArea.Width - w) / 2,
+				Y = (workArea.Height - h) / 4,
+				Width = w,
+				Height = h
+			});
+
+			if (appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter p)
+				p.Maximize();
 		}
 		catch { }
 	}
