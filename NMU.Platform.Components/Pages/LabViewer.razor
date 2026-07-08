@@ -1,0 +1,43 @@
+@page "/laboratory/{Title}/viewer"
+@inject NavigationManager Navigation
+@inject NavigationState NavState
+
+<div class="lab-viewer">
+    <div class="lab-viewer-header">
+        <button class="lab-viewer-close" @onclick="Close">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+        <div class="lab-viewer-title">@NavState.CurrentFileName</div>
+    </div>
+    <div class="lab-iframe-wrapper">
+        <iframe class="lab-iframe" src="@_url" allowfullscreen></iframe>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+
+    private string _url = "";
+
+    protected override void OnInitialized()
+    {
+        _url = NavState.CurrentFileUrl ?? "";
+
+        if (string.IsNullOrEmpty(_url))
+        {
+            Navigation.NavigateTo("/laboratory");
+            return;
+        }
+
+        NavState.IsFullScreen = true;
+        NavState.PageTitle = NavState.CurrentFileName ?? "Experiment";
+    }
+
+    private void Close()
+    {
+        NavState.IsFullScreen = false;
+        NavState.CurrentFileUrl = null;
+        NavState.CurrentFileName = null;
+        Navigation.NavigateTo("/laboratory");
+    }
+}

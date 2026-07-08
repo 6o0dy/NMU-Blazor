@@ -1,9 +1,130 @@
 @page "/laboratory"
+@implements IDisposable
 @inject NavigationManager Navigation
+@inject NavigationState NavState
+@inject LayoutState LayoutState
 
-<div class="placeholder-page" dir="ltr" lang="en">
-    <div class="placeholder-icon">🔌</div>
-    <h1>Laboratory</h1>
-    <p>Some practical experiments</p>
-    <button class="placeholder-btn" @onclick='() => Navigation.NavigateTo("/")'>Back to Home</button>
-</div>
+@if (_filtered.Count == 0)
+{
+    <div class="lab-no-results">No experiments found.</div>
+}
+else
+{
+    <div class="experiments-grid">
+        @foreach (var exp in _filtered)
+        {
+            var e = exp;
+            <div class="exp-card" @onclick="() => OpenExperiment(e)">
+                <div class="exp-icon"><i class="fa-solid fa-microchip"></i></div>
+                <div class="exp-title">@e.Title</div>
+            </div>
+        }
+    </div>
+}
+
+@if (_showWarning)
+{
+    <div class="lab-modal-overlay show">
+        <div class="lab-modal-box">
+            <div class="lab-modal-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <h3>تنبيه هام</h3>
+            <p lang="ar" dir="rtl">
+                يرجى العلم أن النتائج والقراءات التي تظهر في الدوائر التي تعتمد على
+                مصدر تيار متردد (AC Sources) قد لا تكون دقيقة بنسبة 100%، وتُستخدم
+                لأغراض توضيحية فقط.
+            </p>
+            <button class="lab-modal-btn" @onclick="DismissWarning">حسناً، فهمت</button>
+        </div>
+    </div>
+}
+
+@code {
+    private class Experiment
+    {
+        public string Title { get; init; } = "";
+        public string Url { get; init; } = "";
+    }
+
+    private static readonly Experiment[] _experiments = new[]
+    {
+        new Experiment { Title = "Determination of high resistance by leakage Method", Url = "https://www.tinkercad.com/embed/fK5Xmq5zgDi?editbtn=1" },
+        new Experiment { Title = "Characteristic curve of diode", Url = "https://www.tinkercad.com/embed/dxCRXwAYzNS?editbtn=1" },
+        new Experiment { Title = "Zener Diode Characteristics", Url = "https://www.tinkercad.com/embed/d7aB801Fiy1?editbtn=1" },
+        new Experiment { Title = "Filters", Url = "https://www.tinkercad.com/embed/8EEZtOFwYss?editbtn=1" },
+        new Experiment { Title = "Determination of a coil inductance by vectors method", Url = "https://www.tinkercad.com/embed/03TS2nAmyAW?editbtn=1" },
+        new Experiment { Title = "Determination of a condenser capacitor by vectors method", Url = "https://www.tinkercad.com/embed/f7t5x9cE3HX?editbtn=1" },
+        new Experiment { Title = "RLC Resonance in Series Circuits", Url = "https://dcaclab.com/ar/experiments/84033/iframe" },
+        new Experiment { Title = "Clipper Circuits", Url = "https://dcaclab.com/ar/experiments/81582/iframe" },
+        new Experiment { Title = "Ohm's law", Url = "https://www.tinkercad.com/embed/5AchqeXHK96?editbtn=1" },
+        new Experiment { Title = "Kirchhoff's Rules", Url = "https://www.tinkercad.com/embed/jwPvWI0Sz99?editbtn=1" },
+        new Experiment { Title = "Clipper Circuits", Url = "https://dcaclab.com/ar/experiments/80970/iframe" },
+        new Experiment { Title = "RL Circuit", Url = "https://dcaclab.com/ar/experiments/77352/iframe" },
+        new Experiment { Title = "RC Circuit", Url = "https://dcaclab.com/ar/experiments/77351/iframe" }
+    };
+
+    private string _searchQuery = "";
+    private List<Experiment> _filtered = new();
+    private bool _showWarning = true;
+
+    RenderFragment _searchBarFragment => @<div class="lab-search-section">
+        <div class="lab-search-row">
+            <div class="search-wrapper">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" class="search-input" placeholder="Search experiments..."
+                       value="@_searchQuery" @oninput="OnSearchInput" />
+            </div>
+            <button class="lab-tool-btn" @onclick="OpenEmptyLab" title="معمل جديد فارغ">
+                <i class="fa-solid fa-plus"></i>
+                <span>Empty Lab</span>
+            </button>
+        </div>
+    </div>;
+
+    protected override void OnInitialized()
+    {
+        NavState.PageTitle = "LABORATORY";
+        LayoutState.SearchBar = _searchBarFragment;
+        LayoutState.NotifyStateChanged();
+        ApplyFilter();
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        _searchQuery = e.Value?.ToString() ?? "";
+        ApplyFilter();
+        LayoutState.NotifyStateChanged();
+    }
+
+    private void ApplyFilter()
+    {
+        if (string.IsNullOrWhiteSpace(_searchQuery))
+            _filtered = _experiments.ToList();
+        else
+        {
+            var q = _searchQuery.ToLower();
+            _filtered = _experiments.Where(e => e.Title.ToLower().Contains(q)).ToList();
+        }
+        StateHasChanged();
+    }
+
+    private void DismissWarning() => _showWarning = false;
+
+    private void OpenExperiment(Experiment exp)
+    {
+        NavState.CurrentFileUrl = exp.Url;
+        NavState.CurrentFileName = exp.Title;
+        Navigation.NavigateTo($"/laboratory/{Uri.EscapeDataString(exp.Title)}/viewer");
+    }
+
+    private void OpenEmptyLab()
+    {
+        NavState.CurrentFileUrl = "https://dcaclab.com/ar/experiments/82098/iframe";
+        NavState.CurrentFileName = "Empty Lab";
+        Navigation.NavigateTo($"/laboratory/empty-lab/viewer");
+    }
+
+    public void Dispose()
+    {
+        LayoutState.Clear();
+    }
+}
