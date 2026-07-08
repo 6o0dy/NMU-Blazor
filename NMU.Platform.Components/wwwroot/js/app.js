@@ -155,6 +155,16 @@ window.nmuFunctions = {
         });
     },
 
+    getFingerprint: async function () {
+        try {
+            const fp = await FingerprintJS.load();
+            const result = await fp.get();
+            return result.visitorId;
+        } catch (e) {
+            return 'unknown-' + Date.now();
+        }
+    },
+
     fetchPdfAsBlob: function (url) {
         var proxies = [
             'https://corsproxy.io/?url=' + encodeURIComponent(url),

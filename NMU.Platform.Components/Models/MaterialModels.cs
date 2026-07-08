@@ -49,6 +49,24 @@ public class ArchiveDirectMetadata
     public string? Dir { get; set; }
 }
 
+public class Review
+{
+    [JsonPropertyName("serial")]
+    public string Serial { get; set; } = "";
+    [JsonPropertyName("review")]
+    public string ReviewRating { get; set; } = "";
+    [JsonPropertyName("comment")]
+    public string Comment { get; set; } = "";
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+    [JsonPropertyName("isVerified")]
+    public bool IsVerified { get; set; }
+    [JsonPropertyName("level")]
+    public string Level { get; set; } = "";
+    [JsonPropertyName("timestamp")]
+    public long Timestamp { get; set; }
+}
+
 public class RecordedFile
 {
     public string Name { get; set; } = "";
