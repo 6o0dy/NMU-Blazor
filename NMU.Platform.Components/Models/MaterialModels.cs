@@ -67,6 +67,23 @@ public class Review
     public long Timestamp { get; set; }
 }
 
+public class YouTubeChannel
+{
+    public string ChannelName { get; set; } = "";
+    public string Subject { get; set; } = "";
+    public string AvatarUrl { get; set; } = "";
+    public string GroupKey { get; set; } = "";
+    public List<YouTubeVideo> Videos { get; set; } = new();
+}
+
+public class YouTubeVideo
+{
+    public string Title { get; set; } = "";
+    public string Url { get; set; } = "";
+    public string Img { get; set; } = "";
+    public string VideoId { get; set; } = "";
+}
+
 public class RecordedFile
 {
     public string Name { get; set; } = "";

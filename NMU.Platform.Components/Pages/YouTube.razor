@@ -1,9 +1,124 @@
 @page "/youtube"
+@using NMU.Platform.Components.Models
+@implements IDisposable
+@inject NavigationState NavState
+@inject LayoutState LayoutState
 @inject NavigationManager Navigation
+@inject YouTubeService YouTubeService
 
-<div class="placeholder-page" dir="ltr" lang="en">
-    <div class="placeholder-icon">🤖</div>
-    <h1>YouTube Videos</h1>
-    <p>Explanations From YouTube</p>
-    <button class="placeholder-btn" @onclick='() => Navigation.NavigateTo("/")'>Back to Home</button>
-</div>
+@if (_loading)
+{
+    <div class="loading-state">
+        <i class="fas fa-circle-notch fa-spin fa-2x" style="color:var(--primary)"></i>
+        <br /><br />Loading data...
+    </div>
+}
+else if (_error && _channels.Count == 0)
+{
+    <div class="loading-state" style="color:#ef4444;">
+        Failed to connect to server.
+        <br /><br />
+        <button class="placeholder-btn" @onclick="Reload">Retry</button>
+    </div>
+}
+else
+{
+    <div class="yt-page">
+        <div class="yt-grid">
+            @if (_filteredChannels.Count == 0)
+            {
+                <div class="yt-no-results">No channels found.</div>
+            }
+            @foreach (var ch in _filteredChannels)
+            {
+                var c = ch;
+                <div class="yt-channel-card" @onclick="() => OpenChannel(c)">
+                    <img src="@c.AvatarUrl" class="yt-avatar" loading="lazy" />
+                    <div class="yt-channel-name">@c.ChannelName</div>
+                    <div class="yt-channel-meta">@c.Subject · @c.Videos.Count videos</div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _error;
+    private List<YouTubeChannel> _channels = new();
+    private List<YouTubeChannel> _filteredChannels = new();
+    private string _searchQuery = "";
+
+    private RenderFragment _searchBarFragment => @<div class="files-search-fixed">
+        <div class="search-wrapper">
+            <i class="fa-solid fa-magnifying-glass search-icon-inside"></i>
+            <input type="text" class="search-input" placeholder="Search channels..."
+                   value="@_searchQuery"
+                   @oninput="OnSearchInput" />
+        </div>
+    </div>;
+
+    protected override void OnInitialized()
+    {
+        LayoutState.StateChanged += OnLayoutStateChanged;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        NavState.PageTitle = "YOUTUBE VIDEOS";
+        try
+        {
+            _channels = await YouTubeService.GetChannelsAsync();
+            ApplyFilter();
+        }
+        catch
+        {
+            _error = true;
+        }
+        _loading = false;
+
+        LayoutState.SearchBar = _searchBarFragment;
+        LayoutState.NotifyStateChanged();
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        _searchQuery = e.Value?.ToString() ?? "";
+        ApplyFilter();
+        LayoutState.NotifyStateChanged();
+    }
+
+    private void OnLayoutStateChanged() => StateHasChanged();
+
+    private void ApplyFilter()
+    {
+        if (string.IsNullOrWhiteSpace(_searchQuery))
+            _filteredChannels = _channels;
+        else
+        {
+            var q = _searchQuery.ToLower();
+            _filteredChannels = _channels
+                .Where(c => c.ChannelName.ToLower().Contains(q) || c.Subject.ToLower().Contains(q))
+                .ToList();
+        }
+    }
+
+    private void OpenChannel(YouTubeChannel channel)
+    {
+        Navigation.NavigateTo($"/youtube/{Uri.EscapeDataString(channel.GroupKey)}");
+    }
+
+    private void Reload()
+    {
+        _error = false;
+        _loading = true;
+        StateHasChanged();
+        _ = OnInitializedAsync();
+    }
+
+    public void Dispose()
+    {
+        LayoutState.StateChanged -= OnLayoutStateChanged;
+        LayoutState.Clear();
+    }
+}

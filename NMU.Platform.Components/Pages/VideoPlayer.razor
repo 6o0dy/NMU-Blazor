@@ -99,8 +99,17 @@
     protected override void OnInitialized()
     {
         _group = Uri.UnescapeDataString(Group);
-        _fileUrl = NavState.CurrentFileUrl ?? "";
-        _fileName = NavState.CurrentFileName ?? "Untitled";
+        var uri = new Uri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var urlFromQuery = query["url"];
+        var nameFromQuery = query["name"];
+        _fileUrl = urlFromQuery ?? NavState.CurrentFileUrl ?? "";
+        _fileName = nameFromQuery ?? NavState.CurrentFileName ?? "Untitled";
+        if (!string.IsNullOrEmpty(_fileUrl))
+        {
+            NavState.CurrentFileUrl = _fileUrl;
+            NavState.CurrentFileName = _fileName;
+        }
         if (string.IsNullOrEmpty(_fileUrl))
         {
             Navigation.NavigateTo($"/recorded/{Uri.EscapeDataString(_group)}");

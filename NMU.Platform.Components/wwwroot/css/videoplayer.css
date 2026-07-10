@@ -1,4 +1,4 @@
-/* ─── Modern Video Player ─── */
+س/* ─── Modern Video Player ─── */
 
 /* Root — fills available space below header */
 .vp-root {
@@ -6,6 +6,8 @@
     background: #000;
     position: relative;
     overflow: hidden;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-sizing: border-box;
 }
 
 /* Player wrapper – fills entire root, video centered inside */

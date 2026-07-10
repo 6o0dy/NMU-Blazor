@@ -1,0 +1,137 @@
+@page "/youtube/{Channel}"
+@using NMU.Platform.Components.Models
+@implements IDisposable
+@inject NavigationState NavState
+@inject LayoutState LayoutState
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject YouTubeService YouTubeService
+
+@if (_loading)
+{
+    <div class="loading-state">
+        <i class="fas fa-circle-notch fa-spin fa-2x" style="color:var(--primary)"></i>
+        <br /><br />Loading videos...
+    </div>
+}
+else if (_channel == null)
+{
+    <div class="loading-state">
+        Channel not found.
+    </div>
+}
+else
+{
+    <div class="yt-page">
+        <div class="yt-video-grid">
+            @if (_filteredVideos.Count == 0)
+            {
+                <div class="yt-no-results">No videos found.</div>
+            }
+            @foreach (var vid in _filteredVideos)
+            {
+                var v = vid;
+                <div class="yt-video-card" @onclick="() => PlayVideo(v)">
+                    <div class="yt-thumb-wrap">
+                        <img src="@v.Img" class="yt-thumb" loading="lazy" />
+                    </div>
+                    <div class="yt-video-info">
+                        <div class="yt-video-title">@v.Title</div>
+                        <div class="yt-video-meta">
+                            <span class="badge badge-vid">VIDEO</span>
+                        </div>
+                    </div>
+                    <div class="yt-dl-btn" @onclick:stopPropagation @onclick="() => OpenOnYoutube(v.Url)">
+                        <i class="fa-brands fa-youtube"></i>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Channel { get; set; } = "";
+
+    private bool _loading = true;
+    private YouTubeChannel? _channel;
+    private List<YouTubeVideo> _filteredVideos = new();
+    private string _searchQuery = "";
+
+    private RenderFragment _searchBarFragment => @<div class="files-search-fixed">
+        <div class="search-wrapper">
+            <i class="fa-solid fa-magnifying-glass search-icon-inside"></i>
+            <input type="text" class="search-input" placeholder="Search videos..."
+                   value="@_searchQuery"
+                   @oninput="OnSearchInput" />
+        </div>
+    </div>;
+
+    protected override async Task OnInitializedAsync()
+    {
+        LayoutState.StateChanged += OnLayoutStateChanged;
+
+        var decodedChannel = Uri.UnescapeDataString(Channel);
+        var channels = await YouTubeService.GetChannelsAsync();
+        _channel = channels.FirstOrDefault(c => c.GroupKey == decodedChannel);
+
+        if (_channel != null)
+        {
+            NavState.PageTitle = _channel.ChannelName;
+            _filteredVideos = _channel.Videos;
+        }
+        else
+        {
+            NavState.PageTitle = "YOUTUBE VIDEOS";
+        }
+
+        _loading = false;
+
+        LayoutState.SearchBar = _searchBarFragment;
+        LayoutState.NotifyStateChanged();
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        _searchQuery = e.Value?.ToString() ?? "";
+        ApplyFilter();
+        LayoutState.NotifyStateChanged();
+    }
+
+    private void OnLayoutStateChanged() => StateHasChanged();
+
+    private void ApplyFilter()
+    {
+        if (_channel == null) return;
+        if (string.IsNullOrWhiteSpace(_searchQuery))
+            _filteredVideos = _channel.Videos;
+        else
+        {
+            var q = _searchQuery.ToLower();
+            _filteredVideos = _channel.Videos
+                .Where(v => v.Title.ToLower().Contains(q))
+                .ToList();
+        }
+    }
+
+    private void PlayVideo(YouTubeVideo video)
+    {
+        if (string.IsNullOrEmpty(video.VideoId)) return;
+        NavState.YouTubeVideoTitle = video.Title;
+        NavState.YouTubeVideoId = video.VideoId;
+        var encodedId = Uri.EscapeDataString(video.VideoId);
+        var encodedTitle = Uri.EscapeDataString(video.Title);
+        Navigation.NavigateTo($"/youtube/{Channel}/player?videoId={encodedId}&title={encodedTitle}");
+    }
+
+    private void OpenOnYoutube(string url)
+    {
+        Navigation.NavigateTo(url, forceLoad: true);
+    }
+
+    public void Dispose()
+    {
+        LayoutState.StateChanged -= OnLayoutStateChanged;
+        LayoutState.Clear();
+    }
+}

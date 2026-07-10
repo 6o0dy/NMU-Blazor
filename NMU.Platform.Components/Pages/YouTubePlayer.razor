@@ -1,0 +1,45 @@
+@page "/youtube/{Channel}/player"
+@inject NavigationManager Navigation
+@inject NavigationState NavState
+
+<div class="yt-player-root" id="yt-player-body">
+    <div class="yt-player-body">
+        <div class="yt-iframe-wrap">
+            <iframe src="https://www.youtube.com/embed/@_videoId?autoplay=1&rel=0"
+                    allow="autoplay; encrypted-media; fullscreen"
+                    allowfullscreen class="yt-iframe"></iframe>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Channel { get; set; } = "";
+
+    private string _videoId = "";
+    private string _videoTitle = "";
+
+    protected override void OnInitialized()
+    {
+        var uri = new Uri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var idFromQuery = query["videoId"];
+        var titleFromQuery = query["title"];
+        _videoId = idFromQuery ?? NavState.YouTubeVideoId ?? "";
+        _videoTitle = titleFromQuery ?? NavState.YouTubeVideoTitle ?? "Untitled";
+
+        if (!string.IsNullOrEmpty(_videoId))
+        {
+            NavState.YouTubeVideoId = _videoId;
+            NavState.YouTubeVideoTitle = _videoTitle;
+        }
+
+        if (string.IsNullOrEmpty(_videoId))
+        {
+            Navigation.NavigateTo($"/youtube/{Channel}");
+            return;
+        }
+
+        NavState.IsFullScreen = true;
+        NavState.PageTitle = _videoTitle;
+    }
+}

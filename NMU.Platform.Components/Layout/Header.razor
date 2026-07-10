@@ -85,7 +85,8 @@
 
 @code {
     private bool IsHome => Navigation.Uri.TrimEnd('/').EndsWith("/") || Navigation.Uri.EndsWith("/");
-    private bool IsVideoPlayer => Navigation.Uri.Contains("/player");
+    private bool IsVideoPlayer => Navigation.Uri.Contains("/player") && !Navigation.Uri.Contains("/youtube/");
+    private bool IsYouTubePlayer => Navigation.Uri.Contains("/youtube/") && Navigation.Uri.Contains("/player");
     private bool _isDownloading;
 
     private DotNetObjectReference<Header>? _dotNetRef;
@@ -148,15 +149,22 @@
 
     private async Task ToggleFullscreen()
     {
+        if (Platform.IsDesktop)
+        {
+            await Platform.ToggleFullScreenAsync();
+            return;
+        }
         if (IsVideoPlayer)
         {
             await JS.InvokeVoidAsync("videoPlayer.toggleFullscreen");
             return;
         }
-        if (Platform.IsDesktop)
-            await Platform.ToggleFullScreenAsync();
-        else
-            await FullscreenService.ToggleAsync();
+        if (IsYouTubePlayer)
+        {
+            await JS.InvokeVoidAsync("youtubePlayer.toggleFullscreen");
+            return;
+        }
+        await FullscreenService.ToggleAsync();
     }
 
     private async Task ToggleMaximize() => await Platform.ToggleMaximizeAsync();
