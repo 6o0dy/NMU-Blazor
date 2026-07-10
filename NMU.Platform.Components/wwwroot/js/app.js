@@ -188,3 +188,23 @@ window.nmuFunctions = {
         })(0);
     }
 };
+
+// Quiz iframe message listener
+window.__quizMessageHandler = null;
+window.nmuRegisterQuizMessageListener = function (dotNetRef) {
+    if (window.__quizMessageHandler) {
+        window.removeEventListener('message', window.__quizMessageHandler);
+    }
+    window.__quizMessageHandler = function (e) {
+        if (e.data && e.data.type === 'quiz') {
+            dotNetRef.invokeMethodAsync('OnQuizMessage', e.data.action);
+        }
+    };
+    window.addEventListener('message', window.__quizMessageHandler);
+};
+window.nmuRemoveQuizMessageListener = function () {
+    if (window.__quizMessageHandler) {
+        window.removeEventListener('message', window.__quizMessageHandler);
+        window.__quizMessageHandler = null;
+    }
+};

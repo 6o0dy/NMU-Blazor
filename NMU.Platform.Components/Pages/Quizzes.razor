@@ -1,9 +1,64 @@
 @page "/quizzes"
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
 @inject NavigationManager Navigation
+@inject NavigationState NavState
+@inject IJSRuntime JS
+@inject StudentService StudentService
 
-<div class="placeholder-page" dir="ltr" lang="en">
-    <div class="placeholder-icon">⚡</div>
-    <h1>Tests</h1>
-    <p>Test Your Skills</p>
-    <button class="placeholder-btn" @onclick='() => Navigation.NavigateTo("/")'>Back to Home</button>
+<div class="quiz-iframe-container">
+    <iframe id="quiz-iframe"
+            src="/_content/NMU.Platform.Components/quizzes/Quizzes.html"
+            allowfullscreen></iframe>
 </div>
+
+@code {
+    private DotNetObjectReference<Quizzes>? _dotNetRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        NavState.PageTitle = "Quizzes";
+        NavState.HideHeader = true;
+        NavState.IsFullScreen = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("nmuRegisterQuizMessageListener", _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnQuizMessage(string action)
+    {
+        switch (action)
+        {
+            case "goHome":
+            case "navigateBack":
+                await GoBack();
+                break;
+        }
+    }
+
+    private async Task GoBack()
+    {
+        NavState.HideHeader = false;
+        NavState.IsFullScreen = false;
+        Navigation.NavigateTo("/");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        NavState.HideHeader = false;
+        NavState.IsFullScreen = false;
+        _dotNetRef?.Dispose();
+        try
+        {
+            await JS.InvokeVoidAsync("nmuRemoveQuizMessageListener");
+        }
+        catch { }
+    }
+}

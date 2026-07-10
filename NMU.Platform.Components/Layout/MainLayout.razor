@@ -10,7 +10,10 @@
 @inject ToastService Toast
 @inject NavigationState NavState
 
-<Header />
+@if (!NavState.HideHeader)
+{
+    <Header />
+}
 
 @if (showLoading)
 {
