@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace NMU.Platform.Components.Models;
@@ -11,10 +12,10 @@ public class QuizQuestion
     public string Question { get; set; } = "";
 
     [JsonPropertyName("options")]
-    public List<string> Options { get; set; } = new();
+    public JsonElement OptionsRaw { get; set; }
 
     [JsonPropertyName("correct_answer")]
-    public string CorrectAnswer { get; set; } = "";
+    public JsonElement CorrectAnswerRaw { get; set; }
 
     [JsonPropertyName("hint")]
     public string Hint { get; set; } = "";
@@ -42,4 +43,65 @@ public class QuizQuestion
 
     [JsonIgnore]
     public string Explanation => !string.IsNullOrEmpty(ExplanationAr) ? ExplanationAr : ExplanationEn;
+
+    [JsonIgnore]
+    public List<QuizOptionItem> Options
+    {
+        get
+        {
+            var result = new List<QuizOptionItem>();
+            if (OptionsRaw.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var el in OptionsRaw.EnumerateArray())
+                {
+                    if (el.ValueKind == JsonValueKind.String)
+                    {
+                        result.Add(new QuizOptionItem { Text = el.GetString() ?? "", RawJson = el.GetString() ?? "" });
+                    }
+                    else if (el.ValueKind == JsonValueKind.Object)
+                    {
+                        var text = el.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "";
+                        var gType = el.TryGetProperty("graphType", out var gt) ? gt.GetString() ?? "" : "";
+                        var gFn = el.TryGetProperty("graphFn", out var gf) ? gf.GetString() ?? "" : "";
+                        var gData = el.TryGetProperty("graphData", out var gd) ? gd.GetRawText() : "";
+                        result.Add(new QuizOptionItem
+                        {
+                            Text = text,
+                            RawJson = el.GetRawText(),
+                            GraphType = gType,
+                            GraphFn = gFn,
+                            GraphData = gData,
+                            IsObject = true
+                        });
+                    }
+                    else
+                    {
+                        result.Add(new QuizOptionItem { Text = el.GetRawText(), RawJson = el.GetRawText() });
+                    }
+                }
+            }
+            return result;
+        }
+    }
+
+    [JsonIgnore]
+    public string CorrectAnswerSerialized
+    {
+        get
+        {
+            if (CorrectAnswerRaw.ValueKind == JsonValueKind.String)
+                return CorrectAnswerRaw.GetString() ?? "";
+            return CorrectAnswerRaw.GetRawText();
+        }
+    }
+}
+
+public class QuizOptionItem
+{
+    public string Text { get; set; } = "";
+    public string RawJson { get; set; } = "";
+    public string GraphType { get; set; } = "";
+    public string GraphFn { get; set; } = "";
+    public string GraphData { get; set; } = "";
+    public bool IsObject { get; set; }
 }

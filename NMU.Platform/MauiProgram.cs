@@ -24,6 +24,7 @@ public static class MauiProgram
 		builder.Services.AddScoped<NMU.Platform.Components.Services.RecordedService>();
 		builder.Services.AddScoped<NMU.Platform.Components.Services.YouTubeService>();
 		builder.Services.AddScoped<NMU.Platform.Components.Services.QuizService>();
+		builder.Services.AddScoped<NMU.Platform.Components.Services.QuizStateService>();
 		builder.Services.AddScoped<NMU.Platform.Components.Services.IPlatformService, DesktopPlatformService>();
 		builder.Services.AddScoped<HttpClient>();
 

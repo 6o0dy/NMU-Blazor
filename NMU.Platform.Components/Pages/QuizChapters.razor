@@ -1,0 +1,351 @@
+@page "/quizzes/{Subject}"
+@using NMU.Platform.Components.Models
+@implements IDisposable
+@inject QuizService QuizService
+@inject NavigationManager Navigation
+@inject NavigationState NavState
+@inject QuizStateService QuizState
+@inject LayoutState LayoutState
+@inject IJSRuntime JS
+
+@if (_loading)
+{
+    <div class="loading-state">
+        <i class="fas fa-circle-notch fa-spin fa-2x" style="color:var(--primary)"></i>
+        <br /><br />Loading quiz data...
+    </div>
+}
+else if (_errorMsg != null)
+{
+    <div class="loading-state" style="color:#ef4444;">
+        @_errorMsg
+        <br /><br />
+        <button class="placeholder-btn" @onclick="Reload">Retry</button>
+    </div>
+}
+else
+{
+    <div class="quiz-chapters-container">
+        <div class="chapters-header-row">
+            <div class="timer-toggle-wrapper @(_isMainTimed ? "timer-active" : "")"
+                 @onclick="ToggleMainTimerMode">
+                <div class="toggle-switch-main"></div>
+                <div class="timer-label">Exam Mode</div>
+            </div>
+            <h3>@_subjectName</h3>
+        </div>
+
+        <div class="chapters-list">
+            <div class="chapter-card comprehensive-card"
+                 @onclick="HandleAllClick">
+                <span class="chapter-count">@_totalQuestions Qs</span>
+                <div class="chapter-title">Comprehensive Exam (All)</div>
+                <i class="fa-solid fa-graduation-cap chapter-icon"></i>
+            </div>
+
+            <div class="chapter-card custom-select-card"
+                 @onclick="OpenChapterSelectionModal">
+                <div class="chapter-title" style="color:var(--star-color);font-weight:800;">Select Specific Chapters</div>
+                <i class="fa-solid fa-list-check chapter-icon"></i>
+            </div>
+
+            @for (int i = 0; i < _chapters.Count; i++)
+            {
+                var idx = i;
+                var chapter = _chapters[i];
+                <div class="chapter-card"
+                     @onclick="() => HandleChapterClick(idx, chapter.Questions.Count, _isMainTimed)">
+                    <span class="chapter-count">@chapter.Questions.Count Qs</span>
+                    <div class="chapter-title">@chapter.Name</div>
+                    <i class="fa-regular fa-file-lines chapter-icon"></i>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (_showChapterSelectModal)
+    {
+        <div class="modal-overlay active-modal" @onclick="CloseModal">
+            <div class="modal-box" @onclick:stopPropagation>
+                <h2 id="chapter-select-top" style="color:var(--primary);margin-top:0;">Select Chapters</h2>
+                <div class="modal-content-scrollable">
+                    <div class="modal-timer-toggle @(_isModalTimed ? "active" : "")"
+                         @onclick="ToggleTimerInModal">
+                        <div style="font-weight:700;color:var(--timer-color);">Test Mode</div>
+                        <div class="toggle-switch-modal"></div>
+                    </div>
+                    <div class="chapter-select-grid">
+                        @for (int i = 0; i < _chapters.Count; i++)
+                        {
+                            var idx = i;
+                            var chapter = _chapters[i];
+                            <div class="chapter-checkbox-card @(_selectedChapterIndices.Contains(idx) ? "selected" : "")"
+                                 @onclick="() => ToggleChapterSelection(idx)">
+                                <div class="chk-circle"></div>
+                                <div style="flex:1;margin-right:10px;font-weight:700;">@chapter.Name</div>
+                                <div style="font-size:0.8rem;color:#aaa;font-family:'Fira Code';">@chapter.Questions.Count Qs</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="ctrl-btn" style="flex:1;border-color:var(--text-secondary);color:#fff;"
+                            @onclick="CloseModal">Cancel</button>
+                    <button class="ctrl-btn" style="flex:1;background:var(--primary);color:#000;border:none;font-weight:700;"
+                            @onclick="ConfirmChapterSelection">Start Selected</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (_showConfigModal)
+    {
+        <div class="modal-overlay active-modal" @onclick="CloseConfigModal">
+            <div class="modal-box config-modal-box" @onclick:stopPropagation>
+                <div id="config-modal-top"
+                     class="config-title"
+                     style="margin-bottom:10px;font-size:1.2rem;font-weight:bold;border-bottom:1px solid #333;padding-bottom:10px;">
+                    @(_pendingIsTimed ? "Exam Settings" : "Practice Settings")
+                </div>
+                <div class="modal-content-scrollable">
+                    @if (!_pendingIsTimed)
+                    {
+                        <div class="mode-toggle-wrapper @(!_randomMode ? "normal-mode" : "")"
+                             @onclick="ToggleRandomMode">
+                            <div style="font-weight:700;color:var(--primary);">
+                                <i class="fa-solid fa-shuffle"></i> @(_randomMode ? "Random Order" : "Normal Order")
+                            </div>
+                            <div class="mode-toggle-switch"></div>
+                        </div>
+                    }
+                    @if (_pendingIsTimed)
+                    {
+                        <div class="exam-mode-toggle">
+                            <span class="exam-mode-label">🔥 Real Exam Mode</span>
+                            <input type="checkbox" @bind="_isRealExamMode" />
+                        </div>
+                    }
+                    <div class="config-group">
+                        <div class="config-label"
+                             style="display:flex;justify-content:space-between;margin-bottom:5px;">
+                            <span>Number of Questions</span>
+                            <span style="font-family:'Fira Code';color:var(--primary);font-weight:700;">@_configQuestionCount</span>
+                        </div>
+                        <input type="range" min="1" max="@_pendingMaxQuestions" step="1"
+                               @bind="_configQuestionCount"
+                               @bind:after="OnQuestionCountChanged"
+                               style="width:100%;" />
+                    </div>
+                    @if (_pendingIsTimed)
+                    {
+                        <div class="config-group">
+                            <div class="config-label"
+                                 style="display:flex;justify-content:space-between;margin-bottom:5px;">
+                                <div style="display:flex;align-items:center;">
+                                    <span>Time Limit</span>
+                                    <button class="btn-small" @onclick="ToggleCustomTime">
+                                        @(_customTimeEnabled ? "Slider" : "Custom")
+                                    </button>
+                                </div>
+                                <span style="font-family:'Fira Code';color:var(--primary);font-weight:700;">
+                                    @(_customTimeEnabled ? _customTimeMinutes : _configTimeMinutes) min
+                                </span>
+                            </div>
+                            @if (!_customTimeEnabled)
+                            {
+                                <input type="range" min="1" max="@Math.Max(_configQuestionCount * 2, 1)" step="1"
+                                       @bind="_configTimeMinutes"
+                                       style="width:100%;" />
+                            }
+                            else
+                            {
+                                <input type="number" class="custom-time-input"
+                                       style="display:block;"
+                                       @bind="_customTimeMinutes"
+                                       placeholder="Minutes (e.g., 60)" />
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="ctrl-btn" style="flex:1;border-color:var(--text-secondary);color:#fff;"
+                            @onclick="CloseConfigModal">Cancel</button>
+                    <button class="ctrl-btn" style="flex:1;background:var(--primary);color:#000;font-weight:700;border:none;border-radius:8px;"
+                            @onclick="StartConfiguredQuiz">Start Now 🚀</button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public string Subject { get; set; } = "";
+
+    private bool _loading = true;
+    private string? _errorMsg;
+    private string _subjectName = "";
+    private List<QuizChapter> _chapters = new();
+    private int _totalQuestions;
+    private bool _isMainTimed;
+
+    private bool _showChapterSelectModal;
+    private bool _isModalTimed;
+    private HashSet<int> _selectedChapterIndices = new();
+
+    private bool _showConfigModal;
+    private bool _pendingIsTimed;
+    private int _pendingMaxQuestions;
+    private int _configQuestionCount;
+    private int _configTimeMinutes;
+    private object? _pendingChapterIndex;
+    private bool _randomMode = true;
+    private bool _isRealExamMode = true;
+    private bool _customTimeEnabled;
+    private int _customTimeMinutes;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var decoded = Uri.UnescapeDataString(Subject);
+        NavState.PageTitle = decoded.Replace("_", " ");
+        _subjectName = decoded;
+
+        try
+        {
+            _chapters = await QuizService.GetQuizDataAsync(QuizState.SubjectPath);
+            _totalQuestions = _chapters.Sum(c => c.Questions.Count);
+        }
+        catch (Exception ex)
+        {
+            _errorMsg = $"Error: {ex.Message}";
+        }
+        _loading = false;
+    }
+
+    private void ToggleMainTimerMode()
+    {
+        _isMainTimed = !_isMainTimed;
+    }
+
+    private async Task HandleAllClick()
+    {
+        await HandleChapterClick("all", _totalQuestions, _isMainTimed);
+    }
+
+    private async Task HandleChapterClick(object indexOrIndices, int totalQs, bool isTimed)
+    {
+        _pendingChapterIndex = indexOrIndices;
+        _pendingIsTimed = isTimed;
+        _pendingMaxQuestions = totalQs;
+        _configQuestionCount = totalQs;
+        _configTimeMinutes = isTimed ? Math.Min(totalQs * 2, 120) : 20;
+        _customTimeEnabled = false;
+        _customTimeMinutes = _configTimeMinutes;
+        _randomMode = true;
+        _isRealExamMode = true;
+        _showConfigModal = true;
+        await Task.Delay(50);
+        await JS.InvokeVoidAsync("quizInterop.scrollElementIntoView", "config-modal-top");
+    }
+
+    private void ToggleCustomTime()
+    {
+        _customTimeEnabled = !_customTimeEnabled;
+    }
+
+    private void OnQuestionCountChanged()
+    {
+        if (_pendingIsTimed)
+        {
+            var maxTime = _configQuestionCount * 2;
+            if (_configTimeMinutes > maxTime)
+                _configTimeMinutes = maxTime;
+        }
+    }
+
+    private void ToggleRandomMode()
+    {
+        _randomMode = !_randomMode;
+    }
+
+    private void CloseConfigModal()
+    {
+        _showConfigModal = false;
+    }
+
+    private void StartConfiguredQuiz()
+    {
+        _showConfigModal = false;
+        QuizState.RandomMode = _randomMode;
+
+        List<QuizQuestion> pool = new();
+        if (_pendingChapterIndex is string s && s == "all")
+        {
+            pool = _chapters.SelectMany(c => c.Questions).ToList();
+        }
+        else if (_pendingChapterIndex is int idx)
+        {
+            pool = new List<QuizQuestion>(_chapters[idx].Questions);
+        }
+        else if (_pendingChapterIndex is List<int> indices)
+        {
+            foreach (var i in indices)
+                pool.AddRange(_chapters[i].Questions);
+        }
+
+        if (_configQuestionCount < pool.Count)
+            pool = pool.Take(_configQuestionCount).ToList();
+
+        var isRealExam = _pendingIsTimed && _isRealExamMode;
+        var timeMinutes = _customTimeEnabled ? _customTimeMinutes : _configTimeMinutes;
+        QuizState.StartQuiz(pool, isRealExam, _pendingIsTimed, timeMinutes);
+        Navigation.NavigateTo($"/quizzes/{Uri.EscapeDataString(Subject)}/play");
+    }
+
+    private async Task OpenChapterSelectionModal()
+    {
+        _selectedChapterIndices.Clear();
+        _isModalTimed = false;
+        _showChapterSelectModal = true;
+        await Task.Delay(50);
+        await JS.InvokeVoidAsync("quizInterop.scrollElementIntoView", "chapter-select-top");
+    }
+
+    private void ToggleTimerInModal()
+    {
+        _isModalTimed = !_isModalTimed;
+    }
+
+    private void ToggleChapterSelection(int index)
+    {
+        if (_selectedChapterIndices.Contains(index))
+            _selectedChapterIndices.Remove(index);
+        else
+            _selectedChapterIndices.Add(index);
+    }
+
+    private void CloseModal()
+    {
+        _showChapterSelectModal = false;
+    }
+
+    private async Task ConfirmChapterSelection()
+    {
+        if (_selectedChapterIndices.Count == 0) return;
+        _showChapterSelectModal = false;
+        var indices = _selectedChapterIndices.ToList();
+        var total = indices.Sum(i => _chapters[i].Questions.Count);
+        await HandleChapterClick(indices, total, _isModalTimed);
+    }
+
+    private void Reload()
+    {
+        _loading = true;
+        _errorMsg = null;
+        StateHasChanged();
+        _ = OnInitializedAsync();
+    }
+
+    public void Dispose()
+    {
+    }
+}

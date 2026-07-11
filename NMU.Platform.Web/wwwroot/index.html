@@ -26,7 +26,10 @@
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/laboratory.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/youtube.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/quiz.css" />
+    <link rel="stylesheet" href="_content/NMU.Platform.Components/css/quiz-blazor.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/welcome.css" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="NMU.Platform.Web.styles.css" />
     <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
     <link rel="icon" href="favicon.ico">
@@ -57,6 +60,20 @@
     <script src="_content/NMU.Platform.Components/js/app.js"></script>
     <script src="_content/NMU.Platform.Components/js/videoPlayer.js"></script>
     <script src="_content/NMU.Platform.Components/js/youtubePlayer.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.17/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/function-plot/1.22.1/function-plot.min.js"></script>
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-csharp.min.js"></script>
+    <script src="_content/NMU.Platform.Components/js/quiz-interop.js"></script>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
 </body>
 

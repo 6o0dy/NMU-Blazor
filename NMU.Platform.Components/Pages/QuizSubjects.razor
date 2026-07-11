@@ -1,0 +1,150 @@
+@page "/quizzes"
+@using NMU.Platform.Components.Models
+@implements IDisposable
+@inject QuizService QuizService
+@inject StudentService StudentService
+@inject NavigationManager Navigation
+@inject NavigationState NavState
+@inject QuizStateService QuizState
+
+@if (_loading)
+{
+    <div class="loading-state">
+        <i class="fas fa-circle-notch fa-spin fa-2x" style="color:var(--primary)"></i>
+        <br /><br />Synchronizing Data...
+    </div>
+}
+else if (_error)
+{
+    <div class="loading-state" style="color:#ef4444;">
+        @_errorMsg
+        <br /><br />
+        <button class="placeholder-btn" @onclick="Reload">Retry</button>
+    </div>
+}
+else if (_subjects.Count == 0)
+{
+    <div class="loading-state" style="color:#94a3b8;">
+        No quizzes available yet.
+    </div>
+}
+else
+{
+    <div class="quiz-subjects-container">
+        <div class="grid-view">
+            @foreach (var subject in _subjects)
+            {
+                var s = subject;
+                <div class="subject-card" @onclick="() => OpenSubject(s)">
+                    <div class="card-icon" style="color:var(--primary)">
+                        <i class="@GetIconCSharp(s.Name)"></i>
+                    </div>
+                    <div class="card-label">@s.Name</div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _error;
+    private string _errorMsg = "Failed to connect to server.";
+    private List<QuizSubject> _subjects = new();
+    private string _studentLevel = "Level_1";
+    private string _studentSemester = "First_Term";
+
+    protected override async Task OnInitializedAsync()
+    {
+        NavState.PageTitle = "QUIZZES";
+        QuizState.Reset();
+        try
+        {
+            var student = await StudentService.GetStudentAsync();
+            if (student != null)
+            {
+                _studentLevel = student.AcademicLevel.Replace(" ", "_");
+                _studentSemester = student.Semester.Replace(" ", "_");
+            }
+
+            _subjects = await QuizService.GetQuizListAsync(_studentLevel, _studentSemester);
+            if (_subjects.Count == 0)
+                _errorMsg = "No quizzes available.";
+        }
+        catch (Exception ex)
+        {
+            _error = true;
+            _errorMsg = $"Error: {ex.Message}";
+        }
+        _loading = false;
+    }
+
+    private void OpenSubject(QuizSubject subject)
+    {
+        QuizState.SubjectName = subject.Name;
+        QuizState.SubjectPath = subject.Path;
+        Navigation.NavigateTo($"/quizzes/{Uri.EscapeDataString(subject.Name)}");
+    }
+
+    private void Reload()
+    {
+        _error = false;
+        _loading = true;
+        StateHasChanged();
+        _ = OnInitializedAsync();
+    }
+
+    private static string GetIconCSharp(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return "fa-solid fa-book-open";
+        var n = name.ToLower();
+        if (n.Contains("arabic") || n.Contains("\u0639\u0631\u0628\u064a")) return "fa-solid fa-pen-nib";
+        if (n.Contains("english")) return "fa-solid fa-language";
+        if (n.Contains("communication") || n.Contains("\u062a\u0648\u0627\u0635\u0644")) return "fa-solid fa-person-chalkboard";
+        if (n.Contains("history") || n.Contains("\u062a\u0627\u0631\u064a\u062e")) return "fa-solid fa-landmark";
+        if (n.Contains("rights") || n.Contains("\u062d\u0642\u0648\u0642") || n.Contains("law")) return "fa-solid fa-scale-balanced";
+        if (n.Contains("psychology") || n.Contains("\u0627\u062c\u062a\u0645\u0627\u0639")) return "fa-solid fa-users-rays";
+        if (n.Contains("management") || n.Contains("\u0625\u062f\u0627\u0631\u0629")) return "fa-solid fa-briefcase";
+        if (n.Contains("statist") || n.Contains("probab") || n.Contains("\u0625\u062d\u0635\u0627\u0621")) return "fa-solid fa-chart-pie";
+        if (n.Contains("discrete") || n.Contains("\u062a\u0631\u0627\u0643\u064a\u0628")) return "fa-solid fa-share-nodes";
+        if (n.Contains("diff") || n.Contains("equation") || n.Contains("\u062a\u0641\u0627\u0636\u0644")) return "fa-solid fa-wave-square";
+        if (n.Contains("numerical") || n.Contains("\u062a\u062d\u0644\u064a\u0644 \u0639\u062f\u062f\u064a")) return "fa-solid fa-arrow-down-1-9";
+        if (n.Contains("linear") || n.Contains("algebra") || n.Contains("matrix") || n.Contains("\u0645\u0635\u0641\u0648\u0641\u0627\u062a")) return "fa-solid fa-table-cells";
+        if (n.Contains("math") || n.Contains("\u0631\u064a\u0627\u0636")) return "fa-solid fa-calculator";
+        if (n.Contains("physics") || n.Contains("\u0641\u064a\u0632\u064a\u0627\u0621")) return "fa-solid fa-atom";
+        if (n.Contains("mechanic") || n.Contains("static") || n.Contains("\u0645\u064a\u0643\u0627\u0646\u064a\u0643\u0627")) return "fa-solid fa-weight-hanging";
+        if (n.Contains("chem") || n.Contains("\u0643\u064a\u0645\u064a\u0627\u0621")) return "fa-solid fa-flask-vial";
+        if (n.Contains("drawing") || n.Contains("\u0631\u0633\u0645")) return "fa-solid fa-compass-drafting";
+        if (n.Contains("structured") || n.Contains("programming")) return "fa-solid fa-terminal";
+        if (n.Contains("object") || n.Contains("oop") || n.Contains("\u0643\u0627\u0626\u0646\u064a\u0629")) return "fa-solid fa-cubes";
+        if (n.Contains("algorithm") || n.Contains("\u062e\u0648\u0627\u0631\u0632\u0645")) return "fa-solid fa-code-branch";
+        if (n.Contains("data structure") || n.Contains("\u0647\u064a\u0627\u0643\u0644")) return "fa-solid fa-sitemap";
+        if (n.Contains("software") || n.Contains("\u0647\u0646\u062f\u0633\u0629")) return "fa-solid fa-laptop-file";
+        if (n.Contains("web") || n.Contains("html") || n.Contains("internet")) return "fa-solid fa-globe";
+        if (n.Contains("machine") || n.Contains("learning") || n.Contains("\u062a\u0639\u0644\u0645")) return "fa-solid fa-robot";
+        if (n.Contains("neural") || n.Contains("deep") || n.Contains("\u0639\u0645\u064a\u0642")) return "fa-solid fa-circle-nodes";
+        if (n.Contains("vision") || n.Contains("image") || n.Contains("\u0631\u0624\u064a\u0629")) return "fa-solid fa-eye";
+        if (n.Contains("nlp") || n.Contains("language")) return "fa-solid fa-comments";
+        if (n.Contains("mining") || n.Contains("big data") || n.Contains("\u062a\u0646\u0642\u064a\u0628")) return "fa-solid fa-database";
+        if (n.Contains("ai") || n.Contains("artificial") || n.Contains("intelligence") || n.Contains("\u0630\u0643\u0627\u0621")) return "fa-solid fa-brain";
+        if (n.Contains("circuit") || n.Contains("electric") || n.Contains("\u062f\u0648\u0627\u0626\u0631")) return "fa-solid fa-plug";
+        if (n.Contains("logic") || n.Contains("\u0645\u0646\u0637\u0642")) return "fa-solid fa-toggle-on";
+        if (n.Contains("architecture") || n.Contains("organi") || n.Contains("\u0646\u0638\u0627\u0645")) return "fa-solid fa-server";
+        if (n.Contains("micro") || n.Contains("processor") || n.Contains("\u0645\u0639\u0627\u0644\u062c\u0627\u062a")) return "fa-solid fa-microchip";
+        if (n.Contains("embed") || n.Contains("\u0645\u062f\u0645\u062c\u0629")) return "fa-solid fa-memory";
+        if (n.Contains("operating") || n.Contains("nux") || n.Contains("\u0646\u0638\u0627\u0645 \u062a\u0634\u063a\u064a\u0644")) return "fa-solid fa-desktop";
+        if (n.Contains("network") || n.Contains("\u0634\u0628\u0643\u0627\u062a")) return "fa-solid fa-network-wired";
+        if (n.Contains("security") || n.Contains("cyber") || n.Contains("\u0623\u0645\u0646")) return "fa-solid fa-shield-cat";
+        if (n.Contains("cloud") || n.Contains("\u0633\u062d\u0627\u0628\u064a\u0629")) return "fa-solid fa-cloud";
+        if (n.Contains("project") || n.Contains("graduation") || n.Contains("\u0645\u0634\u0631\u0648\u0639")) return "fa-solid fa-user-graduate";
+        if (n.Contains("report") || n.Contains("technical") || n.Contains("\u062a\u0642\u0627\u0631\u064a\u0631")) return "fa-solid fa-file-pen";
+        if (n.Contains("university") || n.Contains("uni") || n.Contains("req") || n.Contains("\u0645\u062a\u0637\u0644\u0628")) return "fa-solid fa-building-columns";
+        if (n.Contains("database") || n.Contains("\u0642\u0627\u0639\u062f\u0629 \u0628\u064a\u0627\u0646\u0627\u062a")) return "fa-solid fa-database";
+        if (n.Contains("network") || n.Contains("\u0634\u0628\u0643\u0627\u062a")) return "fa-solid fa-network-wired";
+        return "fa-solid fa-book-open";
+    }
+
+    public void Dispose()
+    {
+    }
+}

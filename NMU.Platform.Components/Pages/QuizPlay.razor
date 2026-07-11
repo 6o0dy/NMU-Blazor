@@ -1,0 +1,601 @@
+@page "/quizzes/{Subject}/play"
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject NavigationState NavState
+@inject QuizStateService QuizState
+@inject IJSRuntime JS
+
+@if (!QuizState.IsQuizActive && !_isNavigatingToResult)
+{
+    Navigation.NavigateTo($"/quizzes/{Uri.EscapeDataString(Subject)}");
+    return;
+}
+
+@{
+    var q = QuizState.CurrentQuestions[QuizState.CurrentIndex];
+    var total = QuizState.CurrentQuestions.Count;
+    var progress = total > 0 ? ((QuizState.CurrentIndex + 1.0) / total * 100) : 0;
+}
+
+<div class="quiz-play-page">
+    <div class="quiz-top-bar">
+        <div class="quiz-top-bar-content">
+            <button class="ctrl-btn" style="border-color:var(--wrong);color:var(--wrong);font-size:0.8rem;"
+                    @onclick="RequestExit">Quit</button>
+
+            @if (QuizState.IsTimed)
+            {
+                <div class="quiz-timer">
+                    <i class="fa-regular fa-clock"></i>
+                    <span>@FormatTime(QuizState.TimeLeftSeconds)</span>
+                </div>
+            }
+
+            @if (!QuizState.IsRealExam)
+            {
+                <div class="quiz-live-score" style="font-family:'Fira Code';font-size:0.9rem;">
+                    <span style="color:var(--correct)">✔ @QuizState.ScoreCorrect</span>
+                    <span style="margin-left:8px;color:var(--wrong)">✘ @QuizState.ScoreWrong</span>
+                </div>
+            }
+        </div>
+
+        @if (QuizState.IsRealExam)
+        {
+            <div class="quiz-palette-wrapper" id="quiz-palette-wrapper">
+                <div class="quiz-palette-strip">
+                    @for (int i = 0; i < total; i++)
+                    {
+                        var idx = i;
+                        var classes = "mini-q-num";
+                        if (idx == QuizState.CurrentIndex) classes += " active";
+                        if (QuizState.UserAnswers[idx] != null) classes += " answered";
+                        if (QuizState.FlaggedQuestions.Contains(idx)) classes += " flagged";
+                        <div class="@classes" @key="idx" @onclick="() => ExamGoToQuestion(idx)">
+                            @(idx + 1)
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:5px;">
+            <div class="progress-wrapper" style="flex:1;margin-right:10px;">
+                <div class="quiz-progress-bar" style="width:@($"{progress:F0}%")"></div>
+            </div>
+            <div style="font-size:0.8rem;font-weight:700;color:var(--text-secondary);">
+                @(QuizState.CurrentIndex + 1) / @total
+            </div>
+        </div>
+    </div>
+
+    <div @key="QuizState.CurrentIndex">
+    <div class="quiz-graph-outer" style="display:@(HasGraph(q) ? "block" : "none")">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+            <button class="ctrl-btn" @onclick="ToggleGraph">
+                @(_showGraph ? "Hide Graph" : "Show Graph")
+            </button>
+        </div>
+        <div class="quiz-graph-wrapper" style="display:@(_showGraph ? "block" : "none")">
+            <div id="quiz-main-graph"></div>
+        </div>
+    </div>
+
+    <div style="display:@(!QuizState.IsRealExam && !string.IsNullOrEmpty(q.Hint) ? "flex" : "none");justify-content:flex-end;margin-bottom:10px;">
+        <button class="ctrl-btn" style="border-color:var(--star-color);color:var(--star-color);"
+                @onclick="ToggleHint">
+            💡 Hint
+        </button>
+    </div>
+
+    <div class="quiz-hint-box" style="display:@(_showHint ? "block" : "none")">
+        @(q.Hint ?? "No hint available.")
+    </div>
+
+    <div class="quiz-question-text" dir="auto">
+        @((MarkupString)FormatQuestionText(q.Question))
+    </div>
+
+    <div class="quiz-mac-code-window" style="display:@(!string.IsNullOrEmpty(q.CodeSnippet) && !string.IsNullOrEmpty(q.CodeLang) ? "block" : "none")">
+        <div class="mac-header" dir="ltr">
+            <div class="mac-dots">
+                <div class="mac-dot red"></div>
+                <div class="mac-dot yellow"></div>
+                <div class="mac-dot green"></div>
+            </div>
+            <button class="mac-copy-btn" @onclick="() => CopySnippet(q.CodeSnippet)">
+                @if (_copiedFlag)
+                {
+                    <i class="fa-regular fa-check"></i> <span>Copied!</span>
+                }
+                else
+                {
+                    <i class="fa-regular fa-copy"></i> <span>Copy</span>
+                }
+            </button>
+        </div>
+        <pre class="line-numbers" dir="ltr"><code id="quiz-code-block" class="language-@q.CodeLang">@q.CodeSnippet</code></pre>
+    </div>
+
+    <div class="quiz-options-container">
+        @for (int i = 0; i < q.Options.Count; i++)
+        {
+            var opt = q.Options[i];
+            var optVal = opt.RawJson;
+            var correctVal = q.CorrectAnswerSerialized;
+            var isSelected = QuizState.UserAnswers[QuizState.CurrentIndex] == optVal;
+            var userAnswered = QuizState.UserAnswers[QuizState.CurrentIndex] != null;
+
+            var optClasses = "quiz-option-btn";
+            if (isSelected) optClasses += " selected";
+
+            if (!QuizState.IsRealExam && userAnswered)
+            {
+                var isCorrect = optVal == correctVal;
+                var isWrong = isSelected && optVal != correctVal;
+                if (isCorrect) optClasses += " correct";
+                if (isWrong) optClasses += " wrong";
+            }
+
+            var isDisabled = !QuizState.IsRealExam && userAnswered;
+
+            <button class="@optClasses"
+                    disabled="@isDisabled"
+                    @key="opt.RawJson"
+                    @onclick="() => HandleOptionClick(optVal, correctVal)">
+                <div style="width:100%;">@((MarkupString)FormatOptionText(opt.Text))</div>
+                @if (opt.IsObject && (!string.IsNullOrEmpty(opt.GraphType) || !string.IsNullOrEmpty(opt.GraphFn)))
+                {
+                    <div class="opt-mini-graph" id="opt-graph-@(QuizState.CurrentIndex)-@(i)"></div>
+                }
+            </button>
+        }
+    </div>
+
+    <button class="quiz-show-exp-btn" style="display:@(!QuizState.IsRealExam && QuizState.UserAnswers[QuizState.CurrentIndex] != null ? "block" : "none")" @onclick="ToggleExplanation">
+        📖 Why is this correct?
+    </button>
+
+    <div class="quiz-explanation-box" id="quiz-explanation-box" style="display:@(_showExplanation ? "block" : "none")">
+        <button class="ctrl-btn"
+                style="position:absolute;top:10px;right:10px;background:var(--primary);color:#000;border:none;"
+                @onclick="ToggleLanguage">
+            AR/EN
+        </button>
+        <div style="margin-top:25px;">
+            @if (QuizState.ExpLangAr && !string.IsNullOrEmpty(q.ExplanationAr))
+            {
+                @((MarkupString)FormatQuestionText(q.ExplanationAr))
+            }
+            else
+            {
+                @((MarkupString)FormatQuestionText(string.IsNullOrEmpty(q.ExplanationEn) ? "No explanation provided." : q.ExplanationEn))
+            }
+        </div>
+    </div>
+
+    <button class="quiz-next-btn" style="display:@(!QuizState.IsRealExam && QuizState.UserAnswers[QuizState.CurrentIndex] != null ? "block" : "none")" @onclick="NextQuestion">
+        Next Question ➡
+    </button>
+
+    @if (QuizState.IsRealExam)
+    {
+        <div class="quiz-exam-controls">
+            <button class="ctrl-btn" style="flex:1;visibility:@(QuizState.CurrentIndex == 0 ? "hidden" : "visible");"
+                    @onclick="ExamPreviousQuestion">
+                ⬅ Prev
+            </button>
+            <button class="ctrl-btn" style="flex:1;border-color:var(--wrong);color:var(--wrong);"
+                    @onclick="ToggleFlag">
+                🚩 Flag
+            </button>
+            <button class="ctrl-btn" style="flex:1;visibility:@(QuizState.CurrentIndex == total - 1 ? "hidden" : "visible");"
+                    @onclick="ExamNextQuestion">
+                Next ➡
+            </button>
+        </div>
+
+        <button class="quiz-submit-exam-btn" @onclick="AttemptSubmit">
+            📝 Submit Exam
+        </button>
+    }
+</div>
+</div>
+
+@if (_showExitModal)
+{
+    <div class="modal-overlay active-modal" @onclick="CloseExitModal">
+        <div class="modal-box" @onclick:stopPropagation>
+            <div class="modal-content-scrollable">
+                <h2 style="color:var(--wrong);margin-top:0;">Exit Quiz?</h2>
+                <p style="color:var(--text-secondary);">Your progress will be lost.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="ctrl-btn" style="flex:1;border-color:var(--text-secondary);color:#fff;"
+                        @onclick="CloseExitModal">Cancel</button>
+                <button class="ctrl-btn" style="flex:1;background:var(--wrong);color:#fff;border:none;"
+                        @onclick="ConfirmExit">Exit</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_showSubmitModal)
+{
+    <div class="modal-overlay active-modal" @onclick="CloseSubmitModal">
+        <div class="modal-box" @onclick:stopPropagation>
+            <div class="modal-content-scrollable">
+                <h2 style="color:var(--primary);margin-top:0;">Submit Exam?</h2>
+                <p style="color:var(--text-secondary);">Are you sure you want to finish?</p>
+            </div>
+            <div class="modal-footer">
+                <button class="ctrl-btn" style="flex:1;border-color:var(--text-secondary);color:#fff;"
+                        @onclick="CloseSubmitModal">Cancel</button>
+                <button class="ctrl-btn" style="flex:1;background:var(--correct);color:#000;border:none;font-weight:700;"
+                        @onclick="SubmitExam">Yes, Submit</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_showAlertModal)
+{
+    <div class="modal-overlay active-modal" @onclick="CloseAlertModal">
+        <div class="modal-box" @onclick:stopPropagation>
+            <div class="modal-content-scrollable" style="text-align:center;">
+                <div style="font-size:3rem;margin-bottom:10px;">⚠️</div>
+                <p style="color:var(--text-secondary);">@_alertMessage</p>
+            </div>
+            <div class="modal-footer">
+                <button class="ctrl-btn" style="background:var(--primary);color:#000;font-weight:700;width:100%;"
+                        @onclick="CloseAlertModal">OK</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Subject { get; set; } = "";
+
+    private bool _showGraph = true;
+    private bool _showHint;
+    private bool _showExplanation;
+    private bool _showExitModal;
+    private bool _showSubmitModal;
+    private bool _showAlertModal;
+    private string _alertMessage = "";
+    private System.Threading.Timer? _timer;
+    private bool _needsMediaRender;
+    private bool _needsMathJax;
+    private bool _copiedFlag;
+    private bool _isNavigatingToResult;
+
+    protected override void OnInitialized()
+    {
+        NavState.PageTitle = "Quizzes";
+        NavState.HideHeader = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("quizInterop.setupBeforeUnload");
+        }
+
+        if (firstRender || _needsMediaRender)
+        {
+            _needsMediaRender = false;
+            await RenderCurrentQuestionMedia();
+        }
+
+        if (_needsMathJax)
+        {
+            _needsMathJax = false;
+            await JS.InvokeVoidAsync("quizInterop.typesetMathJax");
+        }
+    }
+
+    private async Task RenderCurrentQuestionMedia()
+    {
+        var q = QuizState.CurrentQuestions[QuizState.CurrentIndex];
+
+        if (!string.IsNullOrEmpty(q.CodeSnippet) && !string.IsNullOrEmpty(q.CodeLang))
+        {
+            await JS.InvokeVoidAsync("quizInterop.highlightCodeBlock", "quiz-code-block");
+        }
+
+        if (HasGraph(q) && _showGraph)
+        {
+            await RenderGraph(q);
+        }
+
+        for (int i = 0; i < q.Options.Count; i++)
+        {
+            var opt = q.Options[i];
+            if (opt.IsObject && (!string.IsNullOrEmpty(opt.GraphType) || !string.IsNullOrEmpty(opt.GraphFn)))
+            {
+                var targetId = $"opt-graph-{QuizState.CurrentIndex}-{i}";
+                await JS.InvokeVoidAsync("quizInterop.renderMiniGraph",
+                    opt.GraphType, opt.GraphFn, opt.GraphData, targetId, 300);
+            }
+        }
+
+        if (QuizState.IsRealExam)
+        {
+            await JS.InvokeVoidAsync("quizInterop.scrollPaletteActive");
+        }
+
+        await JS.InvokeVoidAsync("quizInterop.typesetMathJax");
+        await JS.InvokeVoidAsync("quizInterop.highlightAllCode");
+
+        if (QuizState.IsTimed && _timer == null)
+        {
+            _timer = new System.Threading.Timer(async _ =>
+            {
+                await InvokeAsync(() =>
+                {
+                    QuizState.TimerTick();
+                    if (QuizState.TimeLeftSeconds <= 0)
+                    {
+                        _timer?.Dispose();
+                        _timer = null;
+                        FinishQuiz(true);
+                    }
+                    StateHasChanged();
+                });
+            }, null, 0, 1000);
+        }
+    }
+
+    private async Task RenderGraph(QuizQuestion q)
+    {
+        if (!string.IsNullOrEmpty(q.GraphFn) && string.IsNullOrEmpty(q.GraphType))
+        {
+            await JS.InvokeVoidAsync("quizInterop.renderFunctionPlot", q.GraphFn, "quiz-main-graph", 400);
+        }
+        else if (q.GraphType == "bar")
+        {
+            await JS.InvokeVoidAsync("quizInterop.renderBarChart", q.GraphData, "quiz-main-graph", 400);
+        }
+        else if (q.GraphType == "histogram")
+        {
+            await JS.InvokeVoidAsync("quizInterop.renderHistogram", q.GraphData, "quiz-main-graph", 400);
+        }
+        else if (q.GraphType == "pie")
+        {
+            await JS.InvokeVoidAsync("quizInterop.renderPieChart", q.GraphData, "quiz-main-graph", 400);
+        }
+        else if (q.GraphType == "line")
+        {
+            await JS.InvokeVoidAsync("quizInterop.renderLineChart", q.GraphData, "quiz-main-graph", 400);
+        }
+        else if (q.GraphType == "circuit_latex")
+        {
+            await JS.InvokeVoidAsync("quizInterop.renderCircuitDiagram", q.GraphData, "quiz-main-graph");
+        }
+    }
+
+    private bool HasGraph(QuizQuestion q)
+    {
+        return !string.IsNullOrEmpty(q.GraphFn) ||
+               (!string.IsNullOrEmpty(q.GraphType) && !string.IsNullOrEmpty(q.GraphData));
+    }
+
+    private async Task HandleOptionClick(string selectedValue, string correctValue)
+    {
+        if (QuizState.IsRealExam)
+        {
+            if (QuizState.UserAnswers[QuizState.CurrentIndex] == selectedValue) return;
+            QuizState.SelectAnswer(QuizState.CurrentIndex, selectedValue);
+            StateHasChanged();
+            await JS.InvokeVoidAsync("quizInterop.scrollPaletteActive");
+        }
+        else
+        {
+            if (QuizState.UserAnswers[QuizState.CurrentIndex] != null) return;
+            QuizState.ExpLangAr = false;
+            _needsMathJax = true;
+            QuizState.CheckAnswer(selectedValue, correctValue);
+            StateHasChanged();
+            await JS.InvokeVoidAsync("quizInterop.scrollToBottom");
+        }
+    }
+
+    private async Task NextQuestion()
+    {
+        if (QuizState.CurrentIndex < QuizState.CurrentQuestions.Count - 1)
+        {
+            AfterQuestionChange();
+            QuizState.NextQuestion();
+            StateHasChanged();
+            await JS.InvokeVoidAsync("quizInterop.scrollQuizToTop");
+        }
+        else
+        {
+            FinishQuiz(false);
+        }
+    }
+
+    private async Task ExamPreviousQuestion()
+    {
+        AfterQuestionChange();
+        QuizState.PreviousQuestion();
+        StateHasChanged();
+        await JS.InvokeVoidAsync("quizInterop.scrollQuizToTop");
+    }
+
+    private async Task ExamNextQuestion()
+    {
+        AfterQuestionChange();
+        QuizState.NextQuestion();
+        StateHasChanged();
+        await JS.InvokeVoidAsync("quizInterop.scrollQuizToTop");
+    }
+
+    private async Task ExamGoToQuestion(int idx)
+    {
+        AfterQuestionChange();
+        QuizState.GoToQuestion(idx);
+        StateHasChanged();
+        await JS.InvokeVoidAsync("quizInterop.scrollQuizToTop");
+    }
+
+    private void AfterQuestionChange()
+    {
+        _showHint = false;
+        _showExplanation = false;
+        _showGraph = true;
+        _needsMediaRender = true;
+        QuizState.ExpLangAr = false;
+    }
+
+    private void FinishQuiz(bool timeout)
+    {
+        _timer?.Dispose();
+        _timer = null;
+        _isNavigatingToResult = true;
+        QuizState.FinishQuiz(timeout);
+        Navigation.NavigateTo($"/quizzes/{Uri.EscapeDataString(Subject)}/result");
+    }
+
+    private void RequestExit()
+    {
+        _showExitModal = true;
+    }
+
+    private void ConfirmExit()
+    {
+        _showExitModal = false;
+        _timer?.Dispose();
+        _timer = null;
+        QuizState.Reset();
+        NavState.HideHeader = false;
+        Navigation.NavigateTo("/quizzes");
+    }
+
+    private void CloseExitModal()
+    {
+        _showExitModal = false;
+    }
+
+    private void AttemptSubmit()
+    {
+        var unanswered = QuizState.UserAnswers.Count(a => a == null);
+        if (unanswered > 0)
+        {
+            _alertMessage = $"You have {unanswered} unanswered question(s).";
+            _showAlertModal = true;
+            return;
+        }
+        _showSubmitModal = true;
+    }
+
+    private void SubmitExam()
+    {
+        _showSubmitModal = false;
+        FinishQuiz(false);
+    }
+
+    private void CloseSubmitModal()
+    {
+        _showSubmitModal = false;
+    }
+
+    private void CloseAlertModal()
+    {
+        _showAlertModal = false;
+    }
+
+    private void ToggleGraph()
+    {
+        _showGraph = !_showGraph;
+        if (_showGraph)
+        {
+            _needsMediaRender = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleHint()
+    {
+        _showHint = !_showHint;
+        if (_showHint)
+        {
+            _needsMathJax = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleExplanation()
+    {
+        _showExplanation = !_showExplanation;
+        if (_showExplanation)
+        {
+            _needsMathJax = true;
+            StateHasChanged();
+            await JS.InvokeVoidAsync("quizInterop.scrollElementIntoView", "quiz-explanation-box");
+        }
+    }
+
+    private async Task ToggleLanguage()
+    {
+        QuizState.ExpLangAr = !QuizState.ExpLangAr;
+        _needsMathJax = true;
+        StateHasChanged();
+    }
+
+    private string FormatTime(int seconds)
+    {
+        var m = seconds / 60;
+        var s = seconds % 60;
+        return $"{m}:{(s < 10 ? "0" : "")}{s}";
+    }
+
+    private string FormatQuestionText(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        return text.Replace("\n", "<br>");
+    }
+
+    private string FormatOptionText(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        return text.Replace("\n", "<br>");
+    }
+
+    private string GetCorrectAnswerText(QuizQuestion q)
+    {
+        var correctVal = q.CorrectAnswerSerialized;
+        var correctOpt = q.Options.FirstOrDefault(o => o.RawJson == correctVal);
+        if (correctOpt != null)
+            return FormatOptionText(correctOpt.Text);
+        return FormatQuestionText(correctVal);
+    }
+
+    private async Task CopySnippet(string? code)
+    {
+        if (!string.IsNullOrEmpty(code))
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", code);
+            _copiedFlag = true;
+            StateHasChanged();
+            await Task.Delay(2000);
+            _copiedFlag = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleFlag()
+    {
+        QuizState.ToggleFlag();
+        StateHasChanged();
+    }
+
+    public async void Dispose()
+    {
+        await JS.InvokeVoidAsync("quizInterop.removeBeforeUnload");
+        _timer?.Dispose();
+        NavState.HideHeader = false;
+    }
+}

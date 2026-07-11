@@ -1,0 +1,324 @@
+@page "/quizzes/{Subject}/result"
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject NavigationState NavState
+@inject QuizStateService QuizState
+@inject IJSRuntime JS
+
+<div class="quiz-result-page">
+    <div class="result-card">
+        <h1>Quiz Finished!</h1>
+        <div class="result-score">
+            @($"{QuizState.ResultCorrect * 100 / Math.Max(QuizState.ResultTotalQuestions, 1)}%")
+        </div>
+        <p style="color:var(--text-secondary);">
+            Completed @QuizState.ResultTotalQuestions Questions
+            @if (QuizState.IsTimeout)
+            {
+                <span> (Time's Up!)</span>
+            }
+        </p>
+        <button class="quiz-option-btn"
+                style="background:var(--primary);color:#000;border:none;margin-top:20px;max-width:300px;margin-left:auto;margin-right:auto;"
+                @onclick="BackToMenu">
+            Back to Menu
+        </button>
+    </div>
+
+    <div class="quiz-review-section">
+        <div class="quiz-filter-tabs">
+            <button class="quiz-filter-btn @(_filter == "all" ? "active" : "")"
+                    @onclick='() => SetFilter("all")'>All</button>
+            <button class="quiz-filter-btn @(_filter == "correct" ? "active" : "")"
+                    style="border-color:var(--correct);color:var(--correct);"
+                    @onclick='() => SetFilter("correct")'>Correct</button>
+            <button class="quiz-filter-btn @(_filter == "wrong" ? "active" : "")"
+                    style="border-color:var(--wrong);color:var(--wrong);"
+                    @onclick='() => SetFilter("wrong")'>Wrong</button>
+            <button class="quiz-filter-btn @(_filter == "unanswered" ? "active" : "")"
+                    style="border-color:var(--star-color);color:var(--star-color);"
+                    @onclick='() => SetFilter("unanswered")'>Empty</button>
+        </div>
+
+        <div class="quiz-review-list">
+            @for (int i = 0; i < QuizState.CurrentQuestions.Count; i++)
+            {
+                var q = QuizState.CurrentQuestions[i];
+                var status = GetReviewStatus(i);
+                if (_filter != "all" && _filter != status) continue;
+
+                var itemClass = "quiz-review-item";
+                if (status == "correct") itemClass += " r-correct";
+                else if (status == "wrong") itemClass += " r-wrong";
+                else itemClass += " r-noans";
+
+                var userAns = GetReviewUserAnswer(i);
+                var correctVal = q.CorrectAnswerSerialized;
+                var cAnsText = ExtractAnswerText(correctVal);
+                var uAnsText = ExtractAnswerText(userAns ?? "");
+
+                var cAnsGraphId = $"rev-c-{i}";
+                var uAnsGraphId = $"rev-u-{i}";
+                var hasCAnsGraph = AnswerHasGraph(correctVal);
+                var hasUAnsGraph = status == "wrong" && AnswerHasGraph(userAns ?? "");
+
+                <div class="@itemClass">
+                    <div style="font-weight:700;margin-bottom:10px;font-size:1.1rem;white-space:pre-wrap;">
+                        Q@(i + 1): @q.Question
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(q.CodeSnippet) && !string.IsNullOrEmpty(q.CodeLang))
+                    {
+                        <div style="background:#282a36;padding:15px;border-radius:8px;margin-bottom:15px;overflow-x:auto;direction:ltr;text-align:left;font-family:'Fira Code',monospace;font-size:0.9rem;border:1px solid rgba(255,255,255,0.1);">
+                            <pre style="margin:0;"><code class="language-@q.CodeLang">@q.CodeSnippet</code></pre>
+                        </div>
+                    }
+
+                    @if (HasGraph(q))
+                    {
+                        <div class="opt-mini-graph" id="rev-q-graph-@(i)" style="margin-bottom:15px;width:100%;min-height:150px;"></div>
+                    }
+
+                    @if (status == "correct")
+                    {
+                        <div style="color:var(--correct);margin-top:5px;padding:10px;background:rgba(0,230,118,0.1);border-radius:8px;border:1px solid rgba(0,230,118,0.2);">
+                            <b>✔ Correct Answer:</b>
+                            <div style="margin-top:5px;">@((MarkupString)cAnsText)</div>
+                        </div>
+                        @if (hasCAnsGraph)
+                        {
+                            <div class="opt-mini-graph" id="@cAnsGraphId" style="margin-top:10px;width:100%;min-height:140px;"></div>
+                        }
+                    }
+                    else if (status == "unanswered")
+                    {
+                        <div style="color:var(--wrong);margin-top:5px;padding:10px;background:rgba(255,23,68,0.1);border-radius:8px;border:1px solid rgba(255,23,68,0.2);">
+                            <b>✘ Not Answered</b>
+                        </div>
+                        <div style="color:var(--correct);margin-top:10px;padding:10px;background:rgba(0,230,118,0.1);border-radius:8px;border:1px solid rgba(0,230,118,0.2);">
+                            <b>✔ Correct Answer:</b>
+                            <div style="margin-top:5px;">@((MarkupString)cAnsText)</div>
+                        </div>
+                        @if (hasCAnsGraph)
+                        {
+                            <div class="opt-mini-graph" id="@cAnsGraphId" style="margin-top:10px;width:100%;min-height:140px;"></div>
+                        }
+                    }
+                    else
+                    {
+                        <div style="color:var(--wrong);margin-top:5px;padding:10px;background:rgba(255,23,68,0.1);border-radius:8px;border:1px solid rgba(255,23,68,0.2);">
+                            <b>✘ Your Answer:</b>
+                            <div style="margin-top:5px;">@((MarkupString)uAnsText)</div>
+                        </div>
+                        @if (hasUAnsGraph)
+                        {
+                            <div class="opt-mini-graph" id="@uAnsGraphId" style="margin-top:10px;width:100%;min-height:140px;"></div>
+                        }
+                        <div style="color:var(--correct);margin-top:10px;padding:10px;background:rgba(0,230,118,0.1);border-radius:8px;border:1px solid rgba(0,230,118,0.2);">
+                            <b>✔ Correct Answer:</b>
+                            <div style="margin-top:5px;">@((MarkupString)cAnsText)</div>
+                        </div>
+                        @if (hasCAnsGraph)
+                        {
+                            <div class="opt-mini-graph" id="@cAnsGraphId" style="margin-top:10px;width:100%;min-height:140px;"></div>
+                        }
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Subject { get; set; } = "";
+
+    private string _filter = "all";
+    private List<AnswerGraphInfo> _answerGraphs = new();
+
+    protected override void OnInitialized()
+    {
+        NavState.PageTitle = "Results";
+        NavState.HideHeader = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("quizInterop.typesetMathJax");
+            await JS.InvokeVoidAsync("quizInterop.highlightAllCode");
+            await RenderReviewGraphs();
+        }
+    }
+
+    private async Task RenderReviewGraphs()
+    {
+        for (int i = 0; i < QuizState.CurrentQuestions.Count; i++)
+        {
+            var q = QuizState.CurrentQuestions[i];
+            if (HasGraph(q))
+            {
+                var targetId = $"rev-q-graph-{i}";
+                await JS.InvokeVoidAsync("quizInterop.renderMiniGraph",
+                    q.GraphType, q.GraphFn, q.GraphData, targetId, 300);
+            }
+        }
+
+        foreach (var ag in _answerGraphs)
+        {
+            await JS.InvokeVoidAsync("quizInterop.renderMiniGraph",
+                ag.GraphType, ag.GraphFn, ag.GraphData, ag.TargetId, 300);
+        }
+    }
+
+    private bool HasGraph(QuizQuestion q)
+    {
+        return !string.IsNullOrEmpty(q.GraphFn) ||
+               (!string.IsNullOrEmpty(q.GraphType) && !string.IsNullOrEmpty(q.GraphData));
+    }
+
+    private string GetReviewStatus(int index)
+    {
+        var q = QuizState.CurrentQuestions[index];
+
+        if (!QuizState.IsRealExam)
+        {
+            var wrongEntry = QuizState.WrongHistory.FirstOrDefault(w => w.Question.Question == q.Question);
+            if (wrongEntry != null) return "wrong";
+            return "correct";
+        }
+        else
+        {
+            var userAns = QuizState.UserAnswers[index];
+            if (userAns == null) return "unanswered";
+            return userAns == q.CorrectAnswerSerialized ? "correct" : "wrong";
+        }
+    }
+
+    private string? GetReviewUserAnswer(int index)
+    {
+        var q = QuizState.CurrentQuestions[index];
+
+        if (!QuizState.IsRealExam)
+        {
+            var wrongEntry = QuizState.WrongHistory.FirstOrDefault(w => w.Question.Question == q.Question);
+            return wrongEntry?.UserSelected;
+        }
+        else
+        {
+            return QuizState.UserAnswers[index];
+        }
+    }
+
+    private string ExtractAnswerText(string val)
+    {
+        if (string.IsNullOrEmpty(val)) return "";
+        if (val.StartsWith("{") || val.StartsWith("["))
+        {
+            try
+            {
+                var doc = System.Text.Json.JsonDocument.Parse(val);
+                if (doc.RootElement.TryGetProperty("text", out var textEl))
+                    return (textEl.GetString() ?? "").Replace("\n", "<br>");
+            }
+            catch { }
+        }
+        return val.Replace("\n", "<br>");
+    }
+
+    private bool AnswerHasGraph(string val)
+    {
+        if (string.IsNullOrEmpty(val) || !(val.StartsWith("{") || val.StartsWith("["))) return false;
+        try
+        {
+            var doc = System.Text.Json.JsonDocument.Parse(val);
+            var root = doc.RootElement;
+            if (root.ValueKind != System.Text.Json.JsonValueKind.Object) return false;
+            var hasGraphType = root.TryGetProperty("graphType", out var gt) && !string.IsNullOrEmpty(gt.GetString());
+            var hasGraphFn = root.TryGetProperty("graphFn", out var gf) && !string.IsNullOrEmpty(gf.GetString());
+            return hasGraphType || hasGraphFn;
+        }
+        catch { return false; }
+    }
+
+    private (string? graphType, string? graphFn, string? graphData) GetAnswerGraphInfo(string val)
+    {
+        if (string.IsNullOrEmpty(val) || !(val.StartsWith("{") || val.StartsWith("["))) return (null, null, null);
+        try
+        {
+            var doc = System.Text.Json.JsonDocument.Parse(val);
+            var root = doc.RootElement;
+            if (root.ValueKind != System.Text.Json.JsonValueKind.Object) return (null, null, null);
+            var gType = root.TryGetProperty("graphType", out var gt) ? gt.GetString() : null;
+            var gFn = root.TryGetProperty("graphFn", out var gf) ? gf.GetString() : null;
+            var gData = root.TryGetProperty("graphData", out var gd) ? gd.GetRawText() : null;
+            return (gType, gFn, gData);
+        }
+        catch { return (null, null, null); }
+    }
+
+    protected override void OnParametersSet()
+    {
+        _answerGraphs.Clear();
+        for (int i = 0; i < QuizState.CurrentQuestions.Count; i++)
+        {
+            var q = QuizState.CurrentQuestions[i];
+            var correctVal = q.CorrectAnswerSerialized;
+            var cGraphInfo = GetAnswerGraphInfo(correctVal);
+            if (!string.IsNullOrEmpty(cGraphInfo.graphType) || !string.IsNullOrEmpty(cGraphInfo.graphFn))
+            {
+                _answerGraphs.Add(new AnswerGraphInfo
+                {
+                    TargetId = $"rev-c-{i}",
+                    GraphType = cGraphInfo.graphType ?? "",
+                    GraphFn = cGraphInfo.graphFn ?? "",
+                    GraphData = cGraphInfo.graphData ?? ""
+                });
+            }
+
+            var userAns = GetReviewUserAnswer(i);
+            if (userAns != null)
+            {
+                var uGraphInfo = GetAnswerGraphInfo(userAns);
+                if (!string.IsNullOrEmpty(uGraphInfo.graphType) || !string.IsNullOrEmpty(uGraphInfo.graphFn))
+                {
+                    _answerGraphs.Add(new AnswerGraphInfo
+                    {
+                        TargetId = $"rev-u-{i}",
+                        GraphType = uGraphInfo.graphType ?? "",
+                        GraphFn = uGraphInfo.graphFn ?? "",
+                        GraphData = uGraphInfo.graphData ?? ""
+                    });
+                }
+            }
+        }
+    }
+
+    private async Task SetFilter(string filter)
+    {
+        _filter = filter;
+        StateHasChanged();
+        await Task.Delay(50);
+        await JS.InvokeVoidAsync("quizInterop.scrollFilterIntoView");
+    }
+
+    private void BackToMenu()
+    {
+        QuizState.Reset();
+        NavState.HideHeader = false;
+        Navigation.NavigateTo("/quizzes");
+    }
+
+    public void Dispose()
+    {
+        NavState.HideHeader = false;
+    }
+
+    private class AnswerGraphInfo
+    {
+        public string TargetId { get; set; } = "";
+        public string GraphType { get; set; } = "";
+        public string GraphFn { get; set; } = "";
+        public string GraphData { get; set; } = "";
+    }
+}
