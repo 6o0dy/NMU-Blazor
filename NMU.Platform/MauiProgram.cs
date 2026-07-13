@@ -26,7 +26,9 @@ public static class MauiProgram
 		builder.Services.AddScoped<NMU.Platform.Components.Services.QuizService>();
 		builder.Services.AddScoped<NMU.Platform.Components.Services.QuizStateService>();
 		builder.Services.AddScoped<NMU.Platform.Components.Services.NavigationHistoryService>();
+#if WINDOWS || MACCATALYST
 		builder.Services.AddScoped<NMU.Platform.Components.Services.IPlatformService, DesktopPlatformService>();
+#endif
 		builder.Services.AddScoped<HttpClient>();
 
 #if DEBUG

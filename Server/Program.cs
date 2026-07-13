@@ -1,7 +1,7 @@
 using System.Net.Http.Headers;
 using Microsoft.Extensions.FileProviders;
 
-var publishDir = @"C:\Users\BooDy\AppData\Local\Temp\opencode\blazor-publish\wwwroot";
+var publishDir = Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -58,6 +58,7 @@ app.MapGet("/api/proxy", async (HttpContext ctx) =>
 {
     var url = ctx.Request.Query["url"].FirstOrDefault();
     if (string.IsNullOrEmpty(url)) { ctx.Response.StatusCode = 400; return; }
+    if (!url.StartsWith("https://archive.org/", StringComparison.OrdinalIgnoreCase)) { ctx.Response.StatusCode = 403; return; }
     try
     {
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(90) };

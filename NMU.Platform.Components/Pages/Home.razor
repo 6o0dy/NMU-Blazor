@@ -5,6 +5,7 @@
 @inject NavigationManager Navigation
 @inject IPlatformService Platform
 @inject NavigationState NavState
+@inject IJSRuntime _js
 
 @if (currentStudent != null)
 {
@@ -139,14 +140,11 @@
 
     private void ToggleFab() => fabActive = !fabActive;
 
-    private void OpenWhatsApp()
+    private async Task OpenWhatsApp()
     {
         fabActive = false;
         var url = "https://wa.me/201029691937";
-        if (Platform.IsDesktop)
-            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
-        else
-            Navigation.NavigateTo(url);
+        await _js.InvokeVoidAsync("open", url, "_blank");
     }
 
     private void GoToFeedback()
