@@ -1,17 +1,22 @@
 using System.Text.Json;
 using Microsoft.JSInterop;
 using NMU.Platform.Components.Models;
+using Microsoft.Extensions.Logging;
 
 namespace NMU.Platform.Components.Services;
 
 public class QuizService
 {
     private readonly IJSRuntime _js;
+    private readonly HttpClient _http;
+    private readonly ILogger<QuizService> _logger;
     private const string ArchiveId = "nmu.ce";
 
-    public QuizService(IJSRuntime js)
+    public QuizService(IJSRuntime js, HttpClient http, ILogger<QuizService> logger)
     {
         _js = js;
+        _http = http;
+        _logger = logger;
     }
 
     private static string MapSemester(string sem)
@@ -42,7 +47,7 @@ public class QuizService
         {
             var quizPath = $"NMU/{level}/{semester}/QUIZE/";
             var metaUrl = $"https://archive.org/metadata/{ArchiveId}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-            var json = await _js.InvokeAsync<string>("nmuFunctions.fetchJson", metaUrl);
+            var json = await _http.GetStringAsync(metaUrl);
             var data = JsonSerializer.Deserialize<ArchiveMetadata>(json);
 
             if (data?.Files == null)
@@ -67,7 +72,7 @@ public class QuizService
             try
             {
                 var orderUrl = $"https://archive.org/download/{ArchiveId}/{quizPath}order_config.json?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-                var orderJson = await _js.InvokeAsync<string>("nmuFunctions.fetchJson", orderUrl);
+                var orderJson = await _http.GetStringAsync(orderUrl);
                 var orderConfig = JsonSerializer.Deserialize<OrderConfig>(orderJson);
                 if (orderConfig?.Order != null)
                     orderList = orderConfig.Order;
@@ -119,7 +124,19 @@ public class QuizService
                 var parsed = JsonSerializer.Deserialize<List<QuizChapter>>(cached);
                 if (parsed != null && parsed.Count > 0)
                 {
-                    _ = _js.InvokeVoidAsync("nmuFunctions.refreshQuizContent", filePath);
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var url = $"https://archive.org/download/{ArchiveId}/{filePath}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+                            var latestJson = await _http.GetStringAsync(url);
+                            if (!string.IsNullOrEmpty(latestJson))
+                            {
+                                await _js.InvokeVoidAsync("localStorage.setItem", cacheKey, latestJson);
+                            }
+                        }
+                        catch { }
+                    });
                     return parsed;
                 }
             }
@@ -128,24 +145,27 @@ public class QuizService
 
         try
         {
-            try { await _js.InvokeVoidAsync("console.log", "QuizService: fetching path:", filePath); } catch { }
-            var json = await _js.InvokeAsync<string>("nmuFunctions.fetchQuizContent", filePath);
-            try { await _js.InvokeVoidAsync("console.log", "QuizService: got json length:", json?.Length ?? 0); } catch { }
+            _logger.LogInformation("QuizService: fetching path: {FilePath}", filePath);
+            var url = $"https://archive.org/download/{ArchiveId}/{filePath}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+            var json = await _http.GetStringAsync(url);
+            _logger.LogInformation("QuizService: got json length: {Length}", json?.Length ?? 0);
 
             if (string.IsNullOrEmpty(json))
             {
-                try { await _js.InvokeVoidAsync("console.warn", "QuizService: empty json response"); } catch { }
+                _logger.LogWarning("QuizService: empty json response");
                 return new List<QuizChapter>();
             }
 
+            await _js.InvokeVoidAsync("localStorage.setItem", cacheKey, json);
+
             var data = JsonSerializer.Deserialize<List<QuizChapter>>(json);
             if (data == null)
-                try { await _js.InvokeVoidAsync("console.warn", "QuizService: deserialized null"); } catch { };
+                _logger.LogWarning("QuizService: deserialized null");
             return data ?? new List<QuizChapter>();
         }
         catch (Exception ex)
         {
-            try { await _js.InvokeVoidAsync("console.error", "QuizService error:", ex.Message); } catch { }
+            _logger.LogError(ex, "QuizService error: {Message}", ex.Message);
             return new List<QuizChapter>();
         }
     }
