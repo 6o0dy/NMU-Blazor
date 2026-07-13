@@ -39,6 +39,7 @@ public class QuizQuestion
     public string GraphFn { get; set; } = "";
 
     [JsonPropertyName("graphData")]
+    [JsonConverter(typeof(RawJsonStringConverter))]
     public string GraphData { get; set; } = "";
 
     [JsonIgnore]
@@ -104,4 +105,22 @@ public class QuizOptionItem
     public string GraphFn { get; set; } = "";
     public string GraphData { get; set; } = "";
     public bool IsObject { get; set; }
+}
+
+public class RawJsonStringConverter : JsonConverter<string>
+{
+    public override string Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String)
+            return reader.GetString() ?? "";
+        if (reader.TokenType == JsonTokenType.Null)
+            return "";
+        using var doc = JsonDocument.ParseValue(ref reader);
+        return doc.RootElement.GetRawText();
+    }
+
+    public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value);
+    }
 }

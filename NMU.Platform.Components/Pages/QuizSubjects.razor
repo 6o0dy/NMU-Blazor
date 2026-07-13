@@ -1,12 +1,12 @@
 @page "/quizzes"
 @using NMU.Platform.Components.Models
-@implements IDisposable
 @inject QuizService QuizService
 @inject StudentService StudentService
 @inject NavigationManager Navigation
 @inject NavigationState NavState
 @inject QuizStateService QuizState
-
+@inject IJSRuntime JS
+ 
 @if (_loading)
 {
     <div class="loading-state">
@@ -68,6 +68,8 @@ else
             }
 
             _subjects = await QuizService.GetQuizListAsync(_studentLevel, _studentSemester);
+            QuizState.SubjectPathMap = _subjects.ToDictionary(s => s.Name, s => s.Path, StringComparer.OrdinalIgnoreCase);
+            try { await JS.InvokeVoidAsync("localStorage.setItem", "nmu_quiz_path_map", System.Text.Json.JsonSerializer.Serialize(QuizState.SubjectPathMap)); } catch { }
             if (_subjects.Count == 0)
                 _errorMsg = "No quizzes available.";
         }
@@ -83,7 +85,7 @@ else
     {
         QuizState.SubjectName = subject.Name;
         QuizState.SubjectPath = subject.Path;
-        Navigation.NavigateTo($"/quizzes/{Uri.EscapeDataString(subject.Name)}");
+        Navigation.NavigateTo($"/quizzes/{Uri.EscapeDataString(subject.Name)}", replace: true);
     }
 
     private void Reload()
@@ -144,7 +146,4 @@ else
         return "fa-solid fa-book-open";
     }
 
-    public void Dispose()
-    {
-    }
 }

@@ -113,14 +113,14 @@ else
     {
         NavState.CurrentFileUrl = exp.Url;
         NavState.CurrentFileName = exp.Title;
-        Navigation.NavigateTo($"/laboratory/{Uri.EscapeDataString(exp.Title)}/viewer");
+        Navigation.NavigateTo($"/laboratory/{Uri.EscapeDataString(exp.Title)}/viewer", replace: true);
     }
 
     private void OpenEmptyLab()
     {
         NavState.CurrentFileUrl = "https://dcaclab.com/ar/experiments/82098/iframe";
         NavState.CurrentFileName = "Empty Lab";
-        Navigation.NavigateTo($"/laboratory/empty-lab/viewer");
+        Navigation.NavigateTo($"/laboratory/empty-lab/viewer", replace: true);
     }
 
     public void Dispose()

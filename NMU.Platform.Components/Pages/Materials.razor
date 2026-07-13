@@ -85,6 +85,6 @@ else
 
     private void OpenSubject(string subject)
     {
-        Navigation.NavigateTo($"/materials/{Uri.EscapeDataString(subject)}");
+        Navigation.NavigateTo($"/materials/{Uri.EscapeDataString(subject)}", replace: true);
     }
 }

@@ -121,7 +121,7 @@ else
         NavState.YouTubeVideoId = video.VideoId;
         var encodedId = Uri.EscapeDataString(video.VideoId);
         var encodedTitle = Uri.EscapeDataString(video.Title);
-        Navigation.NavigateTo($"/youtube/{Channel}/player?videoId={encodedId}&title={encodedTitle}");
+        Navigation.NavigateTo($"/youtube/{Channel}/player?videoId={encodedId}&title={encodedTitle}", replace: true);
     }
 
     private void OpenOnYoutube(string url)

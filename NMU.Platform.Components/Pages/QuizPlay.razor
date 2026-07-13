@@ -3,11 +3,16 @@
 @inject NavigationManager Navigation
 @inject NavigationState NavState
 @inject QuizStateService QuizState
+@inject NavigationHistoryService NavHistory
 @inject IJSRuntime JS
 
-@if (!QuizState.IsQuizActive && !_isNavigatingToResult)
+@if (_isNavigatingToResult)
 {
-    Navigation.NavigateTo($"/quizzes/{Uri.EscapeDataString(Subject)}");
+    return;
+}
+@if (!QuizState.IsQuizActive)
+{
+    Navigation.NavigateTo($"/quizzes/{Uri.EscapeDataString(Subject)}", replace: true);
     return;
 }
 
@@ -273,7 +278,16 @@
     protected override void OnInitialized()
     {
         NavState.PageTitle = "Quizzes";
-        NavState.HideHeader = true;
+        QuizState.StateChanged += OnQuizStateChanged;
+    }
+
+    private void OnQuizStateChanged()
+    {
+        if (QuizState.BackRequested)
+        {
+            _showExitModal = true;
+            StateHasChanged();
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -450,13 +464,14 @@
         QuizState.ExpLangAr = false;
     }
 
-    private void FinishQuiz(bool timeout)
+    private async void FinishQuiz(bool timeout)
     {
+        _isNavigatingToResult = true;
         _timer?.Dispose();
         _timer = null;
-        _isNavigatingToResult = true;
         QuizState.FinishQuiz(timeout);
-        Navigation.NavigateTo($"/quizzes/{Uri.EscapeDataString(Subject)}/result");
+        NavHistory.Pop();
+        Navigation.NavigateTo($"/quizzes/{Uri.EscapeDataString(Subject)}/result", replace: true);
     }
 
     private void RequestExit()
@@ -467,15 +482,18 @@
     private void ConfirmExit()
     {
         _showExitModal = false;
+        _isNavigatingToResult = true;
+        QuizState.BackRequested = false;
         _timer?.Dispose();
         _timer = null;
+        var prev = NavHistory.Pop();
+        Navigation.NavigateTo(prev ?? "/", replace: true);
         QuizState.Reset();
-        NavState.HideHeader = false;
-        Navigation.NavigateTo("/quizzes");
     }
 
     private void CloseExitModal()
     {
+        QuizState.BackRequested = false;
         _showExitModal = false;
     }
 
@@ -592,10 +610,9 @@
         StateHasChanged();
     }
 
-    public async void Dispose()
+    public void Dispose()
     {
-        await JS.InvokeVoidAsync("quizInterop.removeBeforeUnload");
+        QuizState.StateChanged -= OnQuizStateChanged;
         _timer?.Dispose();
-        NavState.HideHeader = false;
     }
 }

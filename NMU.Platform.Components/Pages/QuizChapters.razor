@@ -1,13 +1,11 @@
 @page "/quizzes/{Subject}"
 @using NMU.Platform.Components.Models
-@implements IDisposable
 @inject QuizService QuizService
 @inject NavigationManager Navigation
 @inject NavigationState NavState
 @inject QuizStateService QuizState
 @inject LayoutState LayoutState
 @inject IJSRuntime JS
-
 @if (_loading)
 {
     <div class="loading-state">
@@ -202,17 +200,44 @@ else
     private bool _isRealExamMode = true;
     private bool _customTimeEnabled;
     private int _customTimeMinutes;
-
     protected override async Task OnInitializedAsync()
     {
         var decoded = Uri.UnescapeDataString(Subject);
         NavState.PageTitle = decoded.Replace("_", " ");
         _subjectName = decoded;
 
+        var path = QuizState.SubjectPath;
+        if (string.IsNullOrEmpty(path))
+        {
+            if (QuizState.SubjectPathMap.Count == 0)
+            {
+                try
+                {
+                    var stored = await JS.InvokeAsync<string?>("localStorage.getItem", "nmu_quiz_path_map");
+                    if (!string.IsNullOrEmpty(stored))
+                        QuizState.SubjectPathMap = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(stored) ?? new();
+                }
+                catch { }
+            }
+            if (QuizState.SubjectPathMap.TryGetValue(decoded, out var mapped))
+                path = mapped;
+        }
+
+        if (string.IsNullOrEmpty(path))
+        {
+            _errorMsg = "Please select a subject from the quiz list first.";
+            _loading = false;
+            return;
+        }
+
+        try { await JS.InvokeVoidAsync("console.log", "QuizChapters: resolved path:", path); } catch { }
+
         try
         {
-            _chapters = await QuizService.GetQuizDataAsync(QuizState.SubjectPath);
+            _chapters = await QuizService.GetQuizDataAsync(path);
             _totalQuestions = _chapters.Sum(c => c.Questions.Count);
+            if (_chapters.Count == 0)
+                _errorMsg = "No quiz content available for this subject.";
         }
         catch (Exception ex)
         {
@@ -298,7 +323,7 @@ else
         var isRealExam = _pendingIsTimed && _isRealExamMode;
         var timeMinutes = _customTimeEnabled ? _customTimeMinutes : _configTimeMinutes;
         QuizState.StartQuiz(pool, isRealExam, _pendingIsTimed, timeMinutes);
-        Navigation.NavigateTo($"/quizzes/{Uri.EscapeDataString(Subject)}/play");
+        Navigation.NavigateTo($"/quizzes/{Uri.EscapeDataString(Subject)}/play", replace: true);
     }
 
     private async Task OpenChapterSelectionModal()
@@ -345,7 +370,4 @@ else
         _ = OnInitializedAsync();
     }
 
-    public void Dispose()
-    {
-    }
 }

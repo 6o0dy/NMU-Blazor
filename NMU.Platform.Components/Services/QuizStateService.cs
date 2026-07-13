@@ -6,6 +6,7 @@ public class QuizStateService
 {
     public string SubjectName { get; set; } = "";
     public string SubjectPath { get; set; } = "";
+    public Dictionary<string, string> SubjectPathMap { get; set; } = new();
     public List<QuizChapter> Chapters { get; set; } = new();
     public List<QuizQuestion> CurrentQuestions { get; set; } = new();
     public int CurrentIndex { get; set; }
@@ -26,9 +27,16 @@ public class QuizStateService
     public int ResultCorrect { get; set; }
     public int ResultWrong { get; set; }
     public bool IsTimeout { get; set; }
+    public bool BackRequested { get; set; }
 
     public event Action? StateChanged;
     public void NotifyStateChanged() => StateChanged?.Invoke();
+
+    public void RequestBack()
+    {
+        BackRequested = true;
+        NotifyStateChanged();
+    }
 
     public void StartQuiz(List<QuizQuestion> questions, bool isRealExam, bool isTimed, int timeMinutes)
     {
@@ -167,6 +175,7 @@ public class QuizStateService
         ScoreCorrect = 0;
         ScoreWrong = 0;
         CurrentIndex = 0;
+        BackRequested = false;
         NotifyStateChanged();
     }
 

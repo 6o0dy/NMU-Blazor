@@ -7,12 +7,14 @@
 @inject IJSRuntime JS
 @inject NavigationState NavState
 @inject ToastService Toast
+@inject NavigationHistoryService NavHistory
+@inject QuizStateService QuizState
 
 <header class="header" dir="ltr" lang="en">
     <div class="header-left">
         @if (!IsHome)
         {
-            <button class="back-btn" @onclick="GoBack" title="Back">
+            <button class="back-btn" @onclick="GoBack" title="Back (رجوع)">
                 <i class="fas fa-arrow-left"></i>
             </button>
         }
@@ -83,11 +85,33 @@
     </div>
 </header>
 
+@if (_showExitConfirm)
+{
+    <div class="modal-overlay active-modal">
+        <div class="modal-box" style="text-align:center; padding:25px;">
+            <div style="font-size:3rem; margin-bottom:15px;">
+                <i class="fas fa-sign-out-alt" style="color:var(--wrong)"></i>
+            </div>
+            <h3 style="margin-bottom:10px; color:var(--text-primary);">Exit Application?</h3>
+            <p style="color:var(--text-secondary); margin-bottom:20px;">
+                Are you sure you want to exit the application?
+            </p>
+            <div style="display:flex; gap:10px; justify-content:center;">
+                <button class="ctrl-btn" style="flex:1; border-color:var(--text-secondary); color:#fff;"
+                        @onclick="CancelAppExit">Cancel</button>
+                <button class="ctrl-btn" style="flex:1; background:var(--wrong); color:#fff; border:none;"
+                        @onclick="ConfirmAppExit">Exit</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
-    private bool IsHome => Navigation.Uri.TrimEnd('/').EndsWith("/") || Navigation.Uri.EndsWith("/");
+    private bool IsHome => string.IsNullOrEmpty(Navigation.ToBaseRelativePath(Navigation.Uri).Trim('/'));
     private bool IsVideoPlayer => Navigation.Uri.Contains("/player") && !Navigation.Uri.Contains("/youtube/");
     private bool IsYouTubePlayer => Navigation.Uri.Contains("/youtube/") && Navigation.Uri.Contains("/player");
     private bool _isDownloading;
+    private bool _showExitConfirm;
 
     private DotNetObjectReference<Header>? _dotNetRef;
 
@@ -96,6 +120,8 @@
         if (Platform.IsDesktop)
             Platform.FullScreenChanged += OnFullScreenChanged;
         Navigation.LocationChanged += OnLocationChanged;
+        var initUrl = Navigation.ToBaseRelativePath(Navigation.Uri).TrimEnd('/');
+        NavHistory.NavigatedTo(string.IsNullOrEmpty(initUrl) ? "/" : "/" + initUrl);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -117,6 +143,8 @@
     {
         var newPath = Navigation.ToBaseRelativePath(e.Location).TrimEnd('/');
         if (newPath == "") newPath = "/";
+
+        NavHistory.NavigatedTo(newPath);
 
         var parts = newPath.Split('/');
         if (!(parts.Length >= 3 && parts[0] == "materials" && parts[^1] == "viewer"))
@@ -144,7 +172,28 @@
         NavState.CurrentFileUrl = null;
         NavState.CurrentFileName = null;
         NavState.IsFullScreen = false;
-        await JS.InvokeVoidAsync("window.nmuBrowserBack");
+
+        if (QuizState.IsQuizActive)
+        {
+            QuizState.RequestBack();
+            return;
+        }
+
+        var prev = NavHistory.Pop();
+        if (prev != null)
+        {
+            Navigation.NavigateTo(prev, replace: true);
+            return;
+        }
+
+        if (IsHome && !Platform.IsWeb)
+        {
+            _showExitConfirm = true;
+            StateHasChanged();
+            return;
+        }
+
+        Navigation.NavigateTo("/", replace: true);
     }
 
     private async Task ToggleFullscreen()
@@ -169,7 +218,11 @@
 
     private async Task ToggleMaximize() => await Platform.ToggleMaximizeAsync();
     private async Task Minimize() => await Platform.MinimizeAsync();
-    private async Task CloseApp() => await Platform.CloseAsync();
+    private async Task CloseApp()
+    {
+        _showExitConfirm = true;
+        StateHasChanged();
+    }
 
     private async Task DownloadCurrentFile()
     {
@@ -201,7 +254,20 @@
         }
     }
 
-    private void GoToFeedback() => Navigation.NavigateTo("/feedback");
+    private async void ConfirmAppExit()
+    {
+        _showExitConfirm = false;
+        StateHasChanged();
+        await Platform.CloseAsync();
+    }
+
+    private void CancelAppExit()
+    {
+        _showExitConfirm = false;
+        StateHasChanged();
+    }
+
+    private void GoToFeedback() => Navigation.NavigateTo("/feedback", replace: true);
      
     private void DownloadApp()
     {

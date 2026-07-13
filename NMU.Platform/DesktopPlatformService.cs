@@ -117,6 +117,18 @@ public class DesktopPlatformService : IPlatformService
         if (nw == null) return Task.CompletedTask;
         try { nw.Close(); }
         catch { }
+#elif ANDROID
+        try
+        {
+            var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+            if (activity != null)
+                activity.FinishAffinity();
+        }
+        catch { }
+#elif IOS
+        try { System.Threading.Thread.CurrentThread.Abort(); } catch { }
+        try { System.Diagnostics.Process.GetCurrentProcess().Kill(); } catch { }
+        try { Environment.Exit(0); } catch { }
 #endif
         return Task.CompletedTask;
     }

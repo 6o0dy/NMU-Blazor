@@ -138,7 +138,6 @@
     protected override void OnInitialized()
     {
         NavState.PageTitle = "Results";
-        NavState.HideHeader = true;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -305,13 +304,11 @@
     private void BackToMenu()
     {
         QuizState.Reset();
-        NavState.HideHeader = false;
-        Navigation.NavigateTo("/quizzes");
+        Navigation.NavigateTo("/quizzes", replace: true);
     }
 
     public void Dispose()
     {
-        NavState.HideHeader = false;
     }
 
     private class AnswerGraphInfo

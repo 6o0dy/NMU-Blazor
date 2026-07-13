@@ -110,6 +110,7 @@ public class QuizService
     public async Task<List<QuizChapter>> GetQuizDataAsync(string filePath)
     {
         var cacheKey = $"nmu_q_content_{filePath}";
+
         try
         {
             var cached = await _js.InvokeAsync<string?>("localStorage.getItem", cacheKey);
@@ -117,24 +118,34 @@ public class QuizService
             {
                 var parsed = JsonSerializer.Deserialize<List<QuizChapter>>(cached);
                 if (parsed != null && parsed.Count > 0)
+                {
+                    _ = _js.InvokeVoidAsync("nmuFunctions.refreshQuizContent", filePath);
                     return parsed;
+                }
             }
         }
         catch { }
 
         try
         {
-            var url = $"https://archive.org/download/{ArchiveId}/{filePath}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-            var json = await _js.InvokeAsync<string>("nmuFunctions.fetchJson", url);
+            try { await _js.InvokeVoidAsync("console.log", "QuizService: fetching path:", filePath); } catch { }
+            var json = await _js.InvokeAsync<string>("nmuFunctions.fetchQuizContent", filePath);
+            try { await _js.InvokeVoidAsync("console.log", "QuizService: got json length:", json?.Length ?? 0); } catch { }
+
+            if (string.IsNullOrEmpty(json))
+            {
+                try { await _js.InvokeVoidAsync("console.warn", "QuizService: empty json response"); } catch { }
+                return new List<QuizChapter>();
+            }
+
             var data = JsonSerializer.Deserialize<List<QuizChapter>>(json);
-
-            if (data != null && data.Count > 0)
-                await _js.InvokeVoidAsync("localStorage.setItem", cacheKey, JsonSerializer.Serialize(data));
-
+            if (data == null)
+                try { await _js.InvokeVoidAsync("console.warn", "QuizService: deserialized null"); } catch { };
             return data ?? new List<QuizChapter>();
         }
-        catch
+        catch (Exception ex)
         {
+            try { await _js.InvokeVoidAsync("console.error", "QuizService error:", ex.Message); } catch { }
             return new List<QuizChapter>();
         }
     }

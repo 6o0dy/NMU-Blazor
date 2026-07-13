@@ -1,3 +1,9 @@
+// منع أزرار باك وفورورد في المتصفح - التحكم يكون بس من الهيدر
+window.addEventListener('popstate', function () {
+    var url = location.href;
+    history.pushState(null, '', url);
+});
+
 // Browser & Android hardware back → يرجع للصفحة السابقة
 window.nmuBrowserBack = function() {
     history.back();
@@ -32,6 +38,29 @@ window.nmuFunctions = {
         }).then(function (data) {
             return JSON.stringify(data);
         });
+    },
+
+    fetchQuizContent: function (filePath) {
+        var cacheKey = "nmu_q_content_" + filePath;
+        var url = "https://archive.org/download/nmu.ce/" + filePath + "?t=" + Date.now();
+        return fetch(url, { cache: "no-store" }).then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        }).then(function (data) {
+            try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch (e) { /* ignore */ }
+            return JSON.stringify(data);
+        });
+    },
+
+    refreshQuizContent: function (filePath) {
+        var cacheKey = "nmu_q_content_" + filePath;
+        var url = "https://archive.org/download/nmu.ce/" + filePath + "?t=" + Date.now();
+        fetch(url, { cache: "no-store" }).then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        }).then(function (data) {
+            try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch (e) { /* ignore */ }
+        }).catch(function () {});
     },
 
     resolveDirectUrl: function (downloadUrl) {

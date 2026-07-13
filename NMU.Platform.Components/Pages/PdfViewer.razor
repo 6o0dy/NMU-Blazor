@@ -65,7 +65,7 @@
 
         if (string.IsNullOrEmpty(fileUrl))
         {
-            Navigation.NavigateTo($"/materials/{Uri.EscapeDataString(Subject)}");
+            Navigation.NavigateTo($"/materials/{Uri.EscapeDataString(Subject)}", replace: true);
             return;
         }
 
@@ -163,7 +163,7 @@
         _ = JS.InvokeVoidAsync("nmuFunctions.disablePinchZoom");
         NavState.CurrentFileUrl = null;
         NavState.CurrentFileName = null;
-        Navigation.NavigateTo($"/materials/{Uri.EscapeDataString(Subject)}");
+        Navigation.NavigateTo($"/materials/{Uri.EscapeDataString(Subject)}", replace: true);
     }
 
     private void DownloadCurrentFile()

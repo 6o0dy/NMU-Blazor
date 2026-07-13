@@ -152,7 +152,7 @@
     private void GoToFeedback()
     {
         fabActive = false;
-        Navigation.NavigateTo("/feedback");
+        Navigation.NavigateTo("/feedback", replace: true);
     }
 
     private void OpenManageModal()
@@ -204,7 +204,7 @@
         {
             await StudentService.DeleteStudentAsync();
             currentStudent = null;
-            Navigation.NavigateTo("/", true);
+            Navigation.NavigateTo("/", true, true);
         }
         catch { }
     }
@@ -215,7 +215,7 @@
         var current = Navigation.Uri.TrimEnd('/');
         var target = baseUri + url;
         if (current == target) return;
-        Navigation.NavigateTo(url);
+        Navigation.NavigateTo(url, replace: true);
     }
 
     private void GoToMaterials() => NavigateTo("/materials");

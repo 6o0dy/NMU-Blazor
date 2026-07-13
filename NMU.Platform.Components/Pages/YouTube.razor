@@ -105,7 +105,7 @@ else
 
     private void OpenChannel(YouTubeChannel channel)
     {
-        Navigation.NavigateTo($"/youtube/{Uri.EscapeDataString(channel.GroupKey)}");
+        Navigation.NavigateTo($"/youtube/{Uri.EscapeDataString(channel.GroupKey)}", replace: true);
     }
 
     private void Reload()
