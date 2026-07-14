@@ -182,7 +182,7 @@
         var prev = NavHistory.Pop();
         if (prev != null)
         {
-            Navigation.NavigateTo(prev, replace: true);
+            Navigation.NavigateTo(prev.TrimStart('/'), replace: true);
             return;
         }
 
@@ -193,7 +193,7 @@
             return;
         }
 
-        Navigation.NavigateTo("/", replace: true);
+        Navigation.NavigateTo("", replace: true);
     }
 
     private async Task ToggleFullscreen()
@@ -267,7 +267,7 @@
         StateHasChanged();
     }
 
-    private void GoToFeedback() => Navigation.NavigateTo("/feedback", replace: true);
+    private void GoToFeedback() => Navigation.NavigateTo("feedback", replace: true);
      
     private void DownloadApp()
     {

@@ -179,7 +179,7 @@ else
     {
         NavState.CurrentFileUrl = url;
         NavState.CurrentFileName = name;
-        Navigation.NavigateTo($"/materials/{Uri.EscapeDataString(Subject)}/viewer", replace: true);
+        Navigation.NavigateTo($"materials/{Uri.EscapeDataString(Subject)}/viewer", replace: true);
     }
 
     public void Dispose()

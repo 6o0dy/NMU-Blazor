@@ -323,7 +323,7 @@ else
         var isRealExam = _pendingIsTimed && _isRealExamMode;
         var timeMinutes = _customTimeEnabled ? _customTimeMinutes : _configTimeMinutes;
         QuizState.StartQuiz(pool, isRealExam, _pendingIsTimed, timeMinutes);
-        Navigation.NavigateTo($"/quizzes/{Uri.EscapeDataString(Subject)}/play", replace: true);
+        Navigation.NavigateTo($"quizzes/{Uri.EscapeDataString(Subject)}/play", replace: true);
     }
 
     private async Task OpenChapterSelectionModal()

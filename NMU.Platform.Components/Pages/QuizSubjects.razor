@@ -85,7 +85,7 @@ else
     {
         QuizState.SubjectName = subject.Name;
         QuizState.SubjectPath = subject.Path;
-        Navigation.NavigateTo($"/quizzes/{Uri.EscapeDataString(subject.Name)}", replace: true);
+        Navigation.NavigateTo($"quizzes/{Uri.EscapeDataString(subject.Name)}", replace: true);
     }
 
     private void Reload()

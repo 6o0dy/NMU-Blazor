@@ -112,7 +112,7 @@
         }
         if (string.IsNullOrEmpty(_fileUrl))
         {
-            Navigation.NavigateTo($"/recorded/{Uri.EscapeDataString(_group)}", replace: true);
+            Navigation.NavigateTo($"recorded/{Uri.EscapeDataString(_group)}", replace: true);
             return;
         }
         _isAudio = _fileName.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ||
@@ -312,7 +312,7 @@
         NavState.CurrentFileUrl = null;
         NavState.CurrentFileName = null;
         NavState.PageTitle = "NMU-CE & AIE";
-        Navigation.NavigateTo($"/recorded/{Uri.EscapeDataString(_group)}", replace: true);
+        Navigation.NavigateTo($"recorded/{Uri.EscapeDataString(_group)}", replace: true);
     }
 
     private static string FormatTime(double t)

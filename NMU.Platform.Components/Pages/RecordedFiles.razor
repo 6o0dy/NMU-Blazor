@@ -173,7 +173,7 @@ else
         NavState.CurrentFileName = name;
         var encodedUrl = Uri.EscapeDataString(url);
         var encodedName = Uri.EscapeDataString(name);
-        Navigation.NavigateTo($"/recorded/{Uri.EscapeDataString(Uri.UnescapeDataString(Group))}/player?url={encodedUrl}&name={encodedName}", replace: true);
+        Navigation.NavigateTo($"recorded/{Uri.EscapeDataString(Uri.UnescapeDataString(Group))}/player?url={encodedUrl}&name={encodedName}", replace: true);
     }
 
     private async Task DownloadFile(RecordedFile file)

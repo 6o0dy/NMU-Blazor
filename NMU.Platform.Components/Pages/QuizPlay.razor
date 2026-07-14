@@ -12,7 +12,7 @@
 }
 @if (!QuizState.IsQuizActive)
 {
-    Navigation.NavigateTo($"/quizzes/{Uri.EscapeDataString(Subject)}", replace: true);
+    Navigation.NavigateTo($"quizzes/{Uri.EscapeDataString(Subject)}", replace: true);
     return;
 }
 
@@ -471,7 +471,7 @@
         _timer = null;
         QuizState.FinishQuiz(timeout);
         NavHistory.Pop();
-        Navigation.NavigateTo($"/quizzes/{Uri.EscapeDataString(Subject)}/result", replace: true);
+        Navigation.NavigateTo($"quizzes/{Uri.EscapeDataString(Subject)}/result", replace: true);
     }
 
     private void RequestExit()
@@ -487,7 +487,7 @@
         _timer?.Dispose();
         _timer = null;
         var prev = NavHistory.Pop();
-        Navigation.NavigateTo(prev ?? "/", replace: true);
+        Navigation.NavigateTo((prev ?? "").TrimStart('/'), replace: true);
         QuizState.Reset();
     }
 
