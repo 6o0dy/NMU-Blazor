@@ -28,20 +28,13 @@ jobs:
         run: dotnet build NMU.Platform.Web/NMU.Platform.Web.csproj -c Release --no-restore
       - name: Publish
         run: dotnet publish NMU.Platform.Web/NMU.Platform.Web.csproj -c Release -o publish --no-restore
-      - name: Fix Framework Paths
-        run: |
-          # Ensure _framework folder exists
-          mkdir -p publish/wwwroot/_framework
-          # Copy dotnet.js to multiple locations to be safe
-          cp publish/dotnet.js publish/wwwroot/dotnet.js
-          cp publish/dotnet.js publish/wwwroot/_framework/dotnet.js
-          # Add .nojekyll to disable Jekyll processing
-          touch publish/wwwroot/.nojekyll
+      - name: Copy dotnet.js to _framework
+        run: cp publish/dotnet.js publish/wwwroot/_framework/dotnet.js
       - name: Fix base href for GitHub Pages
         run: |
           sed -i 's|<base href="/" />|<base href="/NMU-Blazor/" />|g' publish/wwwroot/index.html
-      - name: Debug - List files
-        run: ls -R publish/wwwroot
+      - name: Add .nojekyll
+        run: touch publish/wwwroot/.nojekyll
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
