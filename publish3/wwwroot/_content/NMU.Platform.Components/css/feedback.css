@@ -1,0 +1,556 @@
+/* Feedback page - widget, reviews, modals */
+
+.feedback-container {
+    max-width: 800px;
+    margin: 10px auto 40px;
+    padding: 0 15px;
+}
+
+/* --- Widget --- */
+.feedback-widget {
+    max-width: 500px;
+    margin: 0 auto 40px;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 242, 255, 0.2);
+    border-radius: 24px;
+    padding: 25px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+    position: relative;
+    overflow: hidden;
+    animation: slideDown 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.feedback-widget::before {
+    content: '';
+    position: absolute;
+    top: -50px;
+    left: -50px;
+    width: 150px;
+    height: 150px;
+    background: var(--accent);
+    filter: blur(90px);
+    opacity: 0.2;
+    z-index: -1;
+}
+
+.widget-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 15px;
+}
+
+.widget-img {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 2px solid var(--primary);
+    object-fit: cover;
+    box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+    flex-shrink: 0;
+}
+
+.widget-title {
+    width: 100%;
+    text-align: center;
+}
+
+.widget-title h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: #fff;
+    font-weight: 800;
+    font-family: 'Fira Code', 'Cairo', sans-serif;
+    background: linear-gradient(to right, var(--primary), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.widget-title p {
+    margin: 2px 0 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* --- Stars & Toggle --- */
+.row-flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.rating-container {
+    display: flex;
+    gap: 2px;
+    direction: ltr;
+    cursor: pointer;
+}
+
+.star-wrapper {
+    position: relative;
+    display: inline-block;
+    font-size: 26px;
+    line-height: 1;
+}
+
+.star-wrapper i {
+    display: block;
+}
+
+.star-hitbox {
+    position: absolute;
+    top: 0;
+    width: 50%;
+    height: 100%;
+    cursor: pointer;
+    z-index: 2;
+}
+
+.star-left { left: 0; }
+.star-right { right: 0; }
+
+.star-icon {
+    color: rgba(255, 255, 255, 0.1);
+    transition: 0.2s;
+}
+
+.star-icon.filled {
+    color: var(--star-color);
+    filter: drop-shadow(0 0 8px rgba(255, 184, 0, 0.4));
+}
+
+.toggle-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: 0.3s;
+}
+
+.toggle-wrapper:hover {
+    background: rgba(0, 0, 0, 0.4);
+}
+
+.toggle-switch {
+    width: 36px;
+    height: 20px;
+    background: #333;
+    border-radius: 20px;
+    position: relative;
+    transition: 0.3s;
+    flex-shrink: 0;
+}
+
+.toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 16px;
+    height: 16px;
+    background: #fff;
+    border-radius: 50%;
+    transition: 0.3s;
+}
+
+.toggle-wrapper.active {
+    border-color: var(--primary);
+    background: rgba(0, 242, 255, 0.05);
+}
+
+.toggle-wrapper.active .toggle-switch {
+    background: var(--primary);
+    box-shadow: 0 0 8px var(--primary);
+}
+
+.toggle-wrapper.active .toggle-switch::after {
+    transform: translateX(-16px);
+}
+
+.toggle-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 700;
+    transition: 0.3s;
+}
+
+.toggle-wrapper.active .toggle-label {
+    color: var(--primary);
+}
+
+/* --- Form --- */
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.input-field {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 12px 15px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: 0.3s;
+    outline: none;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.input-field:focus {
+    border-color: var(--primary);
+    background: rgba(0, 0, 0, 0.6);
+    box-shadow: 0 0 10px rgba(0, 242, 255, 0.1);
+}
+
+textarea.input-field {
+    height: 80px;
+    resize: none;
+}
+
+.actions-row {
+    display: flex;
+    gap: 10px;
+}
+
+.btn {
+    flex: 1;
+    padding: 12px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: 0.3s;
+    border: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: #000;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: #fff;
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+}
+
+.btn-primary:disabled {
+    background: #334155;
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
+.btn-danger {
+    background: rgba(255, 71, 87, 0.1);
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    flex: 0.3;
+}
+
+.btn-danger:hover {
+    background: var(--danger);
+    color: #fff;
+    box-shadow: 0 0 15px rgba(255, 71, 87, 0.4);
+}
+
+.wa-strip {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 20px;
+    padding: 10px;
+    border-radius: 12px;
+    background: linear-gradient(90deg, rgba(37, 211, 102, 0.1), rgba(37, 211, 102, 0.02));
+    border: 1px solid rgba(37, 211, 102, 0.3);
+    color: #25D366;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 13px;
+    transition: 0.3s;
+}
+
+.wa-strip:hover {
+    background: rgba(37, 211, 102, 0.2);
+    box-shadow: 0 0 15px rgba(37, 211, 102, 0.2);
+    transform: translateY(-2px);
+}
+
+.wa-strip i {
+    font-size: 18px;
+}
+
+/* --- Reviews Section --- */
+.reviews-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 10px;
+    margin-bottom: 25px;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+    scroll-margin-top: 80px;
+}
+
+.reviews-header h3 {
+    margin: 0;
+    color: #fff;
+    font-size: 1.2rem;
+}
+
+.reviews-count-badge {
+    background: rgba(0, 242, 255, 0.1);
+    color: var(--primary);
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-family: 'Fira Code';
+    font-size: 12px;
+    font-weight: bold;
+    transition: 0.3s;
+}
+
+.pulse-update {
+    animation: flashUpdate 1s ease;
+}
+
+@keyframes flashUpdate {
+    0% { background: #00e676; color: #000; box-shadow: 0 0 15px #00e676; transform: scale(1.1); }
+    100% { background: rgba(0, 242, 255, 0.1); color: var(--primary); transform: scale(1); }
+}
+
+.reviews-list {
+    display: grid;
+    gap: 15px;
+    padding-bottom: 50px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.review-card {
+    background: rgba(30, 41, 59, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    gap: 15px;
+    transition: 0.3s;
+    animation: slideDown 0.4s ease;
+    text-align: right;
+}
+
+.review-card:hover {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(30, 41, 59, 0.7);
+}
+
+.review-card.my-review {
+    border: 1px solid var(--primary);
+    background: rgba(0, 242, 255, 0.03);
+    box-shadow: inset 0 0 20px rgba(0, 242, 255, 0.05);
+}
+
+.reviewer-avatar {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.review-content {
+    flex: 1;
+}
+
+.review-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.r-name {
+    font-size: 15px;
+    font-weight: 800;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 2px;
+}
+
+.r-verified {
+    color: var(--primary);
+    font-size: 12px;
+}
+
+.r-date {
+    font-size: 11px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-family: 'Fira Code';
+}
+
+.r-stars {
+    color: var(--star-color);
+    font-size: 11px;
+    letter-spacing: 1px;
+    direction: ltr;
+    white-space: nowrap;
+}
+
+.r-text {
+    font-size: 13.5px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    padding-top: 5px;
+    text-align: right;
+}
+
+.loading-state {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 50px;
+    font-family: 'Fira Code', monospace;
+}
+
+/* --- Modal --- */
+.feedback-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(5px);
+    z-index: 99999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: 0.3s;
+}
+
+.feedback-modal-overlay.active {
+    display: flex;
+    opacity: 1;
+}
+
+.feedback-modal-box {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--primary);
+    padding: 25px 20px;
+    border-radius: 20px;
+    text-align: center;
+    max-width: 320px;
+    width: 90%;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+    transform: scale(0.9);
+    transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.feedback-modal-overlay.active .feedback-modal-box {
+    transform: scale(1);
+}
+
+.feedback-modal-box.confirm {
+    border-color: var(--danger);
+}
+
+.modal-icon {
+    font-size: 40px;
+    margin-bottom: 10px;
+}
+
+.modal-msg {
+    font-size: 15px;
+    color: #fff;
+    font-weight: 600;
+    line-height: 1.5;
+    margin-bottom: 20px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.c-btn {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 10px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: 0.3s;
+    font-size: 14px;
+}
+
+.c-btn-primary {
+    background: var(--primary);
+    color: #000;
+}
+
+.c-btn-primary:hover {
+    background: #fff;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+}
+
+.c-btn-danger {
+    background: var(--danger);
+    color: #fff;
+}
+
+.c-btn-danger:hover {
+    box-shadow: 0 0 15px rgba(255, 71, 87, 0.4);
+}
+
+.c-btn-cancel {
+    background: #334155;
+    color: #fff;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 500px) {
+    .review-card {
+        flex-direction: column;
+        gap: 10px;
+    }
+    .reviewer-avatar {
+        width: 35px;
+        height: 35px;
+    }
+    .review-top {
+        flex-direction: column;
+        gap: 5px;
+    }
+    .r-stars {
+        align-self: flex-start;
+    }
+}

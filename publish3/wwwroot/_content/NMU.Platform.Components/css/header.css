@@ -1,0 +1,199 @@
+.header {
+    flex-shrink: 0; width: 100%;
+    position: relative;
+    display: flex; align-items: center;
+    padding: 5px 25px;
+    padding-top: calc(5px + var(--safe-area-top, env(safe-area-inset-top, 0px)));
+    background: rgba(5, 11, 20, 0.3);
+    backdrop-filter: blur(20px);
+    z-index: 20000;
+    border-bottom: 1px solid rgba(0, 242, 255, 0.1);
+    box-sizing: border-box;
+}
+
+.header-left {
+    display: flex; align-items: center; gap: 10px;
+    flex-shrink: 0;
+}
+
+.header-center {
+    flex: 1; min-width: 0; padding-left: 5px;
+}
+
+.header-center h2 {
+    font-size: 20px; font-weight: 700;
+    background: linear-gradient(to right, var(--primary), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: 0 0 20px rgba(0, 242, 255, 0.3);
+    margin: 0; letter-spacing: 1px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.header-right {
+    display: flex; align-items: center; gap: 10px;
+    flex-shrink: 0;
+}
+
+.icon-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: 0.3s;
+    color: var(--primary);
+}
+.icon-btn:hover {
+    background: rgba(0, 242, 255, 0.1);
+    box-shadow: 0 0 15px var(--primary);
+    color: White;
+}
+
+#fullscreen-btn {
+    background: rgba(0, 242, 255, 0.05);
+    border: 1px solid rgba(0, 242, 255, 0.2);
+    color: var(--primary);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.3s all ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#fullscreen-btn:hover {
+    background: var(--primary);
+    color: var(--bg-main);
+    box-shadow: 0 0 15px var(--primary);
+}
+
+.win-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    width: 36px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: 0.2s;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.win-btn-max:hover {
+    background: #00f2ff;
+    color: #050b14;
+    box-shadow: 0 0 12px rgba(0, 242, 255, 0.5);
+}
+
+.win-btn-min:hover {
+    background: #ffb800;
+    color: #050b14;
+    box-shadow: 0 0 12px rgba(255, 184, 0, 0.5);
+}
+
+.win-btn-fs:hover {
+    background: #00ff88;
+    color: #050b14;
+    box-shadow: 0 0 12px rgba(0, 255, 136, 0.5);
+}
+
+.win-btn-close:hover {
+    background: #e81123;
+    color: #fff;
+}
+
+.info-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: 0.3s;
+    color: var(--primary);
+}
+.info-btn svg {
+    width: 22px;
+    height: 22px;
+    fill: var(--primary);
+}
+.info-btn:hover {
+    background: rgba(0, 242, 255, 0.1);
+    box-shadow: 0 0 15px var(--primary);
+}
+
+.download-btn {
+    background: transparent;
+    color: var(--primary);
+    padding: 5px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--primary);
+    font-weight: 600;
+    font-size: 13px;
+    font-family: 'Fira Code', 'Cairo', monospace;
+    cursor: pointer;
+    transition: 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.download-btn:hover {
+    background: var(--primary);
+    color: #000;
+    box-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
+}
+
+.icon-btn:disabled {
+    opacity: 0.5; cursor: default;
+}
+.icon-btn:disabled:hover {
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: none; color: var(--primary);
+}
+
+.btn-spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(0,242,255,0.2);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: header-spin 0.7s linear infinite;
+}
+
+@keyframes header-spin {
+    to { transform: rotate(360deg); }
+}
+
+.back-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: 0.3s;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+.back-btn:hover {
+    background: rgba(0, 242, 255, 0.1);
+    color: var(--primary);
+    box-shadow: 0 0 15px var(--primary);
+}
+
