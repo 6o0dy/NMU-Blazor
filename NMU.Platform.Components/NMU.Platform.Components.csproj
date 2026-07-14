@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor;Microsoft.NET.Sdk.Publish">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
