@@ -8,10 +8,10 @@
     <base href="/" />
     <script>
         (function() {
-            var redirect = sessionStorage.getItem('redirect');
+            var params = new URLSearchParams(location.search);
+            var redirect = params.get('redirect');
             if (redirect) {
-                sessionStorage.removeItem('redirect');
-                history.replaceState(null, '', redirect);
+                history.replaceState(null, '', '/NMU-Blazor' + redirect);
             }
         })();
     </script>

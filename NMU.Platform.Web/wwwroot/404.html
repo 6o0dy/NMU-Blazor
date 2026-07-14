@@ -4,8 +4,10 @@
   <meta charset="utf-8">
   <title>NMU-CE &amp; AIE</title>
   <script>
-    sessionStorage.setItem('redirect', '/NMU-Blazor' + location.pathname.replace('/NMU-Blazor', '') + location.search + location.hash);
-    location.replace('/NMU-Blazor/');
+    var path = location.pathname.replace(/^\/NMU-Blazor\/?/, '/');
+    var search = location.search;
+    var hash = location.hash;
+    location.replace('/NMU-Blazor/?redirect=' + encodeURIComponent(path + search + hash));
   </script>
 </head>
 <body></body>
