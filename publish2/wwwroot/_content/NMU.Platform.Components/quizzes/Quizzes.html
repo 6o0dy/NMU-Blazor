@@ -1,0 +1,2614 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>University Quiz Pro</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Fira+Code:wght@400;600&display=swap"
+          rel="stylesheet" />
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
+          rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css"
+          rel="stylesheet" />
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.17/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/function-plot/1.22.1/function-plot.min.js"></script>
+    <script>
+      window.MathJax = {
+        tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+        svg: { fontCache: 'global' }
+      };
+    </script>
+    <script id="MathJax-script"
+            async
+            src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+    <style>
+        :root {
+            --bg-main: #050b14;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --bg-modal: #0a111e;
+            --primary: #00f2ff;
+            --accent: #bd00ff;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --correct: #00e676;
+            --wrong: #ff1744;
+            --star-color: #ffb800;
+            --timer-color: #ff9f43;
+            --grid-color: rgba(0, 242, 255, 0.05);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            outline: none;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-main);
+            background-image:
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px),
+                radial-gradient(circle at 50% 0%, #1a2c4e 0%, var(--bg-main) 80%);
+            background-size: 40px 40px, 40px 40px, 100% 100%;
+            background-attachment: fixed;
+            color: var(--text-primary);
+            font-family: 'Cairo', sans-serif;
+            overflow-x: hidden;
+        }
+
+        body::-webkit-scrollbar { width: 6px; }
+        body::-webkit-scrollbar-track { background: var(--bg-main); }
+        body::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; box-shadow: 0 0 10px var(--primary); }
+
+        .header {
+            position: fixed; top: 0; height: 50px; width: 100%; padding: 5px 25px;
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(5, 11, 20, 0.3); backdrop-filter: blur(20px); z-index: 100;
+            border-bottom: 1px solid rgba(0, 242, 255, 0.1);
+        }
+        .header h2 {
+            font-size: 20px; font-weight: 700; margin: 0; letter-spacing: 1px;
+            background: linear-gradient(to right, var(--primary), var(--accent));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 80px auto 40px;
+            padding: 0 20px;
+        }
+
+        .screen {
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+            .screen.active {
+                display: block !important;
+            }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .grid-view {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .subject-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.3s;
+            position: relative;
+            overflow: hidden;
+            aspect-ratio: 1/1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+            .subject-card:hover {
+                transform: translateY(-5px);
+                border-color: var(--primary);
+                box-shadow: 0 10px 30px rgba(0, 242, 255, 0.15);
+            }
+
+        .subject-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: var(--text-secondary);
+            transition: 0.3s;
+        }
+
+        .subject-card:hover .subject-icon {
+            color: var(--primary);
+            transform: scale(1.1);
+        }
+
+        .subject-name {
+            font-weight: 700;
+            font-size: 1rem;
+            color: #fff;
+        }
+
+        .chapters-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 10px 15px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+            .chapters-header-row h3 {
+                margin: 0;
+                color: var(--primary);
+                font-weight: 800;
+                font-size: 1.2rem;
+            }
+
+        .timer-toggle-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .timer-label {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            transition: 0.3s;
+        }
+
+        .toggle-switch-main {
+            position: relative;
+            width: 46px;
+            height: 24px;
+            background: #222;
+            border-radius: 20px;
+            transition: 0.3s;
+            border: 1px solid #444;
+        }
+
+            .toggle-switch-main::after {
+                content: '';
+                position: absolute;
+                top: 2px;
+                left: 2px;
+                width: 18px;
+                height: 18px;
+                background: #fff;
+                border-radius: 50%;
+                transition: 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+            }
+
+        .timer-active .toggle-switch-main {
+            background: rgba(0, 242, 255, 0.2);
+            border-color: var(--primary);
+        }
+
+            .timer-active .toggle-switch-main::after {
+                left: 24px;
+                background: var(--primary);
+                box-shadow: 0 0 10px var(--primary);
+            }
+
+        .timer-active .timer-label {
+            color: var(--primary);
+            text-shadow: 0 0 10px rgba(0, 242, 255, 0.4);
+        }
+
+        #chapters-list {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            width: 100%;
+            margin: 0 auto 80px auto;
+        }
+
+        @media (min-width: 600px) {
+            #chapters-list {
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+            }
+
+            .comprehensive-card,
+            .custom-select-card {
+                grid-column: 1 / -1;
+            }
+        }
+
+        .chapter-card {
+            width: 100%;
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-right: 4px solid var(--primary);
+            border-left: 4px solid var(--primary);
+            border-radius: 12px;
+            padding: 18px 25px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-direction: row-reverse;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+            .chapter-card:hover {
+                transform: translateY(-3px) scale(1.01);
+                background: rgba(30, 41, 59, 0.9);
+                border-color: var(--primary);
+                box-shadow: 0 10px 20px rgba(0, 242, 255, 0.15);
+            }
+
+        .chapter-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-align: center;
+            flex: 1;
+            margin: 0 15px;
+            line-height: 1.4;
+        }
+
+        .chapter-count {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.05);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-family: 'Fira Code';
+            white-space: nowrap;
+        }
+
+        .comprehensive-card {
+            border-right: none;
+            border: 1px solid var(--accent);
+            background: linear-gradient(135deg, rgba(189, 0, 255, 0.1) 0%, rgba(30, 41, 59, 0.8) 100%);
+            margin-bottom: 5px;
+        }
+
+        .custom-select-card {
+            border-right: none;
+            border: 1px solid var(--star-color);
+            background: rgba(255, 184, 0, 0.05);
+            margin-bottom: 15px;
+        }
+
+            .custom-select-card .chapter-title {
+                color: var(--star-color);
+                font-weight: 800;
+                text-align: center;
+            }
+
+        .top-bar {
+            background: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 10px 15px;
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 25px;
+            position: sticky;
+            top: 70px;
+            z-index: 900;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .top-bar-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        #top-palette-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            white-space: nowrap;
+            padding: 5px 0;
+            display: none;
+            scrollbar-width: block;
+            -ms-overflow-style: block;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+            #top-palette-wrapper::-webkit-scrollbar {
+                display: auto;
+            }
+
+        .palette-strip {
+            display: inline-flex;
+            gap: 8px;
+            padding: 0 5px;
+        }
+
+        .mini-q-num {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #aaa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Fira Code';
+            font-size: 0.85rem;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: 0.2s;
+            flex-shrink: 0;
+        }
+
+            .mini-q-num.active {
+                background: var(--primary);
+                color: #000;
+                border-color: var(--primary);
+                font-weight: 700;
+                transform: translateY(-5px);
+                box-shadow: 0 5px 15px rgba(0, 242, 255, 0.3);
+            }
+
+            .mini-q-num.answered {
+                border-color: var(--correct);
+                color: var(--correct);
+                background: rgba(0, 230, 118, 0.1);
+            }
+
+            .mini-q-num.flagged {
+                border-color: var(--wrong) !important;
+                color: var(--wrong) !important;
+            }
+
+            .mini-q-num.answered.flagged {
+                background: rgba(0, 230, 118, 0.15) !important;
+                border: 2px solid var(--wrong) !important;
+                color: var(--correct) !important;
+            }
+
+            .mini-q-num.active.answered {
+                background: var(--primary);
+                color: #000;
+                border-color: var(--primary);
+            }
+
+        #quiz-timer {
+            font-family: 'Fira Code', monospace;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--timer-color);
+            background: rgba(255, 159, 67, 0.1);
+            padding: 5px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 159, 67, 0.3);
+            display: none;
+            animation: pulse-timer 2s infinite;
+        }
+
+        @keyframes pulse-timer {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.8;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .progress-wrapper {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            transition: width 0.5s ease;
+        }
+
+        #options-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            width: 100%;
+        }
+
+        @media (min-width: 600px) {
+            #options-container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .option-btn {
+            width: 100%;
+            height: 100%;
+            background: var(--bg-card);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: 0.2s;
+            border-radius: 15px;
+            padding: 20px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            text-align: center;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.6;
+        }
+
+            .option-btn:hover {
+                border-color: var(--primary);
+                background: rgba(0, 242, 255, 0.05);
+                transform: translateY(-2px);
+            }
+
+            .option-btn.correct {
+                background: rgba(0, 230, 118, 0.2) !important;
+                border-color: var(--correct) !important;
+                color: var(--correct) !important;
+                box-shadow: 0 0 15px rgba(0, 230, 118, 0.2);
+            }
+
+            .option-btn.wrong {
+                background: rgba(255, 23, 68, 0.2) !important;
+                border-color: var(--wrong) !important;
+                color: var(--wrong) !important;
+                opacity: 0.6;
+            }
+
+            .option-btn:disabled {
+                cursor: default;
+                transform: none !important;
+            }
+
+            .option-btn.selected {
+                border-color: var(--primary);
+                background: rgba(0, 242, 255, 0.15);
+                color: #fff;
+                box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+            }
+
+            .option-btn img {
+                max-width: 100%;
+                max-height: 140px;
+                object-fit: contain;
+                border-radius: 8px;
+                background: rgba(255, 255, 255, 0.9);
+                padding: 5px;
+            }
+
+        .opt-mini-graph {
+            width: 100%;
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 8px;
+            padding: 5px;
+            overflow: hidden;
+        }
+
+            .opt-mini-graph svg, .opt-mini-graph img {
+                max-width: 100% !important;
+                max-height: 130px !important;
+                object-fit: contain;
+            }
+
+        .result-card {
+            background: var(--bg-card);
+            padding: 20px;
+            border-radius: 20px;
+            border: 1px solid var(--primary);
+            text-align: center;
+            width: 100%;
+            max-width: 450px;
+            margin: 0 auto;
+            box-shadow: 0 0 30px rgba(0, 242, 255, 0.05);
+        }
+
+            .result-card h1 {
+                font-size: 1.5rem;
+                margin: 0 0 10px 0;
+            }
+
+        #final-score-pct {
+            font-size: 3rem;
+            margin: 10px 0;
+            line-height: 1;
+        }
+
+        .filter-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+            padding: 10px 5px;
+            position: sticky;
+            top: 70px;
+            z-index: 100;
+            background: transparent;
+            border-bottom: none;
+            border-radius: 0 0 15px 15px;
+        }
+
+        .filter-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: 0.3s;
+            font-family: 'Cairo', sans-serif;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+            .filter-btn.active {
+                background: var(--primary);
+                color: #000;
+                border-color: var(--primary);
+                box-shadow: 0 2px 10px rgba(0, 242, 255, 0.15);
+            }
+
+        .review-item {
+            background: rgba(255, 255, 255, 0.03);
+            border-left: 4px solid var(--text-secondary);
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            text-align: left;
+            scroll-margin-top: 150px;
+        }
+
+            .review-item.r-correct {
+                border-left-color: var(--correct);
+                background: rgba(0, 230, 118, 0.05);
+            }
+
+            .review-item.r-wrong {
+                border-left-color: var(--wrong);
+                background: rgba(255, 23, 68, 0.05);
+            }
+
+            .review-item.hidden {
+                display: none !important;
+            }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 11, 20, 0.85);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+            .modal-overlay.active-modal {
+                display: flex;
+                opacity: 1;
+            }
+
+        .modal-box {
+            background: var(--bg-modal);
+            padding: 25px 25px 0 25px;
+            border-radius: 20px;
+            border: 1px solid var(--primary);
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            max-height: 85vh;
+            height: auto;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            transform: scale(0.95);
+            opacity: 0;
+            transition: all 0.2s ease-out;
+            overflow: hidden;
+        }
+
+        .modal-overlay.active-modal .modal-box {
+            transform: scale(1);
+            opacity: 1;
+        }
+
+        .modal-content-scrollable {
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: 20px;
+            margin-top: 15px;
+            min-height: 0;
+            scrollbar-width: block;
+            -ms-overflow-style: block;
+        }
+
+            .modal-content-scrollable::-webkit-scrollbar {
+                display: auto;
+            }
+
+        .modal-footer {
+            position: relative;
+            flex-shrink: 0;
+            background: rgba(10, 17, 30, 0.95);
+            backdrop-filter: blur(5px);
+            padding: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin: 0 -25px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .chapter-select-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            text-align: center;
+        }
+
+        .chapter-checkbox-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            margin-right: 10px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: 0.2s;
+        }
+
+            .chapter-checkbox-card:hover {
+                background: rgba(255, 255, 255, 0.05);
+                border-color: var(--primary);
+            }
+
+            .chapter-checkbox-card.selected {
+                border-color: var(--primary);
+                background: rgba(0, 242, 255, 0.05);
+            }
+
+        .chk-circle {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            font-size: 12px;
+            color: transparent;
+        }
+
+            .chk-circle::before {
+                content: "\f00c";
+            }
+
+        .chapter-checkbox-card.selected .chk-circle {
+            border-color: var(--primary);
+            background: var(--primary);
+            color: #000;
+        }
+
+        .modal-timer-toggle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+        }
+
+        .toggle-switch-modal {
+            width: 40px;
+            height: 22px;
+            background: #333;
+            border-radius: 20px;
+            position: relative;
+            transition: 0.3s;
+        }
+
+            .toggle-switch-modal::after {
+                content: '';
+                position: absolute;
+                top: 2px;
+                left: 2px;
+                width: 18px;
+                height: 18px;
+                background: #fff;
+                border-radius: 50%;
+                transition: 0.3s;
+            }
+
+        .modal-timer-toggle.active {
+            border-color: var(--timer-color);
+            background: rgba(255, 159, 67, 0.05);
+        }
+
+            .modal-timer-toggle.active .toggle-switch-modal {
+                background: var(--timer-color);
+            }
+
+                .modal-timer-toggle.active .toggle-switch-modal::after {
+                    left: 20px;
+                }
+
+        .mode-toggle-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+        }
+
+        .mode-toggle-switch {
+            width: 40px;
+            height: 22px;
+            background: var(--primary);
+            border-radius: 20px;
+            position: relative;
+            transition: 0.3s;
+        }
+
+        .mode-toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 22px;
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+
+        .mode-toggle-wrapper.normal-mode .mode-toggle-switch {
+            background: #333;
+        }
+
+        .mode-toggle-wrapper.normal-mode .mode-toggle-switch::after {
+            left: 2px;
+        }
+
+        .ctrl-btn {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: 'Fira Code', monospace;
+        }
+
+        #hint-box,
+        #explanation-box {
+            display: none;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            width: 100%;
+        }
+
+        #hint-box {
+            background: rgba(255, 184, 0, 0.1);
+            border-left: 4px solid var(--star-color);
+            color: #fff;
+        }
+
+        #explanation-box {
+            background: rgba(189, 0, 255, 0.1);
+            border: 1px solid var(--accent);
+            color: #fff;
+            position: relative;
+        }
+
+        .custom-time-input {
+            width: 100%;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--text-secondary);
+            color: #fff;
+            border-radius: 8px;
+            margin-top: 5px;
+            font-family: 'Fira Code';
+            text-align: center;
+            display: none;
+        }
+
+        .btn-small {
+            padding: 4px 10px;
+            font-size: 0.8rem;
+            border-radius: 6px;
+            border: 1px solid var(--primary);
+            background: transparent;
+            color: var(--primary);
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+            .btn-small.active {
+                background: var(--primary);
+                color: #000;
+            }
+
+        .config-group {
+            margin-bottom: 25px;
+        }
+
+        .exam-mode-toggle {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .exam-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 40px;
+        }
+
+        #graph-outer-wrapper {
+            display: none;
+        }
+
+        #graph-wrapper {
+            background: rgba(255, 250, 240, 0.9);
+            backdrop-filter: blur(5px);
+            border-radius: 12px;
+            padding: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .function-plot .grid line {
+            stroke: rgba(0, 0, 0, 0.15) !important;
+        }
+
+        .function-plot .domain {
+            stroke: #333 !important;
+            stroke-width: 2px !important;
+        }
+
+        .function-plot .tick text {
+            fill: #222 !important;
+            font-weight: bold;
+        }
+
+        /* تنظيق أرقام ومحاور رسوم الإحصاء D3.js */
+        #graph-container text {
+            fill: #000000 !important;
+            /* لون أسود للأرقام لتظهر فوق الخلفية الفاتحة */
+            font-size: 13px !important;
+            font-family: 'Fira Code', monospace !important;
+            font-weight: 700 !important;
+        }
+
+        /* جعل خطوط المحاور واضحة باللون الأسود */
+        #graph-container .axis path,
+        #graph-container .axis line {
+            fill: none;
+            stroke: #333 !important;
+            stroke-width: 1.5px;
+            shape-rendering: crispEdges;
+        }
+
+        /* تحسين ظهور التسميات التوضيحية */
+        #graph-container .tick text {
+            opacity: 1 !important;
+        }
+
+        #mac-code-window {
+            display: none;
+            background: #282a36;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            direction: ltr;
+            text-align: left;
+        }
+
+        .mac-header {
+            background: #1e1e1e;
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .mac-dots {
+            display: flex;
+            gap: 8px;
+        }
+
+        .mac-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+            .mac-dot.red {
+                background: #ff5f56;
+            }
+
+            .mac-dot.yellow {
+                background: #ffbd2e;
+            }
+
+            .mac-dot.green {
+                background: #27c93f;
+            }
+
+        .mac-copy-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #fff;
+            padding: 4px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            /* تم تصحيح الخطأ هنا */
+            font-family: 'Fira Code', monospace;
+            font-size: 0.8rem;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+            .mac-copy-btn:hover {
+                background: rgba(255, 255, 255, 0.2);
+            }
+
+        #mac-code-window pre[class*="language-"] {
+            margin: 0 !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            font-size: 15px !important;
+            padding: 1em 1em 1em 3.8em !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header" dir="ltr">
+        <div class="icon-btn" id="back-btn" onclick="handleBack()">
+            <i class="fa-solid fa-arrow-left"></i>
+        </div>
+        <h2 id="app-title">Specify The Subject</h2>
+        <div class="con">
+            <button class="icon-btn" onclick="toggleFullScreen()">
+                <i class="fas fa-expand"></i>
+            </button>
+        </div>
+    </div>
+    <div class="app-container">
+        <div id="view-subjects" class="screen active">
+            <div id="subjects-loader" class="loading-state">
+                <div class="spinner"></div>
+                <div>Synchronizing Data...</div>
+            </div>
+            <div id="subjects-grid" class="grid-view" style="display:none;"></div>
+        </div>
+        <div id="view-chapters" class="screen">
+            <div class="chapters-header-row">
+                <div class="timer-toggle-wrapper"
+                     id="timer-toggle-btn-main"
+                     onclick="toggleMainTimerMode()">
+                    <div class="toggle-switch-main"></div>
+                    <div class="timer-label">Exam Mode</div>
+                </div>
+                <h3 id="selected-subject-title"></h3>
+            </div>
+            <div id="chapters-list"></div>
+        </div>
+        <div id="view-quiz" class="screen">
+            <div class="top-bar">
+                <div class="top-bar-content">
+                    <button onclick="requestExit()"
+                            class="ctrl-btn"
+                            style="border-color:var(--wrong); color:var(--wrong); font-size: 0.8rem;">
+                        Quit
+                    </button>
+                    <div id="quiz-timer">
+                        <i class="fa-regular fa-clock"></i>
+                        <span id="timer-text">00:00</span>
+                    </div>
+                    <div id="live-score-box"
+                         style="font-family:'Fira Code'; font-size: 0.9rem;">
+                        <span style="color:var(--correct)">✔ <span id="score-correct">0</span></span>
+                        <span style="margin-left:8px; color:var(--wrong)">✘ <span id="score-wrong">0</span></span>
+                    </div>
+                </div>
+                <div id="top-palette-wrapper">
+                    <div class="palette-strip" id="palette-strip"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px;">
+                    <div class="progress-wrapper" style="flex:1; margin-right:10px;">
+                        <div id="progress-bar"></div>
+                    </div>
+                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary);"
+                         id="q-counter-text"></div>
+                </div>
+            </div>
+            <div id="graph-outer-wrapper">
+                <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+                    <button id="toggle-g-btn" class="ctrl-btn" onclick="toggleG()">
+                        Hide Graph
+                    </button>
+                </div>
+                <div id="graph-wrapper">
+                    <div id="graph-container"></div>
+                </div>
+            </div>
+            <div id="hint-wrapper"
+                 style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+                <button id="hint-btn-ui"
+                        class="ctrl-btn"
+                        style="border-color:var(--star-color); color:var(--star-color);"
+                        onclick="toggleHint()">
+                    💡 Hint
+                </button>
+            </div>
+            <div id="hint-box"></div>
+            <div id="question-text"
+                 dir="auto"
+                 style="font-size: 1.3rem; font-weight: 700; text-align: center; margin-bottom: 30px; line-height: 1.6; white-space: pre-wrap;"></div>
+            <div id="mac-code-window">
+                <div class="mac-header" dir="ltr">
+                    <div class="mac-dots">
+                        <div class="mac-dot red"></div>
+                        <div class="mac-dot yellow"></div>
+                        <div class="mac-dot green"></div>
+                    </div>
+                    <button class="mac-copy-btn" onclick="copySnippet(this)">
+                        <i class="fa-regular fa-copy"></i> Copy
+                    </button>
+                </div>
+                <pre class="line-numbers"
+                     dir="ltr"><code id="code-snippet-block"></code></pre>
+            </div>
+            <div id="options-container"></div>
+            <button id="show-exp-btn"
+                    onclick="toggleExp()"
+                    style="display:none; width:100%; padding:15px; background:var(--accent); color:#fff; border:none; border-radius:12px; cursor:pointer; font-weight:bold; margin-top:20px;">
+                📖 Why is this correct?
+            </button>
+            <div id="explanation-box">
+                <button onclick="toggleLang()"
+                        class="ctrl-btn"
+                        style="position:absolute; top:10px; right:10px; background:var(--primary); color:#000; border:none;">
+                    AR/EN
+                </button>
+                <div id="exp-text" style="margin-top:25px;"></div>
+            </div>
+            <button id="next-btn"
+                    onclick="nextQ()"
+                    style="display:none; width:100%; padding:15px; background:var(--primary); color:#000; border:none; border-radius:12px; cursor:pointer; font-weight:900; margin-top:20px; font-size:1.1rem; margin-bottom: 60px;">
+                Next Question ➡
+            </button>
+            <div id="exam-controls" class="exam-controls">
+                <button id="exam-prev-btn"
+                        onclick="prevQ()"
+                        class="ctrl-btn"
+                        style="flex:1;">
+                    ⬅ Prev
+                </button>
+                <button onclick="flagQ()"
+                        class="ctrl-btn"
+                        style="flex:1; border-color:var(--wrong); color:var(--wrong);">
+                    🚩 Flag
+                </button>
+                <button id="exam-next-btn"
+                        onclick="nextQ()"
+                        class="ctrl-btn"
+                        style="flex:1;">
+                    Next ➡
+                </button>
+            </div>
+            <button id="submit-exam-btn"
+                    onclick="attemptSubmit()"
+                    style="display:none; width:100%; padding:15px; background:var(--wrong); color:#fff; border:none; border-radius:12px; cursor:pointer; font-weight:900; margin-top:20px; font-size:1.1rem; margin-bottom: 60px;">
+                📝 Submit Exam
+            </button>
+        </div>
+        <div id="view-result" class="screen">
+            <div class="result-card">
+                <h1>Quiz Finished!</h1>
+                <div id="final-score-pct"
+                     style="font-size: 4rem; font-weight: 900; color: var(--primary); margin: 20px 0;">
+                    0%
+                </div>
+                <p id="final-stats" style="color:var(--text-secondary);"></p>
+                <button class="option-btn"
+                        style="background:var(--primary); color:#000; border:none; margin-top:20px;"
+                        onclick="resetToHome()">
+                    Back to Menu
+                </button>
+            </div>
+            <div id="review-section" style="display:none;">
+                <div class="filter-tabs">
+                    <button class="filter-btn active"
+                            onclick="filterReview('all', this)">
+                        All
+                    </button>
+                    <button class="filter-btn"
+                            onclick="filterReview('correct', this)"
+                            style="border-color:var(--correct); color:var(--correct);">
+                        Correct
+                    </button>
+                    <button class="filter-btn"
+                            onclick="filterReview('wrong', this)"
+                            style="border-color:var(--wrong); color:var(--wrong);">
+                        Wrong
+                    </button>
+                    <button class="filter-btn"
+                            onclick="filterReview('unanswered', this)"
+                            style="border-color:var(--star-color); color:var(--star-color);">
+                        Empty
+                    </button>
+                </div>
+                <div id="review-list"></div>
+            </div>
+        </div>
+    </div>
+    <div id="chapter-select-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h2 style="color:var(--primary); margin-top:0;">Select Chapters</h2>
+            <div class="modal-content-scrollable">
+                <div class="modal-timer-toggle"
+                     id="modal-timer-btn"
+                     onclick="toggleTimerInModal()">
+                    <div style="font-weight:700; color:var(--timer-color);">
+                        ⏳ Test Mode
+                    </div>
+                    <div class="toggle-switch-modal"></div>
+                </div>
+                <div id="chapter-select-list" class="chapter-select-grid"></div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeModal('chapter-select-modal')"
+                        class="ctrl-btn"
+                        style="flex:1; border-color:var(--text-secondary); color:#fff;">
+                    Cancel
+                </button>
+                <button onclick="confirmChapterSelection()"
+                        class="ctrl-btn"
+                        style="flex:1; background:var(--primary); color:#000; border:none; font-weight:700;">
+                    Start Selected
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="alert-modal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-content-scrollable" style="text-align:center;">
+                <div style="font-size:3rem; margin-bottom:10px;">⚠️</div>
+                <p style="color:var(--text-secondary);" id="alert-msg">
+                    Message goes here.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeModal('alert-modal')"
+                        class="ctrl-btn"
+                        style="background:var(--primary); color:#000; font-weight:700; width:100%;">
+                    OK
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="exit-modal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-content-scrollable">
+                <h2 style="color:var(--wrong); margin-top:0;">Exit Quiz?</h2>
+                <p style="color:var(--text-secondary);">
+                    Your progress will be lost.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeModal('exit-modal')"
+                        class="ctrl-btn"
+                        style="flex:1; border-color:var(--text-secondary); color:#fff;">
+                    Cancel
+                </button>
+                <button onclick="confirmExit()"
+                        class="ctrl-btn"
+                        style="flex:1; background:var(--wrong); color:#fff; border:none;">
+                    Exit
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="submit-confirm-modal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-content-scrollable">
+                <h2 style="color:var(--primary); margin-top:0;">Submit Exam?</h2>
+                <p style="color:var(--text-secondary);">
+                    Are you sure you want to finish?
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeModal('submit-confirm-modal')"
+                        class="ctrl-btn"
+                        style="flex:1; border-color:var(--text-secondary); color:#fff;">
+                    Cancel
+                </button>
+                <button onclick="finishQuiz(false); closeModal('submit-confirm-modal')"
+                        class="ctrl-btn"
+                        style="flex:1; background:var(--correct); color:#000; border:none; font-weight:700;">
+                    Yes, Submit
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="config-modal" class="modal-overlay">
+        <div class="modal-box config-modal-box">
+            <div class="config-title"
+                 style="margin-bottom:10px; font-size:1.2rem; font-weight:bold; border-bottom:1px solid #333; padding-bottom:10px;">
+                <span id="config-modal-title">Quiz Settings</span>
+            </div>
+            <div class="modal-content-scrollable">
+                <div class="mode-toggle-wrapper" id="mode-toggle-btn" onclick="toggleQuestionMode()">
+                    <div style="font-weight:700; color:var(--primary);">
+                        <i class="fa-solid fa-shuffle"></i> Random Order
+                    </div>
+                    <div class="mode-toggle-switch" id="mode-toggle-switch-inner"></div>
+                </div>
+                <div class="exam-mode-toggle" id="exam-mode-toggle-section">
+                    <span class="exam-mode-label">🔥 Real Exam Mode</span>
+                    <input type="checkbox"
+                           id="conf-real-exam"
+                           checked
+                           onchange="toggleRealExamInputs()" />
+                </div>
+                <div class="config-group">
+                    <div class="config-label"
+                         style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                        <span>Number of Questions</span>
+                        <span id="conf-q-val" class="config-val">10</span>
+                    </div>
+                    <input type="range"
+                           id="conf-q-range"
+                           min="1"
+                           step="1"
+                           oninput="onQuestionsChange()"
+                           style="width:100%;" />
+                </div>
+                <div class="config-group" id="exam-time-section">
+                    <div class="config-label"
+                         style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                        <div style="display:flex; align-items:center;">
+                            <span>Time Limit</span>
+                            <button class="btn-small"
+                                    id="btn-custom-time"
+                                    onclick="toggleCustomTimeInput()">
+                                Custom
+                            </button>
+                        </div>
+                        <span id="conf-t-val" class="config-val">20 min</span>
+                    </div>
+                    <input type="range"
+                           id="conf-t-range"
+                           min="1"
+                           max="180"
+                           value="20"
+                           step="1"
+                           oninput="updateConfigUI()"
+                           style="width:100%;" />
+                    <input type="number"
+                           id="conf-custom-time"
+                           class="custom-time-input"
+                           placeholder="Minutes (e.g., 60)"
+                           oninput="onCustomTimeChange()" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeConfigModal()"
+                        class="ctrl-btn"
+                        style="flex:1; border-color:var(--text-secondary); color:#fff;">
+                    Cancel
+                </button>
+                <button onclick="startConfiguredQuiz()"
+                        class="start-btn"
+                        style="flex:1; background:var(--primary); color:#000; font-weight:700; border:none; border-radius:8px;">
+                    Start Now 🚀
+                </button>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-csharp.min.js"></script>
+    <script>
+      const CONFIG = {
+        archiveId: 'nmu.ce',
+        baseMeta: 'https://archive.org/metadata/',
+        baseDownload: 'https://archive.org/download/'
+      };
+
+      function mapSemester(sem) {
+        var s = sem.replace(/\s+/g, '_').toLowerCase();
+        if (s === 'semester_1' || s === 'first_term' || s === 'term_1') return 'Semester_1';
+        if (s === 'semester_2' || s === 'second_term' || s === 'term_2') return 'Semester_2';
+        return sem.replace(/\s+/g, '_');
+      }
+      let context = { level: 'Level_1', semester: 'Semester_1' };
+      const savedCtx = localStorage.getItem('nmu_student_v4');
+      if (savedCtx) {
+        const parsed = JSON.parse(savedCtx);
+        if (parsed.year) {
+          context.level = parsed.year.replace(/\s+/g, '_');
+          context.semester = mapSemester(parsed.term);
+        } else if (parsed.AcademicLevel) {
+          context.level = parsed.AcademicLevel.replace(/\s+/g, '_');
+          context.semester = mapSemester(parsed.Semester);
+        }
+      }
+
+      let QUIZ_PATH = `NMU/${context.level}/${context.semester}/QUIZE/`;
+      let CACHE_KEY_LIST = `nmu_quiz_list_${context.level}_${context.semester}_v4`;
+      let CACHE_KEY_ORDER = `nmu_quiz_order_${context.level}_${context.semester}`;
+
+      let appState = {
+        quizList: [],
+        currentQuizData: [],
+        currentQuestions: [],
+        qIdx: 0,
+        scoreC: 0,
+        scoreW: 0,
+        wrongHistory: [],
+        isQuizActive: false,
+        expLangAr: false,
+        isMainTimed: false,
+        isModalTimed: false,
+        timerInterval: null,
+        timeLeft: 0,
+        isRealExam: false,
+        userAnswers: [],
+        flaggedQs: new Set(),
+        selectedChaptersIndices: new Set(),
+        customTimeEnabled: false,
+        randomMode: true
+      };
+
+      let pendingQuizIdx = null;
+      let pendingIsTimed = false;
+      let __debugTotalFiles = 0, __debugMatchingFiles = 0;
+
+      document.addEventListener('DOMContentLoaded', initApp);
+
+      window.addEventListener('beforeunload', (e) => {
+        if (appState.isQuizActive) { e.preventDefault(); e.returnValue = ''; }
+      });
+
+      window.addEventListener('popstate', (e) => {
+        if (appState.isQuizActive) {
+          history.pushState(null, null, window.location.pathname);
+          requestExit();
+        } else if (document.getElementById('view-chapters').classList.contains('active')) {
+             switchView('view-subjects');
+        } else if (document.getElementById('view-result').classList.contains('active')) {
+          resetToHome();
+        }
+      });
+      function isInIframe() { try { return window.self !== window.top; } catch(e) { return true; } }
+      function notifyParent(action, data) {
+        if (isInIframe()) {
+          try { window.parent.postMessage({ type: 'quiz', action: action, data: data }, '*'); } catch(e) {}
+        }
+      }
+      function handleBack() {
+        if (appState.isQuizActive) requestExit();
+        else if (document.getElementById('view-chapters').classList.contains('active')) switchView('view-subjects');
+        else if (document.getElementById('view-result').classList.contains('active')) resetToHome();
+        else { notifyParent('navigateBack'); history.back(); }
+      }
+      window.addEventListener('message', function(e) {
+        if (e.data && e.data.type === 'blazor-quiz') {
+          if (e.data.action === 'navigateHome') resetToHome();
+        }
+      });
+      async function initApp() {
+        const cachedList = localStorage.getItem(CACHE_KEY_LIST);
+        if (cachedList) {
+          appState.quizList = JSON.parse(cachedList);
+          renderSubjects();
+          fetchQuizListBackground();
+        } else if (window.__CACHED_META__ && window.__CACHED_META__.files) {
+          processMetaData(window.__CACHED_META__, window.__CACHED_ORDER__, true);
+        } else {
+          await fetchQuizListBackground(true);
+        }
+      }
+      function processMetaData(data, orderData, forceRender) {
+        let orderList = [];
+        if (orderData && orderData.order) {
+          orderList = orderData.order;
+          localStorage.setItem(CACHE_KEY_ORDER, JSON.stringify(orderList));
+        }
+        const files = data.files.filter(f => f.name.startsWith(QUIZ_PATH) && f.name.endsWith('.json') && !f.name.endsWith('order_config.json'));
+        let processed = files.map(f => {
+          const rel = f.name.substring(QUIZ_PATH.length);
+          let name = rel.split('/')[0].replace('.json', '').replace(/_/g, ' ');
+          return { name: name, path: f.name, rel: rel };
+        });
+        if(orderList.length > 0) {
+          processed.sort((a, b) => {
+            let idxA = orderList.findIndex(k => a.rel.includes(k));
+            let idxB = orderList.findIndex(k => b.rel.includes(k));
+            if(idxA === -1) idxA = 999;
+            if(idxB === -1) idxB = 999;
+            return idxA - idxB || a.name.localeCompare(b.name);
+          });
+        } else {
+          processed.sort((a, b) => a.name.localeCompare(b.name));
+        }
+        appState.quizList = processed;
+        localStorage.setItem(CACHE_KEY_LIST, JSON.stringify(processed));
+        if(forceRender || document.getElementById('subjects-grid').innerHTML === '') renderSubjects();
+      }
+
+      function tryFindQuizFiles(data, path) {
+        return data.files ? data.files.filter(f => f.name.startsWith(path) && f.name.endsWith('.json') && !f.name.endsWith('order_config.json')) : [];
+      }
+      function tryFindOrder(data, path) {
+        return data.files ? data.files.find(f => f.name === path + 'order_config.json') : null;
+      }
+      async function fetchQuizListBackground(forceRender = false) {
+        try {
+          const res = await fetch(`${CONFIG.baseMeta}${CONFIG.archiveId}?t=${new Date().getTime()}`, { cache: "no-store" });
+          const data = await res.json();
+          __debugTotalFiles = data.files ? data.files.length : 0;
+          let matchedFiles = tryFindQuizFiles(data, QUIZ_PATH);
+          let effectivePath = QUIZ_PATH;
+          if (matchedFiles.length === 0) {
+            var altSem = context.semester === 'Semester_1' ? 'Semester_2' : 'Semester_1';
+            var altPath = `NMU/${context.level}/${altSem}/QUIZE/`;
+            var altFiles = tryFindQuizFiles(data, altPath);
+            if (altFiles.length > 0) {
+              effectivePath = altPath;
+              context.semester = altSem;
+              QUIZ_PATH = altPath;
+              CACHE_KEY_LIST = `nmu_quiz_list_${context.level}_${context.semester}_v4`;
+              CACHE_KEY_ORDER = `nmu_quiz_order_${context.level}_${context.semester}`;
+              matchedFiles = altFiles;
+              forceRender = true;
+            }
+          }
+          __debugMatchingFiles = matchedFiles.length;
+          let orderData = null;
+          try {
+            const orderRes = await fetch(`${CONFIG.baseDownload}${CONFIG.archiveId}/${effectivePath}order_config.json?t=${new Date().getTime()}`, { cache: "no-store" });
+            if(orderRes.ok) orderData = await orderRes.json();
+          } catch(e) {}
+          processMetaData(data, orderData, forceRender);
+        } catch (e) {
+          if(forceRender) document.getElementById('subjects-loader').innerHTML = 'Connection Failed: ' + e.message;
+        }
+      }
+      function renderSubjects() {
+      const grid = document.getElementById('subjects-grid');
+      const loader = document.getElementById('subjects-loader');
+      if (!grid || !loader) return;
+      if (!appState || !appState.quizList || appState.quizList.length === 0) {
+        loader.innerHTML = 'No quizzes available.<br><br><span style="font-size:0.85rem;color:#94a3b8;font-family:monospace;">Path: ' + QUIZ_PATH + '<br>Total files in archive: ' + __debugTotalFiles + '<br>Matching .json files: ' + __debugMatchingFiles + '</span>';
+        return;
+      }
+      loader.style.display = 'none';
+      grid.style.display = 'grid';
+      grid.innerHTML = '';
+      const usedIcons = new Set();
+      const backupPools = {
+        uni: ['fa-solid fa-building-columns', 'fa-solid fa-landmark', 'fa-solid fa-scroll', 'fa-solid fa-award'],
+        general: ['fa-solid fa-book-open', 'fa-solid fa-layer-group', 'fa-solid fa-tags']
+      };
+      const getTargetIcon = (name) => {
+        const n = name.toLowerCase();
+        const check = (keys) => keys.some(k => n.includes(k));
+        // ============================================================
+        // 1. العلوم الإنسانية واللغات
+        // ============================================================
+        if (check(['arabic', 'عربي', 'لغة عربية'])) return "fa-solid fa-pen-nib";
+        if (check(['english', 'إنجليزي', 'foreign'])) return "fa-solid fa-language";
+        if (check(['communication', 'تواصل', 'presentation'])) return "fa-solid fa-person-chalkboard";
+        if (check(['history', 'تاريخ', 'civilization', 'حضارة'])) return "fa-solid fa-landmark";
+        if (check(['rights', 'حقوق', 'law', 'ethics', 'أخلاق'])) return "fa-solid fa-scale-balanced";
+        if (check(['psychology', 'علم نفس', 'sociology', 'اجتماع'])) return "fa-solid fa-users-rays";
+        if (check(['management', 'إدارة', 'marketing', 'تسويق'])) return "fa-solid fa-briefcase";
+        // ============================================================
+        // 2. الرياضيات (مفصلة بدقة لمنع التكرار)
+        // ============================================================
+        if (check(['statist', 'probab', 'إحصاء', 'احتمال'])) return "fa-solid fa-chart-pie";
+        if (check(['discrete', 'تراكيب', 'logic set'])) return "fa-solid fa-share-nodes";
+        if (check(['diff', 'equation', 'tial', 'تفاضل'])) return "fa-solid fa-wave-square";
+        if (check(['numerical', 'تحليل عددي'])) return "fa-solid fa-arrow-down-1-9";
+        if (check(['linear', 'algebra', 'matrix', 'مصفوفات'])) return "fa-solid fa-table-cells";
+        if (check(['math', 'رياض'])) {
+            if (check(['1', 'i', 'one'])) return "fa-solid fa-infinity";
+            if (check(['2', 'ii', 'two'])) return "fa-solid fa-superscript";
+            return "fa-solid fa-calculator";
+        }
+        // ============================================================
+        // 3. الفيزياء والميكانيكا
+        // ============================================================
+        if (check(['physics', 'فيزياء']) && check(['1', 'i', 'intro'])) return "fa-solid fa-bolt";
+        if (check(['physics', 'فيزياء'])) return "fa-solid fa-atom";
+        if (check(['mechanic', 'static', 'ميكانيكا'])) return "fa-solid fa-weight-hanging";
+        if (check(['dynamic', 'ديناميكا'])) return "fa-solid fa-wind";
+        if (check(['chem', 'كيمياء'])) return "fa-solid fa-flask-vial";
+        if (check(['drawing', 'رسم', 'projection'])) return "fa-solid fa-compass-drafting";
+        // ============================================================
+        // 4. البرمجة الأساسية
+        // ============================================================
+        if (check(['structured', 'intro', 'structure prog', 'programming'])) return "fa-solid fa-terminal";
+        if (check(['object', 'oop', 'كائنية'])) return "fa-solid fa-cubes";
+        if (check(['algorithm', 'خوارزم'])) return "fa-solid fa-code-branch";
+        if (check(['data structure', 'هياكل'])) return "fa-solid fa-sitemap";
+        if (check(['software eng', 'هندسة برمج'])) return "fa-solid fa-laptop-file";
+        if (check(['web', 'html', 'internet'])) return "fa-solid fa-globe";
+        // ============================================================
+        // 5. الذكاء الاصطناعي وعلوم البيانات
+        // ============================================================
+        if (check(['machine', 'learning', 'تعلم'])) return "fa-solid fa-robot";
+        if (check(['neural', 'deep', 'عصبية', 'عميق'])) return "fa-solid fa-circle-nodes";
+        if (check(['vision', 'image', 'رؤية', 'صور'])) return "fa-solid fa-eye";
+        if (check(['nlp', 'language proc', 'لغات طبيعية'])) return "fa-solid fa-comments";
+        if (check(['mining', 'big data', 'science', 'تنقيب'])) return "fa-solid fa-database";
+        if (check(['ai', 'artificial', 'intelligence', 'ذكاء'])) return "fa-solid fa-brain";
+        // ============================================================
+        // 6. الهاردوير والأنظمة
+        // ============================================================
+        if (check(['circuit', 'electric', 'دوائر'])) return "fa-solid fa-plug";
+        if (check(['logic', 'منطق'])) return "fa-solid fa-toggle-on";
+        if (check(['architecture', 'organi', 'عمارة', 'تنظيم'])) return "fa-solid fa-server";
+        if (check(['micro', 'processor', 'معالجات'])) return "fa-solid fa-microchip";
+        if (check(['embed', 'مدمجة'])) return "fa-solid fa-memory";
+        if (check(['operating', 'nux', 'نظم تشغيل'])) return "fa-solid fa-desktop";
+        if (check(['network', 'شبكات'])) return "fa-solid fa-network-wired";
+        // ============================================================
+        // 7. الأمن والمشاريع
+        // ============================================================
+        if (check(['security', 'secure', 'cyber', 'أمن', 'سيبراني'])) return "fa-solid fa-shield-cat";
+        if (check(['cloud', 'سحابية'])) return "fa-solid fa-cloud";
+        if (check(['project', 'graduation', 'مشروع'])) return "fa-solid fa-user-graduate";
+        if (check(['training', 'تدريب'])) return "fa-solid fa-id-badge";
+        // ============================================================
+        // 8. المتطلبات الجامعية (University Requirements)
+        // ============================================================
+        if (check(['report', 'technical', 'writ', 'تقارير'])) return "fa-solid fa-file-pen";
+        if (check(['university', 'uni', 'req', 'متطلب'])) return "fa-solid fa-building-columns";
+
+        return "fa-solid fa-book-open";
+      };
+      appState.quizList.forEach(quiz => {
+        const card = document.createElement('div');
+        card.className = 'subject-card';
+        card.onclick = () => loadQuizData(quiz);
+        const rawName = quiz.name || "Unknown";
+        let iconClass = getTargetIcon(rawName);
+        if (usedIcons.has(iconClass)) {
+            const n = rawName.toLowerCase();
+            if (n.includes('university') || n.includes('متطلب') || n.includes('req')) {
+                const alt = backupPools.uni.find(i => !usedIcons.has(i));
+                if (alt) iconClass = alt;
+            }
+            else if (iconClass === "fa-solid fa-book-open") {
+                 const alt = backupPools.general.find(i => !usedIcons.has(i));
+                 if (alt) iconClass = alt;
+            }
+        }
+
+        usedIcons.add(iconClass);
+
+        card.innerHTML = `<i class="${iconClass} subject-icon"></i><div class="subject-name">${rawName}</div>`;
+        grid.appendChild(card);
+      });
+      }
+
+      function escapeHTML(str) { return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
+
+      function copySnippet(btnElement) {
+      const q = appState.currentQuestions[appState.qIdx];
+      if (q && q.codeSnippet) {
+        navigator.clipboard.writeText(q.codeSnippet).then(() => {
+            const oldHTML = btnElement.innerHTML;
+            btnElement.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+            setTimeout(() => btnElement.innerHTML = oldHTML, 2000);
+        });
+      }
+      }
+
+      async function loadQuizData(quizObj) {
+        const fileCacheKey = `nmu_q_content_${quizObj.path}`;
+        const cachedContent = localStorage.getItem(fileCacheKey);
+        if (cachedContent) {
+          try {
+            appState.currentQuizData = JSON.parse(cachedContent);
+            if(!Array.isArray(appState.currentQuizData)) appState.currentQuizData = [appState.currentQuizData];
+            renderChaptersList(quizObj.name);
+            fetchContentAndCache(quizObj, fileCacheKey, false);
+          } catch(e) { fetchContentAndCache(quizObj, fileCacheKey, true); }
+        } else {
+          document.getElementById('subjects-loader').style.display = 'flex';
+          document.getElementById('subjects-loader').innerText = "Downloading Quiz...";
+          document.getElementById('subjects-grid').style.display = 'none';
+          await fetchContentAndCache(quizObj, fileCacheKey, true);
+        }
+      }
+
+
+      async function fetchContentAndCache(quizObj, key, isFirstLoad) {
+      try {
+      const res = await fetch(`${CONFIG.baseDownload}${CONFIG.archiveId}/${quizObj.path}?t=${new Date().getTime()}`, { cache: "no-store" });
+      const json = await res.json();
+
+      localStorage.setItem(key, JSON.stringify(json));
+
+      appState.currentQuizData = Array.isArray(json) ? json : [json];
+
+      if (document.getElementById('view-chapters').classList.contains('active') || isFirstLoad) {
+      renderChaptersList(quizObj.name);
+      }
+
+      } catch (e) {
+      if (isFirstLoad) {
+      showCustomAlert("Failed to load quiz data. Check your internet connection.");
+      }
+      }
+      }
+
+
+
+      function toggleMainTimerMode() {
+        appState.isMainTimed = !appState.isMainTimed;
+        const btn = document.getElementById('timer-toggle-btn-main');
+        if(appState.isMainTimed) btn.classList.add('timer-active');
+        else btn.classList.remove('timer-active');
+      }
+
+      function renderChaptersList(subjectName) {
+        switchView('view-chapters');
+        document.getElementById('selected-subject-title').innerText = subjectName;
+        appState.isMainTimed = false;
+        document.getElementById('timer-toggle-btn-main').classList.remove('timer-active');
+
+        const list = document.getElementById('chapters-list');
+        list.innerHTML = '';
+
+        const totalQuestions = appState.currentQuizData.reduce((sum, chapter) => sum + (chapter.questions ? chapter.questions.length : 0), 0);
+
+        const allBtn = document.createElement('div');
+        allBtn.className = 'chapter-card comprehensive-card';
+        allBtn.onclick = () => handleChapterClick('all', totalQuestions, appState.isMainTimed);
+        allBtn.innerHTML = `<span class="chapter-count">${totalQuestions} Qs</span><div class="chapter-title">Comprehensive Exam (All)</div><i class="fa-solid fa-graduation-cap chapter-icon"></i>`;
+        list.appendChild(allBtn);
+
+        const customBtn = document.createElement('div');
+        customBtn.className = 'chapter-card custom-select-card';
+        customBtn.onclick = () => openChapterSelectionModal();
+        customBtn.innerHTML = `<div class="chapter-title">Select Specific Chapters</div><i class="fa-solid fa-list-check chapter-icon"></i>`;
+        list.appendChild(customBtn);
+
+        appState.currentQuizData.forEach((chapter, index) => {
+          if (!chapter.questions || chapter.questions.length === 0) return;
+          const btn = document.createElement('div');
+          btn.className = 'chapter-card';
+          btn.onclick = () => handleChapterClick(index, chapter.questions.length, appState.isMainTimed);
+          btn.innerHTML = `<span class="chapter-count">${chapter.questions.length} Qs</span><div class="chapter-title">${chapter.name}</div><i class="fa-regular fa-file-lines chapter-icon"></i>`;
+          list.appendChild(btn);
+        });
+
+        document.getElementById('subjects-loader').style.display = 'none';
+        document.getElementById('subjects-grid').style.display = 'grid';
+      }
+
+      function openChapterSelectionModal() {
+        appState.selectedChaptersIndices.clear();
+        appState.isModalTimed = false;
+        updateTimerModalUI();
+
+        const container = document.getElementById('chapter-select-list');
+        container.innerHTML = '';
+
+        appState.currentQuizData.forEach((chapter, index) => {
+           if (!chapter.questions || chapter.questions.length === 0) return;
+           const div = document.createElement('div');
+           div.className = 'chapter-checkbox-card';
+           div.onclick = () => {
+               if(appState.selectedChaptersIndices.has(index)) {
+                   appState.selectedChaptersIndices.delete(index);
+                   div.classList.remove('selected');
+               } else {
+                   appState.selectedChaptersIndices.add(index);
+                   div.classList.add('selected');
+               }
+           };
+           div.innerHTML = `
+              <div class="chk-circle"></div>
+              <div style="flex:1; margin-right:10px; font-weight:700;">${chapter.name}</div>
+              <div style="font-size:0.8rem; color:#aaa; font-family:'Fira Code';">${chapter.questions.length} Qs</div>
+           `;
+           container.appendChild(div);
+        });
+
+        const scrollable = document.querySelector('#chapter-select-modal .modal-content-scrollable');
+        if(scrollable) scrollable.scrollTop = 0;
+
+        document.getElementById('chapter-select-modal').classList.add('active-modal');
+      }
+
+      function toggleTimerInModal() {
+          appState.isModalTimed = !appState.isModalTimed;
+          updateTimerModalUI();
+      }
+
+      function updateTimerModalUI() {
+          const btn = document.getElementById('modal-timer-btn');
+          if(appState.isModalTimed) btn.classList.add('active');
+          else btn.classList.remove('active');
+      }
+
+      function confirmChapterSelection() {
+          if(appState.selectedChaptersIndices.size === 0) {
+              showCustomAlert("Please select at least one chapter.");
+              return;
+          }
+          const indices = Array.from(appState.selectedChaptersIndices);
+          let total = 0;
+          indices.forEach(i => total += appState.currentQuizData[i].questions.length);
+
+          closeModal('chapter-select-modal');
+          handleChapterClick(indices, total, appState.isModalTimed);
+      }
+
+      function handleChapterClick(indexOrIndices, totalQs, isTimed) {
+        pendingQuizIdx = indexOrIndices;
+        pendingIsTimed = isTimed;
+        openConfigModal(totalQs);
+      }
+
+      function openConfigModal(max) {
+        const qRange = document.getElementById('conf-q-range');
+        qRange.max = max; qRange.value = max;
+
+        const examSection = document.getElementById('exam-mode-toggle-section');
+        const timeSection = document.getElementById('exam-time-section');
+        const modeToggle = document.getElementById('mode-toggle-btn');
+        const title = document.getElementById('config-modal-title');
+
+        if (pendingIsTimed) {
+            examSection.style.display = 'flex';
+            timeSection.style.display = 'block';
+            const tRange = document.getElementById('conf-t-range');
+            tRange.max = max * 2; tRange.value = max * 2;
+            appState.customTimeEnabled = false;
+            document.getElementById('conf-custom-time').style.display = 'none';
+            document.getElementById('conf-t-range').style.display = 'block';
+            updateConfigUI();
+            title.innerText = 'Exam Settings';
+            modeToggle.style.display = 'none';
+        } else {
+            examSection.style.display = 'none';
+            timeSection.style.display = 'none';
+            title.innerText = 'Practice Settings';
+            modeToggle.style.display = 'flex';
+            appState.randomMode = true;
+            const modeBtn = document.getElementById('mode-toggle-btn');
+            modeBtn.classList.remove('normal-mode');
+            modeBtn.querySelector('div:first-child').innerHTML = '<i class="fa-solid fa-shuffle"></i> Random Order';
+        }
+
+        onQuestionsChange();
+        const scrollable = document.querySelector('#config-modal .modal-content-scrollable');
+        if(scrollable) scrollable.scrollTop = 0;
+
+        document.getElementById('config-modal').classList.add('active-modal');
+      }
+
+      function onQuestionsChange() {
+        const qVal = parseInt(document.getElementById('conf-q-range').value);
+        if(!appState.customTimeEnabled) {
+            const tRange = document.getElementById('conf-t-range');
+            tRange.max = qVal * 2; tRange.value = qVal * 2;
+        }
+        updateConfigUI();
+      }
+
+      function toggleCustomTimeInput() {
+          appState.customTimeEnabled = !appState.customTimeEnabled;
+          const range = document.getElementById('conf-t-range');
+          const input = document.getElementById('conf-custom-time');
+          if(appState.customTimeEnabled) {
+              range.style.display = 'none'; input.style.display = 'block'; input.value = range.value;
+          } else {
+              range.style.display = 'block'; input.style.display = 'none';
+          }
+          updateConfigUI();
+      }
+
+      function onCustomTimeChange() { updateConfigUI(); }
+      function updateConfigUI() {
+        document.getElementById('conf-q-val').innerText = document.getElementById('conf-q-range').value;
+        let tVal = appState.customTimeEnabled ? document.getElementById('conf-custom-time').value : document.getElementById('conf-t-range').value;
+        document.getElementById('conf-t-val').innerText = tVal + " min";
+      }
+
+      function closeConfigModal() { closeModal('config-modal'); }
+      function startConfiguredQuiz() {
+        const limitQ = parseInt(document.getElementById('conf-q-range').value);
+        closeConfigModal();
+        if (pendingIsTimed) {
+            let limitT = appState.customTimeEnabled ? parseInt(document.getElementById('conf-custom-time').value) : parseInt(document.getElementById('conf-t-range').value);
+            if(!limitT || limitT <= 0) limitT = 10;
+            const isReal = document.getElementById('conf-real-exam').checked;
+            startQuiz(pendingQuizIdx, limitQ, true, isReal, limitT);
+        } else {
+            startQuiz(pendingQuizIdx, limitQ, false, false, 0);
+        }
+      }
+
+      function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+      }
+
+      function startQuiz(indexData, limitCount, isTimed, isRealExam, limitMin) {
+        let pool = [];
+        if (indexData === 'all') { pool = appState.currentQuizData.flatMap(c => c.questions); }
+        else if (Array.isArray(indexData)) { indexData.forEach(i => { pool = pool.concat(appState.currentQuizData[i].questions); }); }
+        else { pool = [...appState.currentQuizData[indexData].questions]; }
+
+        pool = pool.map(q => {
+            let newQ = JSON.parse(JSON.stringify(q));
+            if(newQ.options && newQ.options.length > 0) {
+               shuffleArray(newQ.options);
+            }
+            return newQ;
+        });
+
+        if (isRealExam || appState.randomMode) {
+            shuffleArray(pool);
+        }
+        if(limitCount && limitCount < pool.length) pool = pool.slice(0, limitCount);
+        appState.currentQuestions = pool;
+
+        appState.qIdx = 0; appState.scoreC = 0; appState.scoreW = 0; appState.wrongHistory = [];
+        appState.isQuizActive = true; appState.isRealExam = isRealExam;
+        appState.userAnswers = new Array(pool.length).fill(null);
+        appState.flaggedQs = new Set();
+
+        if (isRealExam) {
+            document.getElementById('live-score-box').style.display = 'none';
+            document.getElementById('next-btn').style.display = 'none';
+            document.getElementById('exam-controls').style.display = 'flex';
+            document.getElementById('submit-exam-btn').style.display = 'block';
+            document.getElementById('hint-wrapper').style.display = 'none';
+            document.getElementById('top-palette-wrapper').style.display = 'block';
+            renderTopPalette();
+        } else {
+            document.getElementById('live-score-box').style.display = 'block';
+            document.getElementById('exam-controls').style.display = 'none';
+            document.getElementById('submit-exam-btn').style.display = 'none';
+            document.getElementById('hint-wrapper').style.display = 'flex';
+            document.getElementById('top-palette-wrapper').style.display = 'none';
+        }
+
+        const timerUI = document.getElementById('quiz-timer');
+        if(isTimed) {
+            appState.timeLeft = limitMin * 60; timerUI.style.display = 'block'; updateTimerDisplay();
+            appState.timerInterval = setInterval(timerTick, 1000);
+        } else {
+            timerUI.style.display = 'none'; if(appState.timerInterval) clearInterval(appState.timerInterval);
+        }
+
+        switchView('view-quiz');
+        loadQuestion();
+      }
+
+      function renderTopPalette() {
+        const strip = document.getElementById('palette-strip');
+        strip.innerHTML = '';
+        appState.currentQuestions.forEach((_, i) => {
+            const item = document.createElement('div');
+            item.className = 'mini-q-num';
+            item.innerText = i + 1;
+            item.onclick = () => { appState.qIdx = i; loadQuestion(); };
+            strip.appendChild(item);
+        });
+      }
+
+      function updateTopPalette() {
+        if(!appState.isRealExam) return;
+        const nums = document.querySelectorAll('.mini-q-num');
+        nums.forEach((n, i) => {
+            n.className = 'mini-q-num';
+            n.classList.remove('active', 'answered', 'flagged');
+            if(i === appState.qIdx) n.classList.add('active');
+            if(appState.userAnswers[i] !== null) n.classList.add('answered');
+            if(appState.flaggedQs.has(i)) n.classList.add('flagged');
+        });
+        const activeItem = nums[appState.qIdx];
+        if(activeItem) {
+            const wrapper = document.getElementById('top-palette-wrapper');
+            const scrollLeft = activeItem.offsetLeft - (wrapper.clientWidth / 2) + (activeItem.clientWidth / 2);
+            wrapper.scrollTo({ left: scrollLeft, behavior: 'smooth' });
+        }
+      }
+
+      function timerTick() {
+        appState.timeLeft--; updateTimerDisplay();
+        if(appState.timeLeft <= 0) finishQuiz(true);
+      }
+      function updateTimerDisplay() {
+        const m = Math.floor(appState.timeLeft / 60); const s = appState.timeLeft % 60;
+        document.getElementById('timer-text').innerText = `${m}:${s < 10 ? '0'+s : s}`;
+      }
+
+      function loadQuestion() {
+        document.querySelector('.app-container').scrollTop = 0;
+        const q = appState.currentQuestions[appState.qIdx];
+        console.log('loadQuestion q:', JSON.stringify(q, null, 2));
+        const total = appState.currentQuestions.length;
+
+        document.getElementById('q-counter-text').innerText = `${appState.qIdx + 1} / ${total}`;
+        document.getElementById('score-correct').innerText = appState.scoreC;
+        document.getElementById('score-wrong').innerText = appState.scoreW;
+        document.getElementById('progress-bar').style.width = `${((appState.qIdx + 1) / total) * 100}%`;
+
+        if (appState.isRealExam) {
+            updateTopPalette();
+            document.getElementById('exam-prev-btn').style.visibility = (appState.qIdx === 0) ? 'hidden' : 'visible';
+            document.getElementById('exam-next-btn').style.visibility = (appState.qIdx === total - 1) ? 'hidden' : 'visible';
+        }
+
+        document.getElementById('question-text').innerHTML = q.question;
+
+
+        const macWindow = document.getElementById('mac-code-window');
+      const codeBlock = document.getElementById('code-snippet-block');
+      if (q.codeSnippet && q.codeLang) {
+      macWindow.style.display = 'block';
+      codeBlock.className = `language-${q.codeLang}`;
+      codeBlock.innerHTML = escapeHTML(q.codeSnippet);
+      Prism.highlightElement(codeBlock);
+      } else { macWindow.style.display = 'none'; }
+
+
+        document.getElementById('hint-box').style.display = 'none';
+        document.getElementById('explanation-box').style.display = 'none';
+        document.getElementById('show-exp-btn').style.display = 'none';
+        if(!appState.isRealExam) document.getElementById('next-btn').style.display = 'none';
+
+        const optContainer = document.getElementById('options-container');
+        optContainer.innerHTML = '';
+
+        q.options.forEach((opt, index) => {
+            const btn = document.createElement('button');
+            btn.className = 'option-btn';
+
+            let isObj = (typeof opt === 'object' && opt !== null);
+            let optText = isObj ? (opt.text || "") : opt;
+            let optVal = isObj ? JSON.stringify(opt) : opt;
+
+            let formattedOpt = optText ? optText.replace(/\n/g, '<br>') : '';
+            btn.innerHTML = `<div style="width:100%;">${formattedOpt}</div>`;
+            btn.dataset.val = optVal;
+
+            if (isObj && (opt.graphType || opt.graphFn)) {
+                const graphDiv = document.createElement('div');
+                const graphId = `opt-graph-${appState.qIdx}-${index}`;
+                graphDiv.id = graphId;
+                graphDiv.className = 'opt-mini-graph';
+                btn.appendChild(graphDiv);
+
+                setTimeout(() => {
+                    drawMiniGraph(opt, `#${graphId}`, btn.clientWidth - 30, 130);
+                }, 100);
+            }
+
+            let correctVal = typeof q.correct_answer === 'object' ? JSON.stringify(q.correct_answer) : q.correct_answer;
+
+            if (appState.isRealExam) {
+                if (appState.userAnswers[appState.qIdx] === optVal) btn.classList.add('selected');
+                btn.onclick = () => {
+                    document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                    appState.userAnswers[appState.qIdx] = optVal;
+                    updateTopPalette();
+                };
+            } else {
+                btn.onclick = () => checkAnswer(btn, optVal, correctVal);
+            }
+
+            optContainer.appendChild(btn);
+        });
+
+        const gWrapOuter = document.getElementById('graph-outer-wrapper');
+        const gWrapInner = document.getElementById('graph-wrapper');
+        const toggleBtn = document.getElementById('toggle-g-btn');
+
+        if ((q.graphFn && q.graphFn.trim() !== "") || q.graphType) {
+            gWrapOuter.style.display = 'block';
+            gWrapInner.style.display = 'block';
+            toggleBtn.innerText = "Hide Graph";
+            drawGraph(q);
+        } else {
+            gWrapOuter.style.display = 'none';
+        }
+
+        if (!appState.isRealExam) {
+            document.getElementById('hint-btn-ui').style.display = q.hint ? 'block' : 'none';
+        }
+
+        if (window.MathJax) MathJax.typesetPromise();
+      }
+
+      function checkAnswer(selectedBtn, val, correct) {
+        const btns = document.querySelectorAll('.option-btn');
+        btns.forEach(b => b.disabled = true);
+        if (val === correct) {
+          selectedBtn.classList.add('correct'); appState.scoreC++;
+        } else {
+          selectedBtn.classList.add('wrong'); appState.scoreW++;
+          appState.wrongHistory.push({...appState.currentQuestions[appState.qIdx], userSelected: val});
+          btns.forEach(b => { if (b.dataset.val === correct) b.classList.add('correct'); });
+        }
+        document.getElementById('score-correct').innerText = appState.scoreC;
+        document.getElementById('score-wrong').innerText = appState.scoreW;
+        document.getElementById('next-btn').style.display = 'block';
+        document.getElementById('show-exp-btn').style.display = 'block';
+        appState.expLangAr = false; renderExpText();
+        setTimeout(() => { document.getElementById('next-btn').scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 150);
+      }
+
+      function flagQ() {
+         const i = appState.qIdx;
+         if (appState.flaggedQs.has(i)) appState.flaggedQs.delete(i); else appState.flaggedQs.add(i);
+         updateTopPalette();
+      }
+
+      function prevQ() { if(appState.qIdx > 0) { appState.qIdx--; loadQuestion(); } }
+      function nextQ() { if (appState.qIdx < appState.currentQuestions.length - 1) { appState.qIdx++; loadQuestion(); } else if (!appState.isRealExam) { finishQuiz(); } }
+
+      function attemptSubmit() {
+          let unansweredCount = 0; appState.userAnswers.forEach(a => { if(a === null) unansweredCount++; });
+          if(unansweredCount > 0) { showCustomAlert(`You have ${unansweredCount} unanswered question(s).`); return; }
+          document.getElementById('submit-confirm-modal').classList.add('active-modal');
+      }
+
+      function showCustomAlert(msg) {
+          document.getElementById('alert-msg').innerText = msg;
+          document.getElementById('alert-modal').classList.add('active-modal');
+      }
+
+      function filterReview(type, btnElement) {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btnElement.classList.add('active');
+        const items = document.querySelectorAll('.review-item');
+        items.forEach(item => {
+            const status = item.dataset.status;
+            if (type === 'all') item.classList.remove('hidden');
+            else if (type === 'correct') (status === 'correct') ? item.classList.remove('hidden') : item.classList.add('hidden');
+            else if (type === 'wrong') (status === 'wrong') ? item.classList.remove('hidden') : item.classList.add('hidden');
+            else if (type === 'unanswered') (status === 'unanswered') ? item.classList.remove('hidden') : item.classList.add('hidden');
+        });
+        document.getElementById('review-section').scrollIntoView({ behavior: 'smooth' });
+      }
+
+      function switchView(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        document.getElementById('app-title').innerText = (id === 'view-subjects') ? 'Specify The Subject' : 'Quizzes';
+        window.scrollTo(0,0);
+      }
+      function resetToHome() { appState.isQuizActive = false; if(appState.timerInterval) clearInterval(appState.timerInterval); switchView('view-subjects'); if (isInIframe()) { notifyParent('goHome'); } else { window.location.href = '/'; } }
+
+      // الكود الجديد لدالة إخفاء/إظهار الرسم
+      function toggleG() {
+      const wrap = document.getElementById('graph-wrapper');
+      wrap.style.display = (wrap.style.display === 'none') ? 'block' : 'none';
+      drawGraph(appState.currentQuestions[appState.qIdx]); // نرسل الكائن بالكامل هنا أيضاً
+      }
+
+      // الكود الجديد لدالة الرسم (المحرك الذكي)
+      function drawGraph(qData) {
+      const containerId = '#graph-container';
+      const container = document.querySelector(containerId);
+      if (!container) return;
+
+      container.innerHTML = ''; // تنظيف أي رسم سابق
+      const width = container.offsetWidth || 400;
+      const height = 280;
+
+      // 1. رسم المعادلات الرياضية القديمة
+      if (qData.graphFn && !qData.graphType) {
+      try {
+      functionPlot({
+          target: containerId,
+          width: width - 20, height: height,
+          grid: true,
+          xAxis: { domain: [-7, 7] }, yAxis: { domain: [-7, 7] },
+          data: [{ fn: qData.graphFn, color: '#000000' }]
+      });
+      } catch (e) { console.error(e); }
+      }
+      // 2. رسم الأعمدة أو المدرج التكراري (Bar / Histogram)
+      else if (qData.graphType === 'bar' || qData.graphType === 'histogram') {
+      renderBarChart(qData.graphData, containerId, width - 20, height, qData.graphType);
+      }
+      // 3. رسم الدائرة (Pie)
+      else if (qData.graphType === 'pie') {
+      renderPieChart(qData.graphData, containerId, width - 20, height);
+      }
+      // 4. المضلع التكراري (Line/Polygon)
+      else if (qData.graphType === 'line') {
+      renderLineChart(qData.graphData, containerId, width - 20, height);
+      }
+      // 5. محرك الدوائر العالمي (Circuitikz عبر TikzJax)
+      else if (qData.graphType === 'circuit_latex') {
+      renderLatexCircuit(qData.graphData, containerId);
+      }
+      }
+
+      function drawMiniGraph(qData, targetId, w, h) {
+          const container = document.querySelector(targetId);
+          if (!container) return;
+          container.innerHTML = '';
+
+          if (qData.graphFn && !qData.graphType) {
+              try {
+                  functionPlot({
+                      target: targetId,
+                      width: w, height: h,
+                      grid: true,
+                      xAxis: { domain: [-5, 5] }, yAxis: { domain: [-5, 5] },
+                      data: [{ fn: qData.graphFn, color: '#000000' }]
+                  });
+              } catch (e) { console.error(e); }
+          }
+          else if (qData.graphType === 'bar' || qData.graphType === 'histogram') {
+              renderBarChart(qData.graphData, targetId, w, h, qData.graphType);
+          }
+          else if (qData.graphType === 'pie') {
+              renderPieChart(qData.graphData, targetId, w, h);
+          }
+          else if (qData.graphType === 'line') {
+              renderLineChart(qData.graphData, targetId, w, h);
+          }
+          else if (qData.graphType === 'circuit_latex') {
+              renderLatexCircuit(qData.graphData, targetId);
+          }
+      }
+
+      // 1. الدالة المساعدة لفك شفرة الإجابات وتجهيز مساحة للرسومات
+      function formatReviewAns(ansRaw, elementId) {
+          let parsedAns = ansRaw;
+          if (typeof ansRaw === 'string') {
+              try { parsedAns = JSON.parse(ansRaw); } catch (e) { parsedAns = ansRaw; }
+          }
+
+          let textContent = "";
+          let graphObj = null;
+
+          if (typeof parsedAns === 'object' && parsedAns !== null) {
+              textContent = parsedAns.text || "";
+              if (parsedAns.graphType || parsedAns.graphFn) {
+                  graphObj = parsedAns;
+              }
+          } else {
+              textContent = parsedAns;
+          }
+
+          let finalHtml = textContent ? textContent.toString().replace(/\n/g, '<br>') : "";
+
+          // حجز مساحة إجبارية للرسمة حتى لا تختفي
+          if (graphObj) {
+              finalHtml += `<div id="${elementId}" class="opt-mini-graph" style="margin-top: 10px; background: rgba(255,255,255,0.9); border-radius: 8px; width: 100%; min-height: 140px;"></div>`;
+          }
+
+          return { html: finalHtml, graphObj: graphObj };
+      }
+
+      // 2. دالة إنهاء الاختبار وعرض النتيجة (النسخة النهائية)
+      function finishQuiz(isTimeout = false) {
+          if(appState.timerInterval) clearInterval(appState.timerInterval);
+
+          if (appState.isRealExam) {
+              appState.scoreC = 0; appState.scoreW = 0;
+              appState.currentQuestions.forEach((q, i) => {
+                  const userAns = appState.userAnswers[i];
+                  let correctVal = typeof q.correct_answer === 'object' ? JSON.stringify(q.correct_answer) : q.correct_answer;
+                  if (userAns === correctVal) appState.scoreC++; else appState.scoreW++;
+              });
+          }
+
+          switchView('view-result');
+          const total = appState.currentQuestions.length;
+          const pct = Math.round((appState.scoreC / total) * 100);
+          document.getElementById('final-score-pct').innerText = `${pct}%`;
+          document.getElementById('final-stats').innerText = `Completed ${total} Questions` + (isTimeout ? ` (Time's Up!)` : ``);
+
+          const reviewContainer = document.getElementById('review-list');
+          reviewContainer.innerHTML = '';
+          document.getElementById('review-section').style.display = 'block';
+
+          document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+          document.querySelector('.filter-tabs .filter-btn').classList.add('active');
+
+          let graphsToRender = [];
+
+          appState.currentQuestions.forEach((q, i) => {
+              const div = document.createElement('div');
+              let status = 'skipped';
+
+              // 1. طباعة نص السؤال الأساسي
+              let contentHtml = `<div style="font-weight:700; margin-bottom:10px; font-size:1.1rem; white-space: pre-wrap;">Q${i+1}: ${q.question}</div>`;
+
+              // 2. التحقق مما إذا كان السؤال الأساسي يحتوي على أكواد برمجية لطباعتها
+              if (q.codeSnippet && q.codeLang) {
+                  contentHtml += `
+                  <div style="background: #282a36; padding: 15px; border-radius: 8px; margin-bottom: 15px; overflow-x: auto; direction: ltr; text-align: left; font-family: 'Fira Code', monospace; font-size: 0.9rem; border: 1px solid rgba(255,255,255,0.1);">
+                      <pre style="margin: 0;"><code class="language-${q.codeLang}">${escapeHTML(q.codeSnippet)}</code></pre>
+                  </div>`;
+              }
+
+              // 3. التحقق مما إذا كان السؤال الأساسي يحتوي على رسمة (مخطط/دائرة) لإضافتها للطابور
+              if (q.graphType || (q.graphFn && q.graphFn.trim() !== "")) {
+                  const qGraphId = `rev-q-graph-${i}`;
+                  contentHtml += `<div id="${qGraphId}" class="opt-mini-graph" style="margin-bottom: 15px; width: 100%; min-height: 150px; border: 1px dashed rgba(255,255,255,0.2);"></div>`;
+                  // إضافة رسمة السؤال نفسه إلى طابور الرسم
+                  graphsToRender.push({ id: qGraphId, data: q });
+              }
+
+              let userAns = appState.isRealExam ? appState.userAnswers[i] : null;
+              let correctVal = typeof q.correct_answer === 'object' ? JSON.stringify(q.correct_answer) : q.correct_answer;
+
+              if(!appState.isRealExam) {
+                  const wrongEntry = appState.wrongHistory.find(w => w.question === q.question);
+                  if(wrongEntry) { userAns = wrongEntry.userSelected; status = 'wrong'; }
+                  else { userAns = correctVal; status = 'correct'; }
+              } else {
+                  if (userAns === correctVal) status = 'correct';
+                  else if (userAns === null) status = 'unanswered';
+                  else status = 'wrong';
+              }
+
+              let cAnsFormatted = formatReviewAns(correctVal, `rev-c-${i}`);
+
+              // 4. طباعة إجابات الطالب والإجابات الصحيحة
+              if(status === 'correct') {
+                  div.className = 'review-item r-correct';
+                  contentHtml += `
+                  <div style="color:var(--correct); margin-top:5px; padding: 10px; background: rgba(0,230,118,0.1); border-radius: 8px; border: 1px solid rgba(0,230,118,0.2);">
+                      <b>✔ الإجابة الصحيحة:</b><br><div style="margin-top:5px;">${cAnsFormatted.html}</div>
+                  </div>`;
+                  if(cAnsFormatted.graphObj) graphsToRender.push({ id: `rev-c-${i}`, data: cAnsFormatted.graphObj });
+
+              } else if (status === 'unanswered') {
+                  div.className = 'review-item r-noans';
+                  contentHtml += `<div style="color:var(--wrong); margin-top:5px; padding: 10px; background: rgba(255,23,68,0.1); border-radius: 8px; border: 1px solid rgba(255,23,68,0.2);"><b>✘ لم يتم الإجابة</b></div>`;
+                  contentHtml += `
+                  <div style="color:var(--correct); margin-top:10px; padding: 10px; background: rgba(0,230,118,0.1); border-radius: 8px; border: 1px solid rgba(0,230,118,0.2);">
+                      <b>✔ الإجابة الصحيحة:</b><br><div style="margin-top:5px;">${cAnsFormatted.html}</div>
+                  </div>`;
+                  if(cAnsFormatted.graphObj) graphsToRender.push({ id: `rev-c-${i}`, data: cAnsFormatted.graphObj });
+
+              } else {
+                  div.className = 'review-item r-wrong';
+                  let uAnsFormatted = formatReviewAns(userAns, `rev-u-${i}`);
+                  contentHtml += `
+                  <div style="color:var(--wrong); margin-top:5px; padding: 10px; background: rgba(255,23,68,0.1); border-radius: 8px; border: 1px solid rgba(255,23,68,0.2);">
+                      <b>✘ إجابتك:</b><br><div style="margin-top:5px;">${uAnsFormatted.html}</div>
+                  </div>
+                  <div style="color:var(--correct); margin-top:10px; padding: 10px; background: rgba(0,230,118,0.1); border-radius: 8px; border: 1px solid rgba(0,230,118,0.2);">
+                      <b>✔ الإجابة الصحيحة:</b><br><div style="margin-top:5px;">${cAnsFormatted.html}</div>
+                  </div>`;
+
+                  if(uAnsFormatted.graphObj) graphsToRender.push({ id: `rev-u-${i}`, data: uAnsFormatted.graphObj });
+                  if(cAnsFormatted.graphObj) graphsToRender.push({ id: `rev-c-${i}`, data: cAnsFormatted.graphObj });
+              }
+
+              div.dataset.status = status;
+              div.innerHTML = contentHtml;
+              reviewContainer.appendChild(div);
+          });
+
+          // 5. الانتظار حتى تقوم MathJax بترجمة المعادلات الرياضية، ثم رسم الدوائر والأكواد
+          if (window.MathJax) {
+              MathJax.typesetPromise().then(() => {
+                  renderAllReviewGraphs(graphsToRender);
+                  if (window.Prism) Prism.highlightAll(); // تلوين الأكواد البرمجية
+              });
+          } else {
+              setTimeout(() => {
+                  renderAllReviewGraphs(graphsToRender);
+                  if (window.Prism) Prism.highlightAll();
+              }, 150);
+          }
+      }
+
+      // 3. دالة فرعية لتشغيل الرسوم البيانية بأمان
+      function renderAllReviewGraphs(graphsToRender) {
+          graphsToRender.forEach(graph => {
+              const container = document.getElementById(graph.id);
+              if (container) {
+                  let w = container.clientWidth > 0 ? container.clientWidth - 10 : 300;
+                  drawMiniGraph(graph.data, `#${graph.id}`, w, 130);
+              }
+          });
+      }
+
+      // --- دوال D3.js المساعدة للإحصاء ---
+
+      function renderBarChart(data, target, w, h, type) {
+      const margin = {top: 20, right: 20, bottom: 40, left: 40};
+      const width = w - margin.left - margin.right;
+      const height = h - margin.top - margin.bottom;
+
+      const svg = d3.select(target).append("svg")
+      .attr("width", w).attr("height", h)
+      .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+      const x = d3.scale.ordinal().rangeRoundBands([0, width], type === 'histogram' ? 0 : 0.1);
+      const y = d3.scale.linear().range([height, 0]);
+
+      x.domain(data.map(d => d.label));
+      y.domain([0, d3.max(data, d => d.value)]);
+
+      svg.selectAll(".bar").data(data).enter().append("rect")
+      .attr("x", d => x(d.label)).attr("width", x.rangeBand())
+      .attr("y", d => y(d.value)).attr("height", d => height - y(d.value))
+      .style("fill", type === 'histogram' ? "var(--primary)" : "var(--accent)");
+
+      svg.append("g").attr("transform", `translate(0,${height})`).call(d3.svg.axis().scale(x).orient("bottom")).style("fill", "#fff");
+      svg.append("g").call(d3.svg.axis().scale(y).orient("left").ticks(5)).style("fill", "#fff");
+      }
+
+      function renderPieChart(data, target, w, h) {
+      const radius = Math.min(w, h) / 2 - 20;
+      const svg = d3.select(target).append("svg")
+      .attr("width", w).attr("height", h)
+      .append("g").attr("transform", `translate(${w/2},${h/2})`);
+
+      const color = d3.scale.category10();
+      const pie = d3.layout.pie().value(d => d.value);
+      const arc = d3.svg.arc().outerRadius(radius).innerRadius(0);
+
+      const arcs = svg.selectAll(".arc").data(pie(data)).enter().append("g");
+      arcs.append("path").attr("d", arc).style("fill", (d, i) => color(i));
+
+      arcs.append("text").attr("transform", d => `translate(${arc.centroid(d)})`)
+      .attr("text-anchor", "middle").text(d => d.data.label)
+      .style("fill", "#fff").style("font-size", "14px").style("font-weight", "bold");
+      }
+
+      function renderLineChart(data, target, w, h) {
+      const margin = {top: 20, right: 20, bottom: 40, left: 40};
+      const width = w - margin.left - margin.right;
+      const height = h - margin.top - margin.bottom;
+
+      const x = d3.scale.ordinal().domain(data.map(d => d.label)).rangePoints([0, width]);
+      const y = d3.scale.linear().domain([0, d3.max(data, d => d.value)]).range([height, 0]);
+
+      const line = d3.svg.line().x(d => x(d.label)).y(d => y(d.value));
+
+      const svg = d3.select(target).append("svg")
+      .attr("width", w).attr("height", h)
+      .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+      svg.append("g").attr("transform", `translate(0,${height})`).call(d3.svg.axis().scale(x).orient("bottom")).style("fill", "#fff");
+      svg.append("g").call(d3.svg.axis().scale(y).orient("left").ticks(5)).style("fill", "#fff");
+
+      svg.append("path").datum(data).attr("d", line)
+      .style("fill", "none").style("stroke", "var(--primary)").style("stroke-width", 3);
+
+      svg.selectAll("circle").data(data).enter().append("circle")
+      .attr("cx", d => x(d.label)).attr("cy", d => y(d.value)).attr("r", 5).style("fill", "var(--accent)");
+      }
+
+      // --- محرك رسم TikZ الذكي (يقبل كل الأنماط) ---
+      function renderLatexCircuit(latexCode, target) {
+      const container = document.querySelector(target);
+      if (!container) return;
+
+      // 1. إظهار واجهة التحميل
+      container.innerHTML = `
+      <div id="circuit-loader" style="display:flex; flex-direction:column; align-items:center; justify-content:center; width: 100%; height: 200px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px dashed rgba(0, 242, 255, 0.4);">
+      <div class="spinner" style="border-top-color: var(--primary); width: 45px; height: 45px; border-width: 4px;"></div>
+      <div style="color:var(--primary); margin-top:15px; font-weight:900; font-family: 'Cairo', sans-serif; font-size: 1.1rem; text-shadow: 0 0 10px rgba(0,242,255,0.3);">جاري رسم المخطط الهندسي... ⚙️</div>
+      <div style="color:var(--text-secondary); font-size: 0.85rem; margin-top: 5px;">يرجى الانتظار لحظات</div>
+      </div>
+      `;
+
+      // 2. تنظيف الكود (BOM, zero-width chars, zener diode)
+      let cleaned = latexCode.replace(/^\uFEFF/, '').replace(/^\u200B/, '').trim().replace(/\\([^\x00-\x7F])/g, '\\');
+      cleaned = cleaned.replace(/to\s*\[\s*zener\s+diode(.*?)\]/g, 'to[D$1, zD]');
+      cleaned = cleaned.replace(/zener\s+diode/g, 'zzdiode');
+
+      cleaned = cleaned.replace(/(^|[^\\])#/g, '$1\\\\#');
+
+      let fullCode;
+
+      // 3. كشف النمط وبناء الكود المناسب
+      const hasDiamond = /diamond/.test(cleaned);
+
+      if (/^\s*\\documentclass/.test(cleaned)) {
+          // 3a. كود LaTeX كامل — نزيل المشاكل ونضيف amsmath لو ناقص
+          let modified = cleaned
+              .replace(/\\usepackage(\[.*?\])?\{geometry\}\s*/g, '')
+              .replace(/\\pgfplotsset\{compat=[\d.]+\}\s*/g, '');
+          if (!/\\usepackage.*\{amsmath\}/.test(modified)) {
+              modified = modified.replace(/\\begin\{document\}/, '\\usepackage{amsmath}\n\\begin{document}');
+          }
+          if (hasDiamond && !/shapes\.geometric/.test(modified)) {
+              modified = modified.replace(/\\begin\{document\}/, '\\usetikzlibrary{shapes.geometric}\n\\begin{document}');
+          }
+          fullCode = modified;
+      } else if (/^\s*\\begin\s*\{tikzpicture\}/.test(cleaned)) {
+          // 3b. يبدأ بـ tikzpicture — نضيف الباقة الكاملة
+          fullCode = `\\documentclass[margin=5mm]{standalone}
+      \\usepackage{amsmath}
+      \\usepackage{circuitikz}
+      \\usepackage{pgfplots}
+      \\pgfplotsset{compat=1.18}
+      ${hasDiamond ? '\\usetikzlibrary{shapes.geometric}' : ''}
+      \\begin{document}
+      ${cleaned}
+      \\end{document}`;
+      } else if (/^\s*\\begin\s*\{circuitikz\}/.test(cleaned)) {
+          // 3c. يبدأ بـ circuitikz — نضيف circuitikz فقط
+          fullCode = `\\documentclass[margin=5mm]{standalone}
+      \\usepackage{circuitikz}
+      ${hasDiamond ? '\\usetikzlibrary{shapes.geometric}' : ''}
+      \\begin{document}
+      ${cleaned}
+      \\end{document}`;
+      } else {
+          // 3d. أوامر circuit عادية — نلفها في circuitikz
+          fullCode = `\\documentclass[margin=5mm]{standalone}
+      \\usepackage{circuitikz}
+      ${hasDiamond ? '\\usetikzlibrary{shapes.geometric}' : ''}
+      \\begin{document}
+      \\begin{circuitikz}[scale=1.3, transform shape, thick]
+      ${cleaned}
+      \\end{circuitikz}
+      \\end{document}`;
+      }
+
+      try {
+      // 4. ضغط وتحويل إلى Kroki
+      const data = new TextEncoder().encode(fullCode);
+      const compressed = pako.deflate(data);
+      let binary = ''; for (let i = 0; i < compressed.length; i++) binary += String.fromCharCode(compressed[i]);
+      const base64Safe = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_');
+      const imageUrl = `https://kroki.io/tikz/svg/${base64Safe}`;
+
+      const img = new Image();
+      img.onload = function() {
+      container.innerHTML = `
+          <div style="width:100%; display:flex; justify-content:center; align-items:center; background:#fffaf0; border-radius:12px; padding: 15px; box-shadow: inset 0 0 15px rgba(0,0,0,0.05);">
+              <img src="${imageUrl}" style="max-width:100%; max-height:400px; object-fit:contain; animation: fadeIn 0.6s ease-out;" alt="Circuit Diagram" />
+          </div>
+      `;
+      };
+      img.onerror = function() {
+      container.innerHTML = `
+          <div style="text-align:center; padding:20px; border: 1px solid var(--wrong); border-radius: 12px; background: rgba(255, 23, 68, 0.05);">
+              <div style="font-size: 2.5rem; color: var(--wrong); margin-bottom: 10px;">⚠️</div>
+              <div style="color:var(--wrong); font-weight:bold; font-size: 1.1rem;">عذراً، فشل تحميل المخطط!</div>
+              <div style="color:var(--text-secondary); font-size: 0.9rem; margin-top: 5px;">يرجى التحقق من اتصال الإنترنت، أو إعادة تحميل الصفحة.</div>
+          </div>
+      `;
+      };
+      img.src = imageUrl;
+
+      } catch (e) {
+      console.error("خطأ في تشفير الدائرة:", e);
+      container.innerHTML = '<div style="color:var(--wrong); text-align:center; padding:20px; font-weight:bold;">حدث خطأ داخلي في تحويل الدائرة.</div>';
+      }
+      }
+
+
+      function toggleHint() { const box = document.getElementById('hint-box'); const q = appState.currentQuestions[appState.qIdx]; box.style.display = (box.style.display === 'block') ? 'none' : 'block'; box.innerHTML = q.hint || "No hint available."; if(window.MathJax) MathJax.typesetPromise(); }
+      function toggleExp() { const box = document.getElementById('explanation-box'); box.style.display = (box.style.display === 'none') ? 'block' : 'none'; if(box.style.display === 'block') box.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      function renderExpText() { const q = appState.currentQuestions[appState.qIdx]; const txt = document.getElementById('exp-text'); if (appState.expLangAr && q.explanation_ar) { txt.innerHTML = (q.explanation_ar || '').replace(/\n/g, '<br>'); txt.style.textAlign = 'right'; txt.dir = 'rtl'; } else { txt.innerHTML = (q.explanation_en || "No explanation provided.").replace(/\n/g, '<br>'); txt.style.textAlign = 'left'; txt.dir = 'ltr'; } if(window.MathJax) MathJax.typesetPromise(); }
+      function toggleLang() { appState.expLangAr = !appState.expLangAr; renderExpText(); }
+      function requestExit() { document.getElementById('exit-modal').classList.add('active-modal'); }
+      function confirmExit() { closeModal('exit-modal'); resetToHome(); }
+      function closeModal(id) { document.getElementById(id).classList.remove('active-modal'); }
+      function toggleFullScreen() { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else if (document.exitFullscreen) document.exitFullscreen(); }
+      function toggleRealExamInputs() {}
+
+      function toggleQuestionMode() {
+        appState.randomMode = !appState.randomMode;
+        const btn = document.getElementById('mode-toggle-btn');
+        if (appState.randomMode) {
+            btn.classList.remove('normal-mode');
+            btn.querySelector('div:first-child').innerHTML = '<i class="fa-solid fa-shuffle"></i> Random Order';
+        } else {
+            btn.classList.add('normal-mode');
+            btn.querySelector('div:first-child').innerHTML = '<i class="fa-solid fa-list"></i> Normal Order';
+        }
+      }
+    </script>
+</body>
+</html>

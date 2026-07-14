@@ -1,0 +1,85 @@
+/* Materials page - subject grid */
+
+.materials-container {
+    max-width: 900px;
+    margin: 15px auto 15px;
+    padding: 20px 20px;
+    width: 100%;
+    position: relative;
+    box-sizing: border-box;
+}
+
+.grid-view {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+@media (min-width: 600px) { .grid-view { grid-template-columns: repeat(4, 1fr); } }
+
+.subject-card {
+    background: var(--bg-card);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    aspect-ratio: 1 / 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.subject-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: linear-gradient(135deg, rgba(0,242,255,0.1) 0%, transparent 100%);
+    opacity: 0;
+    transition: 0.3s;
+}
+
+.subject-card:hover {
+    transform: translateY(-5px) scale(1.02);
+    border-color: var(--primary);
+    box-shadow: 0 10px 30px -10px rgba(0, 242, 255, 0.2);
+}
+
+.subject-card:hover::before { opacity: 1; }
+
+.subject-card:active { transform: scale(0.96); }
+
+.subject-card .card-icon {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    filter: drop-shadow(0 0 10px rgba(0,0,0,0.5));
+    transition: 0.3s;
+}
+
+.subject-card:hover .card-icon {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 15px var(--primary));
+}
+
+.subject-card .card-label {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: white;
+    text-align: center;
+    z-index: 2;
+}
+
+/* Material Colors */
+.color-arabic { color: #4DB6AC; }
+.color-english { color: #5C6BC0; }
+.color-mech { color: #FF7043; }
+.color-math { color: #EF5350; }
+.color-phys { color: #AB47BC; }
+.color-prog { color: #66BB6A; }
+.color-draw { color: #FFA726; }
+.color-tech { color: #78909C; }
+.color-default { color: #00f2ff; }

@@ -1,0 +1,196 @@
+س/* ─── Modern Video Player ─── */
+
+/* Root — fills available space below header */
+.vp-root {
+    flex: 1; min-height: 0;
+    background: #000;
+    position: relative;
+    overflow: hidden;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-sizing: border-box;
+}
+
+/* Player wrapper – fills entire root, video centered inside */
+.vp-player-wrapper {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; background: #000;
+}
+
+.vp-player-wrapper video {
+    width: 100%; height: 100%; object-fit: contain;
+    display: block; cursor: pointer;
+}
+
+/* ─── Audio mode ─── */
+.vp-audio-visual {
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    position: absolute; inset: 0; gap: 24px;
+}
+.vp-player-wrapper.audio-mode video { display: none; }
+.vp-player-wrapper.audio-mode .vp-audio-visual { display: flex; }
+
+.vp-audio-icon { font-size: 90px; color: #bd00ff; filter: drop-shadow(0 0 40px rgba(189,0,255,.4)); }
+.vp-audio-bars { display: flex; gap: 6px; height: 56px; align-items: center; }
+
+.vp-bar {
+    width: 6px; border-radius: 4px;
+    background: linear-gradient(180deg, #bd00ff, #8a00cc);
+    animation: vp-wave 1.2s ease-in-out infinite;
+    box-shadow: 0 0 10px rgba(189,0,255,.3);
+}
+.vp-bar:nth-child(2) { animation-delay: .15s; }
+.vp-bar:nth-child(3) { animation-delay: .3s;  }
+.vp-bar:nth-child(4) { animation-delay: .45s; }
+.vp-bar:nth-child(5) { animation-delay: .6s;  }
+
+@keyframes vp-wave {
+    0%, 100% { height: 6px; }
+    50%      { height: 32px; }
+}
+
+/* Buffering spinner */
+.vp-buffer {
+    position: absolute; top: 50%; left: 50%; translate: -50% -50%;
+    width: 56px; height: 56px; display: none; z-index: 5;
+}
+.vp-buffer::after {
+    content: ""; display: block; width: 48px; height: 48px; margin: 4px;
+    border-radius: 50%; border: 3px solid transparent;
+    border-top-color: var(--primary); border-bottom-color: var(--primary);
+    animation: vp-spin .9s linear infinite;
+}
+
+/* Center play button */
+.vp-center-play {
+    position: absolute; top: 50%; left: 50%; translate: -50% -50%;
+    width: 80px; height: 80px; border-radius: 50%;
+    background: rgba(0,0,0,.5); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 32px;
+    pointer-events: none; transition: opacity .35s ease, transform .35s ease;
+    transform-origin: center;
+    box-shadow: 0 0 40px rgba(0,0,0,.5);
+}
+
+/* ─── Controls bar (overlaid on video) ─── */
+.vp-controls {
+    position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
+    background: linear-gradient(0deg, rgba(0,0,0,.95) 0%, transparent 100%);
+    padding: 12px 20px 18px;
+    display: flex; flex-direction: column; gap: 8px;
+    transition: opacity .45s ease, transform .45s ease;
+    transform: translateY(0);
+}
+
+.vp-root.idle .vp-controls {
+    opacity: 0 !important; pointer-events: none; transform: translateY(16px);
+}
+
+/* ─── Progress area ─── */
+.vp-progress-area {
+    position: relative; width: 100%; height: 16px;
+    cursor: pointer; display: flex; align-items: center;
+    touch-action: none;
+}
+
+.vp-progress-bg {
+    width: 100%; height: 4px; border-radius: 6px;
+    background: rgba(255,255,255,.18);
+    position: absolute; transition: height .2s;
+}
+
+.vp-time-current, .vp-time-duration {
+    position: absolute; top: -14px;
+    font-family: 'Fira Code', monospace; font-size: 11px;
+    color: #ccc; pointer-events: none;
+    text-shadow: 0 1px 4px rgba(0,0,0,.8);
+}
+.vp-time-current { left: 0; }
+.vp-time-duration { right: 0; }
+.vp-progress-area:hover .vp-progress-bg,
+.vp-progress-area:active .vp-progress-bg { height: 6px; }
+
+.vp-progress-bar {
+    height: 4px; border-radius: 6px; position: absolute; left: 0;
+    background: linear-gradient(90deg, var(--primary), #00ffc8);
+    box-shadow: 0 0 12px rgba(0,242,255,.4);
+    transition: height .2s;
+}
+.vp-player-wrapper.audio-mode ~ .vp-controls .vp-progress-bar {
+    background: linear-gradient(90deg, #bd00ff, #e040ff);
+    box-shadow: 0 0 12px rgba(189,0,255,.4);
+}
+.vp-progress-area:hover .vp-progress-bar,
+.vp-progress-area:active .vp-progress-bar { height: 6px; }
+
+.vp-progress-thumb {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #fff; position: absolute; top: 50%;
+    translate: -50% -50%;
+    opacity: 0; transition: opacity .2s, transform .2s;
+    pointer-events: none; box-shadow: 0 0 8px rgba(0,0,0,.5);
+}
+.vp-progress-area:hover .vp-progress-thumb,
+.vp-progress-area:active .vp-progress-thumb { opacity: 1; }
+
+/* Invisible range input overlaid on progress area */
+.vp-range {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0; cursor: pointer; z-index: 2; margin: 0; padding: 0;
+    -webkit-appearance: none; appearance: none;
+}
+
+/* ─── Controls row ─── */
+.vp-controls-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+}
+.vp-left, .vp-right {
+    display: flex; align-items: center; gap: 10px;
+}
+
+.vp-btn {
+    background: none; border: none; color: #ddd; font-size: 17px;
+    cursor: pointer; transition: all .2s ease; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 50%;
+}
+.vp-btn:hover { color: #fff; background: rgba(255,255,255,.1); transform: scale(1.08); }
+.vp-btn:active { transform: scale(.92); }
+
+.vp-play-btn { font-size: 22px; width: 40px; height: 40px; }
+.vp-play-btn:hover { color: var(--primary); }
+
+.vp-speed-btn {
+    font-family: 'Fira Code', monospace; font-size: 13px; font-weight: 600;
+    width: auto; padding: 0 10px; border-radius: 8px; letter-spacing: .5px;
+    background: rgba(255,255,255,.06); color: #bbb;
+}
+.vp-speed-btn:hover { background: rgba(255,255,255,.14); color: var(--primary); }
+
+.vp-time {
+    font-family: 'Fira Code', monospace; font-size: 12px; color: #ccc;
+    letter-spacing: .3px; white-space: nowrap;
+}
+
+/* Volume */
+.vp-volume {
+    display: flex; align-items: center; gap: 6px;
+}
+.vp-volume input[type="range"] {
+    accent-color: var(--primary); cursor: pointer;
+    height: 3px; border-radius: 4px;
+}
+
+@keyframes vp-spin { 100% { transform: rotate(360deg); } }
+
+/* ─── Responsive ─── */
+@media (max-width: 480px) {
+    .vp-controls { padding: 8px 12px 14px; }
+    .vp-left, .vp-right { gap: 8px; }
+    .vp-btn { width: 30px; height: 30px; font-size: 15px; }
+    .vp-play-btn { width: 34px; height: 34px; font-size: 19px; }
+    .vp-volume input[type="range"] { width: 36px !important; }
+    .vp-center-play { width: 64px; height: 64px; font-size: 26px; }
+}
