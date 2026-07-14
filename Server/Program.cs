@@ -1,14 +1,12 @@
 using System.Net.Http.Headers;
 using Microsoft.Extensions.FileProviders;
 
-var publishDir = Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
-
-var builder = WebApplication.CreateBuilder(new WebApplicationOptions
-{
-    WebRootPath = publishDir
-});
+var builder = WebApplication.CreateBuilder();
+builder.WebHost.UseWebRoot("wwwroot");
 
 var app = builder.Build();
+
+var webRootPath = app.Environment.WebRootPath;
 
 // Map requested _framework files to their hashed-on-disk names (e.g., dotnet.js → dotnet.rmkowhzo5h.js)
 app.Use(async (ctx, next) =>
@@ -16,7 +14,7 @@ app.Use(async (ctx, next) =>
     if (ctx.Request.Path.StartsWithSegments("/_framework"))
     {
         var relPath = ctx.Request.Path.Value!.Substring("/_framework/".Length);
-        var filePath = Path.Combine(publishDir, "_framework", relPath);
+        var filePath = Path.Combine(webRootPath, "_framework", relPath);
         if (!File.Exists(filePath))
         {
             var dir = Path.GetDirectoryName(filePath)!;

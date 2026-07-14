@@ -23,14 +23,21 @@ jobs:
         with:
           dotnet-version: "10.0.x"
       - name: Restore
-        run: dotnet restore NMU.Platform.Web/NMU.Platform.Web.csproj
+        run: dotnet restore Server/Server.csproj
       - name: Build
-        run: dotnet build NMU.Platform.Web/NMU.Platform.Web.csproj -c Release --no-restore
+        run: dotnet build Server/Server.csproj -c Release --no-restore
       - name: Publish
-        run: dotnet publish NMU.Platform.Web/NMU.Platform.Web.csproj -c Release -o publish --no-restore
-      - name: Copy dotnet.js to _framework
-        run: cp publish/dotnet.js publish/wwwroot/_framework/dotnet.js
-      - name: Fix base href for GitHub Pages
+        run: dotnet publish Server/Server.csproj -c Release -o publish --no-restore
+      - name: Fix dotnet.js for GitHub Pages
+        run: |
+          cd publish/wwwroot/_framework/
+          for f in dotnet.*.js; do
+            if echo "$f" | grep -qE '^dotnet\.[a-z0-9]+\.js$'; then
+              cp "$f" dotnet.js
+              break
+            fi
+          done
+      - name: Fix base href
         run: |
           sed -i 's|<base href="/" />|<base href="/NMU-Blazor/" />|g' publish/wwwroot/index.html
       - name: Add .nojekyll
