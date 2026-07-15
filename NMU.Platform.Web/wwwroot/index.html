@@ -11,7 +11,7 @@
             var params = new URLSearchParams(location.search);
             var redirect = params.get('redirect');
             if (redirect) {
-                history.replaceState(null, '', '/NMU-Blazor' + redirect);
+                history.replaceState(null, '', redirect);
             }
         })();
     </script>
