@@ -50,10 +50,7 @@ public class QuizStateService
             Shuffle(pool);
 
         foreach (var q in pool)
-        {
-            var opts = q.Options;
-            ShuffleObjects(opts);
-        }
+            Shuffle(q.Options);
 
         CurrentQuestions = pool;
         CurrentIndex = 0;
@@ -73,7 +70,15 @@ public class QuizStateService
     public void CheckAnswer(string selectedValue, string correctValue)
     {
         UserAnswers[CurrentIndex] = selectedValue;
-        if (selectedValue == correctValue)
+        var q = CurrentQuestions[CurrentIndex];
+        var isCorrect = selectedValue == correctValue;
+        if (!isCorrect)
+        {
+            var matchingOpt = q.Options.FirstOrDefault(o => o.RawJson == selectedValue);
+            if (matchingOpt != null)
+                isCorrect = q.IsOptionCorrect(matchingOpt);
+        }
+        if (isCorrect)
         {
             ScoreCorrect++;
         }
@@ -82,7 +87,7 @@ public class QuizStateService
             ScoreWrong++;
             WrongHistory.Add(new WrongAnswerEntry
             {
-                Question = CurrentQuestions[CurrentIndex],
+                Question = q,
                 UserSelected = selectedValue
             });
         }
@@ -148,8 +153,12 @@ public class QuizStateService
             ScoreWrong = 0;
             for (int i = 0; i < CurrentQuestions.Count; i++)
             {
-                var correct = CurrentQuestions[i].CorrectAnswerSerialized;
-                if (UserAnswers[i] == correct)
+                var q = CurrentQuestions[i];
+                var userAns = UserAnswers[i];
+                if (userAns == null) { ScoreWrong++; continue; }
+                var matchingOpt = q.Options.FirstOrDefault(o => o.RawJson == userAns);
+                var isCorrect = matchingOpt != null && q.IsOptionCorrect(matchingOpt);
+                if (isCorrect)
                     ScoreCorrect++;
                 else
                     ScoreWrong++;
@@ -181,21 +190,10 @@ public class QuizStateService
 
     private static void Shuffle<T>(List<T> list)
     {
-        var rng = new Random();
         for (int i = list.Count - 1; i > 0; i--)
         {
-            int j = rng.Next(i + 1);
+            int j = Random.Shared.Next(i + 1);
             (list[i], list[j]) = (list[j], list[i]);
-        }
-    }
-
-    private static void ShuffleObjects(List<QuizOptionItem> options)
-    {
-        var rng = new Random();
-        for (int i = options.Count - 1; i > 0; i--)
-        {
-            int j = rng.Next(i + 1);
-            (options[i], options[j]) = (options[j], options[i]);
         }
     }
 }

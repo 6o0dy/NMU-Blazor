@@ -45,7 +45,7 @@
             {
                 var q = QuizState.CurrentQuestions[i];
                 var status = GetReviewStatus(i);
-                if (_filter != "all" && _filter != status) continue;
+                var itemStyle = _filter != "all" && _filter != status ? "display:none;" : "";
 
                 var itemClass = "quiz-review-item";
                 if (status == "correct") itemClass += " r-correct";
@@ -62,7 +62,7 @@
                 var hasCAnsGraph = AnswerHasGraph(correctVal);
                 var hasUAnsGraph = status == "wrong" && AnswerHasGraph(userAns ?? "");
 
-                <div class="@itemClass">
+                <div class="@itemClass" data-status="@status" style="@itemStyle">
                     <div style="font-weight:700;margin-bottom:10px;font-size:1.1rem;white-space:pre-wrap;">
                         Q@(i + 1): @q.Question
                     </div>
@@ -84,11 +84,11 @@
                         <div style="color:var(--correct);margin-top:5px;padding:10px;background:rgba(0,230,118,0.1);border-radius:8px;border:1px solid rgba(0,230,118,0.2);">
                             <b>✔ Correct Answer:</b>
                             <div style="margin-top:5px;">@((MarkupString)cAnsText)</div>
+                            @if (hasCAnsGraph)
+                            {
+                                <div class="opt-mini-graph" id="@cAnsGraphId" style="margin-top:10px;width:100%;min-height:140px;"></div>
+                            }
                         </div>
-                        @if (hasCAnsGraph)
-                        {
-                            <div class="opt-mini-graph" id="@cAnsGraphId" style="margin-top:10px;width:100%;min-height:140px;"></div>
-                        }
                     }
                     else if (status == "unanswered")
                     {
@@ -98,30 +98,30 @@
                         <div style="color:var(--correct);margin-top:10px;padding:10px;background:rgba(0,230,118,0.1);border-radius:8px;border:1px solid rgba(0,230,118,0.2);">
                             <b>✔ Correct Answer:</b>
                             <div style="margin-top:5px;">@((MarkupString)cAnsText)</div>
+                            @if (hasCAnsGraph)
+                            {
+                                <div class="opt-mini-graph" id="@cAnsGraphId" style="margin-top:10px;width:100%;min-height:140px;"></div>
+                            }
                         </div>
-                        @if (hasCAnsGraph)
-                        {
-                            <div class="opt-mini-graph" id="@cAnsGraphId" style="margin-top:10px;width:100%;min-height:140px;"></div>
-                        }
                     }
                     else
                     {
                         <div style="color:var(--wrong);margin-top:5px;padding:10px;background:rgba(255,23,68,0.1);border-radius:8px;border:1px solid rgba(255,23,68,0.2);">
                             <b>✘ Your Answer:</b>
                             <div style="margin-top:5px;">@((MarkupString)uAnsText)</div>
+                            @if (hasUAnsGraph)
+                            {
+                                <div class="opt-mini-graph" id="@uAnsGraphId" style="margin-top:10px;width:100%;min-height:140px;"></div>
+                            }
                         </div>
-                        @if (hasUAnsGraph)
-                        {
-                            <div class="opt-mini-graph" id="@uAnsGraphId" style="margin-top:10px;width:100%;min-height:140px;"></div>
-                        }
                         <div style="color:var(--correct);margin-top:10px;padding:10px;background:rgba(0,230,118,0.1);border-radius:8px;border:1px solid rgba(0,230,118,0.2);">
                             <b>✔ Correct Answer:</b>
                             <div style="margin-top:5px;">@((MarkupString)cAnsText)</div>
+                            @if (hasCAnsGraph)
+                            {
+                                <div class="opt-mini-graph" id="@cAnsGraphId" style="margin-top:10px;width:100%;min-height:140px;"></div>
+                            }
                         </div>
-                        @if (hasCAnsGraph)
-                        {
-                            <div class="opt-mini-graph" id="@cAnsGraphId" style="margin-top:10px;width:100%;min-height:140px;"></div>
-                        }
                     }
                 </div>
             }
@@ -179,34 +179,20 @@
     private string GetReviewStatus(int index)
     {
         var q = QuizState.CurrentQuestions[index];
+        var userAns = QuizState.UserAnswers[index];
 
-        if (!QuizState.IsRealExam)
-        {
-            var wrongEntry = QuizState.WrongHistory.FirstOrDefault(w => w.Question.Question == q.Question);
-            if (wrongEntry != null) return "wrong";
+        if (userAns == null) return "unanswered";
+
+        var matchingOpt = q.Options.FirstOrDefault(o => o.RawJson == userAns);
+        if (matchingOpt != null && q.IsOptionCorrect(matchingOpt))
             return "correct";
-        }
-        else
-        {
-            var userAns = QuizState.UserAnswers[index];
-            if (userAns == null) return "unanswered";
-            return userAns == q.CorrectAnswerSerialized ? "correct" : "wrong";
-        }
+
+        return "wrong";
     }
 
     private string? GetReviewUserAnswer(int index)
     {
-        var q = QuizState.CurrentQuestions[index];
-
-        if (!QuizState.IsRealExam)
-        {
-            var wrongEntry = QuizState.WrongHistory.FirstOrDefault(w => w.Question.Question == q.Question);
-            return wrongEntry?.UserSelected;
-        }
-        else
-        {
-            return QuizState.UserAnswers[index];
-        }
+        return QuizState.UserAnswers[index];
     }
 
     private string ExtractAnswerText(string val)
@@ -217,8 +203,18 @@
             try
             {
                 var doc = System.Text.Json.JsonDocument.Parse(val);
-                if (doc.RootElement.TryGetProperty("text", out var textEl))
-                    return (textEl.GetString() ?? "").Replace("\n", "<br>");
+                var root = doc.RootElement;
+                if (root.TryGetProperty("text", out var textEl))
+                {
+                    var t = textEl.GetString() ?? "";
+                    if (!string.IsNullOrEmpty(t))
+                        return t.Replace("\n", "<br>");
+                }
+                // Graph-only object (no text field): hide raw JSON, graph renders below
+                if (root.TryGetProperty("graphType", out var gt) && !string.IsNullOrEmpty(gt.GetString()))
+                    return "";
+                if (root.TryGetProperty("graphFn", out var gf) && !string.IsNullOrEmpty(gf.GetString()))
+                    return "";
             }
             catch { }
         }
@@ -250,10 +246,23 @@
             if (root.ValueKind != System.Text.Json.JsonValueKind.Object) return (null, null, null);
             var gType = root.TryGetProperty("graphType", out var gt) ? gt.GetString() : null;
             var gFn = root.TryGetProperty("graphFn", out var gf) ? gf.GetString() : null;
-            var gData = root.TryGetProperty("graphData", out var gd) ? gd.GetRawText() : null;
+            var gData = root.TryGetProperty("graphData", out var gd) ? gd.GetString() : null;
             return (gType, gFn, gData);
         }
         catch { return (null, null, null); }
+    }
+
+    private string? FindAnswerText(string val)
+    {
+        if (string.IsNullOrEmpty(val) || !(val.StartsWith("{") || val.StartsWith("["))) return null;
+        try
+        {
+            var doc = System.Text.Json.JsonDocument.Parse(val);
+            if (doc.RootElement.TryGetProperty("text", out var textEl))
+                return textEl.GetString();
+        }
+        catch { }
+        return null;
     }
 
     protected override void OnParametersSet()

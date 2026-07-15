@@ -136,8 +136,8 @@
 
             if (!QuizState.IsRealExam && userAnswered)
             {
-                var isCorrect = optVal == correctVal;
-                var isWrong = isSelected && optVal != correctVal;
+                var isCorrect = optVal == correctVal || q.IsOptionCorrect(opt);
+                var isWrong = isSelected && !isCorrect;
                 if (isCorrect) optClasses += " correct";
                 if (isWrong) optClasses += " wrong";
             }
@@ -410,6 +410,13 @@
             if (QuizState.UserAnswers[QuizState.CurrentIndex] != null) return;
             QuizState.ExpLangAr = false;
             _needsMathJax = true;
+            var q = QuizState.CurrentQuestions[QuizState.CurrentIndex];
+            var correctKind = q.CorrectAnswerRaw.ValueKind.ToString();
+            await JS.InvokeVoidAsync("console.log", "DIAG: HandleOptionClick",
+                "selectedValue(trunc)", (selectedValue ?? "").Substring(0, Math.Min((selectedValue ?? "").Length, 80)),
+                "correctValue(trunc)", (correctValue ?? "").Substring(0, Math.Min((correctValue ?? "").Length, 80)),
+                "match", selectedValue == correctValue,
+                "correctKind", correctKind);
             QuizState.CheckAnswer(selectedValue, correctValue);
             StateHasChanged();
             await JS.InvokeVoidAsync("quizInterop.scrollToBottom");
@@ -584,11 +591,10 @@
 
     private string GetCorrectAnswerText(QuizQuestion q)
     {
-        var correctVal = q.CorrectAnswerSerialized;
-        var correctOpt = q.Options.FirstOrDefault(o => o.RawJson == correctVal);
-        if (correctOpt != null)
-            return FormatOptionText(correctOpt.Text);
-        return FormatQuestionText(correctVal);
+        var text = q.GetCorrectOptionText();
+        if (text != null)
+            return FormatOptionText(text);
+        return FormatQuestionText(q.CorrectAnswerSerialized);
     }
 
     private async Task CopySnippet(string? code)
