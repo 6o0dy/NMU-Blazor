@@ -45,24 +45,23 @@
             }
         </div>
 
-        @if (QuizState.IsRealExam)
-        {
-            <div class="quiz-palette-wrapper" id="quiz-palette-wrapper">
-                <div class="quiz-palette-strip">
-                    @for (int i = 0; i < total; i++)
-                    {
-                        var idx = i;
-                        var classes = "mini-q-num";
-                        if (idx == QuizState.CurrentIndex) classes += " active";
-                        if (QuizState.UserAnswers[idx] != null) classes += " answered";
-                        if (QuizState.FlaggedQuestions.Contains(idx)) classes += " flagged";
-                        <div class="@classes" @key="idx" @onclick="() => ExamGoToQuestion(idx)">
-                            @(idx + 1)
-                        </div>
-                    }
-                </div>
+        <div class="quiz-palette-wrapper" id="quiz-palette-wrapper">
+            <div class="quiz-palette-strip">
+                @for (int i = 0; i < total; i++)
+                {
+                    var idx = i;
+                    var classes = "mini-q-num";
+                    if (idx == QuizState.CurrentIndex) classes += " active";
+                    if (QuizState.UserAnswers[idx] != null) classes += " answered";
+                    if (QuizState.FlaggedQuestions.Contains(idx)) classes += " flagged";
+                    if (QuizState.AnswerResults.Length > idx && QuizState.AnswerResults[idx] == true) classes += " correct";
+                    if (QuizState.AnswerResults.Length > idx && QuizState.AnswerResults[idx] == false) classes += " wrong";
+                    <div class="@classes" @key="idx" @onclick="() => ExamGoToQuestion(idx)">
+                        @(idx + 1)
+                    </div>
+                }
             </div>
-        }
+        </div>
 
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:5px;">
             <div class="progress-wrapper" style="flex:1;margin-right:10px;">
@@ -179,27 +178,26 @@
         </div>
     </div>
 
-    <button class="quiz-next-btn" style="display:@(!QuizState.IsRealExam && QuizState.UserAnswers[QuizState.CurrentIndex] != null ? "block" : "none")" @onclick="NextQuestion">
-        Next Question ➡
-    </button>
-
-    @if (QuizState.IsRealExam)
-    {
-        <div class="quiz-exam-controls">
-            <button class="ctrl-btn" style="flex:1;visibility:@(QuizState.CurrentIndex == 0 ? "hidden" : "visible");"
-                    @onclick="ExamPreviousQuestion">
-                ⬅ Prev
-            </button>
+    <div class="quiz-exam-controls">
+        <button class="ctrl-btn" style="flex:1;visibility:@(QuizState.CurrentIndex == 0 ? "hidden" : "visible");"
+                @onclick="ExamPreviousQuestion">
+            ⬅ Prev
+        </button>
+        @if (QuizState.IsRealExam)
+        {
             <button class="ctrl-btn" style="flex:1;border-color:var(--wrong);color:var(--wrong);"
                     @onclick="ToggleFlag">
                 🚩 Flag
             </button>
-            <button class="ctrl-btn" style="flex:1;visibility:@(QuizState.CurrentIndex == total - 1 ? "hidden" : "visible");"
-                    @onclick="ExamNextQuestion">
-                Next ➡
-            </button>
-        </div>
+        }
+        <button class="ctrl-btn" style="flex:1;visibility:@(QuizState.CurrentIndex == total - 1 ? "hidden" : "visible");"
+                @onclick="ExamNextQuestion">
+            Next ➡
+        </button>
+    </div>
 
+    @if (QuizState.IsRealExam)
+    {
         <button class="quiz-submit-exam-btn" @onclick="AttemptSubmit">
             📝 Submit Exam
         </button>

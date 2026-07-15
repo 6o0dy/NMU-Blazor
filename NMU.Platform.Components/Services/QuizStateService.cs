@@ -19,6 +19,7 @@ public class QuizStateService
     public int TimeLimitSeconds { get; set; }
     public int TimeLeftSeconds { get; set; }
     public string?[] UserAnswers { get; set; } = Array.Empty<string?>();
+    public bool?[] AnswerResults { get; set; } = Array.Empty<bool?>();
     public HashSet<int> FlaggedQuestions { get; set; } = new();
     public List<WrongAnswerEntry> WrongHistory { get; set; } = new();
     public bool ExpLangAr { get; set; }
@@ -62,6 +63,7 @@ public class QuizStateService
         TimeLimitSeconds = timeMinutes * 60;
         TimeLeftSeconds = timeMinutes * 60;
         UserAnswers = new string?[pool.Count];
+        AnswerResults = new bool?[pool.Count];
         FlaggedQuestions = new HashSet<int>();
         WrongHistory = new List<WrongAnswerEntry>();
         NotifyStateChanged();
@@ -78,6 +80,7 @@ public class QuizStateService
             if (matchingOpt != null)
                 isCorrect = q.IsOptionCorrect(matchingOpt);
         }
+        AnswerResults[CurrentIndex] = isCorrect;
         if (isCorrect)
         {
             ScoreCorrect++;
@@ -178,6 +181,7 @@ public class QuizStateService
         CurrentQuestions.Clear();
         Chapters.Clear();
         UserAnswers = Array.Empty<string?>();
+        AnswerResults = Array.Empty<bool?>();
         FlaggedQuestions.Clear();
         WrongHistory.Clear();
         IsQuizActive = false;
