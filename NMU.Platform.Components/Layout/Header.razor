@@ -237,7 +237,28 @@
         StateHasChanged();
         try
         {
-            var result = await Platform.DownloadFileAsync(url, name);
+            // Try cached bytes first (no internet needed)
+            byte[]? cachedBytes = null;
+            if (!Platform.IsWeb)
+            {
+                try
+                {
+                    var pdfKey = GetPdfCacheKey(url);
+                    cachedBytes = await JS.InvokeAsync<byte[]>("nmuFunctions.getCachedPdfBytes", pdfKey);
+                }
+                catch { }
+            }
+
+            DownloadResult result;
+            if (cachedBytes != null && cachedBytes.Length > 0)
+            {
+                result = await Platform.SaveFileAsync(cachedBytes, name);
+            }
+            else
+            {
+                result = await Platform.DownloadFileAsync(url, name);
+            }
+
             switch (result)
             {
                 case DownloadResult.Success:
@@ -256,6 +277,14 @@
             _isDownloading = false;
             StateHasChanged();
         }
+    }
+
+    private static string GetPdfCacheKey(string fileUrl)
+    {
+        if (string.IsNullOrEmpty(fileUrl)) return "";
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(fileUrl)))[..16];
+        return $"pdf_{hash}";
     }
 
     private async void ConfirmAppExit()

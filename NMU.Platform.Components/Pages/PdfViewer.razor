@@ -91,12 +91,18 @@
         {
             try
             {
-                var found = await JS.InvokeAsync<bool>("nmuFunctions.renderPdfFromCache", pdfKey);
-                fromCache = found;
+                _useCanvas = true;
+                StateHasChanged();
 
-                if (!found)
+                var found = await JS.InvokeAsync<bool>("nmuFunctions.checkPdfCache", pdfKey);
+                if (found)
                 {
-                    _useCanvas = true;
+                    await JS.InvokeVoidAsync("nmuFunctions.renderPdfFromCache", pdfKey);
+                    _showLoader = false;
+                    fromCache = true;
+                }
+                else
+                {
                     _loadingText = "LOADING PDF...";
                     StateHasChanged();
 
@@ -104,12 +110,6 @@
                     var bytes = await Http.GetByteArrayAsync(resolvedUrl);
                     await JS.InvokeVoidAsync("nmuFunctions.setCachedPdfBytes", pdfKey, bytes);
                     await JS.InvokeVoidAsync("nmuFunctions.renderPdfWithPdfJsFromBytes", bytes);
-                }
-                else
-                {
-                    _useCanvas = true;
-                    _showLoader = false;
-                    StateHasChanged();
                 }
             }
             catch { }

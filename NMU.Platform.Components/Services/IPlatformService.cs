@@ -20,4 +20,5 @@ public interface IPlatformService
     Task CloseAsync();
     Task OpenPdfAsync(byte[] pdfData, string fileName);
     Task<DownloadResult> DownloadFileAsync(string url, string fileName);
+    Task<DownloadResult> SaveFileAsync(byte[] data, string fileName);
 }

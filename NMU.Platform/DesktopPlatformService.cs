@@ -226,6 +226,67 @@ public class DesktopPlatformService : IPlatformService
 #endif
     }
 
+    public async Task<DownloadResult> SaveFileAsync(byte[] data, string fileName)
+    {
+#if ANDROID
+        try
+        {
+            var ext = System.IO.Path.GetExtension(fileName ?? "").ToLowerInvariant();
+            var mime = ext switch
+            {
+                ".mp4" or ".mkv" or ".webm" => "video/*",
+                ".mp3" or ".wav" or ".m4a" => "audio/*",
+                ".pdf" => "application/pdf",
+                _ => "*/*"
+            };
+
+            var intent = new Android.Content.Intent(Android.Content.Intent.ActionCreateDocument);
+            intent.AddCategory(Android.Content.Intent.CategoryOpenable);
+            intent.SetType(mime);
+            intent.PutExtra(Android.Content.Intent.ExtraTitle, fileName ?? "document");
+
+            var resultUri = await MainActivity.StartSaveFileIntent(intent);
+            if (resultUri == null) return DownloadResult.Cancelled;
+
+            using var stream = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.ContentResolver?.OpenOutputStream(resultUri);
+            if (stream == null) return DownloadResult.Error;
+            await stream.WriteAsync(data, 0, data.Length);
+
+            return DownloadResult.Success;
+        }
+        catch { return DownloadResult.Error; }
+#elif IOS
+        try
+        {
+            var tempPath = Path.Combine(FileSystem.CacheDirectory, fileName ?? "document.pdf");
+            await File.WriteAllBytesAsync(tempPath, data);
+
+            var urlObj = Foundation.NSUrl.FromFilename(tempPath);
+            var picker = new UIKit.UIDocumentPickerViewController(
+                new Foundation.NSUrl[] { urlObj },
+                UIKit.UIDocumentPickerMode.ExportToService);
+
+            TaskCompletionSource<DownloadResult> tcs = new();
+            picker.DidPickDocument += (_, _) => tcs.TrySetResult(DownloadResult.Success);
+            picker.WasCancelled += (_, _) => tcs.TrySetResult(DownloadResult.Cancelled);
+
+            var vc = UIKit.UIApplication.SharedApplication.KeyWindow?.RootViewController;
+            while (vc?.PresentedViewController != null)
+                vc = vc.PresentedViewController;
+
+            if (vc != null)
+            {
+                await vc.PresentViewControllerAsync(picker, true);
+                return await tcs.Task;
+            }
+            return DownloadResult.Error;
+        }
+        catch { return DownloadResult.Error; }
+#else
+        return DownloadResult.Error;
+#endif
+    }
+
 #if WINDOWS
     [DllImport("user32.dll")]
     static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);

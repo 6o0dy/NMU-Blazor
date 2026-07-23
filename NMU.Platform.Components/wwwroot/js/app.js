@@ -362,23 +362,37 @@ window.nmuFunctions = {
         });
     },
 
-    // Canvas path: load from cache and render directly (all in JS, no double interop)
-    renderPdfFromCache: function (pdfKey) {
+    // Check if PDF exists in cache (for Canvas path)
+    checkPdfCache: function (pdfKey) {
         var self = this;
         return self._openPdfDb().then(function (db) {
-            return new Promise(function (resolve, reject) {
+            return new Promise(function (resolve) {
                 var tx = db.transaction('pdfs', 'readonly');
                 var store = tx.objectStore('pdfs');
                 var get = store.get(pdfKey);
                 get.onsuccess = function () {
-                    if (get.result) {
-                        self.renderPdfWithPdfJsFromBytes(new Uint8Array(get.result.data));
-                        resolve(true);
-                    } else {
-                        resolve(false);
-                    }
+                    resolve(!!(get.result && get.result.data));
                 };
                 get.onerror = function () { resolve(false); };
+            });
+        });
+    },
+
+    // Canvas path: render PDF from cache (container must already exist)
+    renderPdfFromCache: function (pdfKey) {
+        var self = this;
+        return self._openPdfDb().then(function (db) {
+            return new Promise(function (resolve) {
+                var tx = db.transaction('pdfs', 'readonly');
+                var store = tx.objectStore('pdfs');
+                var get = store.get(pdfKey);
+                get.onsuccess = function () {
+                    if (get.result && get.result.data) {
+                        self.renderPdfWithPdfJsFromBytes(new Uint8Array(get.result.data));
+                    }
+                    resolve();
+                };
+                get.onerror = function () { resolve(); };
             });
         });
     },
