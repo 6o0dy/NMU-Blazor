@@ -15,10 +15,7 @@
             }
         })();
     </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Playpen+Sans+Arabic&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="_content/NMU.Platform.Components/lib/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/theme.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/app.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/loading.css" />
@@ -37,10 +34,9 @@
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/quiz.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/quiz-blazor.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/welcome.css" />
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="_content/NMU.Platform.Components/lib/prism/themes/prism-tomorrow.min.css" />
+    <link rel="stylesheet" href="_content/NMU.Platform.Components/lib/prism/plugins/line-numbers/prism-line-numbers.min.css" />
     <link rel="stylesheet" href="NMU.Platform.Web.styles.css" />
-    <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
     <link rel="icon" href="favicon.ico">
 
     <style>
@@ -52,10 +48,21 @@
         }
         #loading-placeholder img { width: 80px; height: 80px; margin-bottom: 20px; }
         #loading-placeholder span {
-            font-family: 'Cairo', sans-serif; font-size: 22px;
+            font-family: sans-serif; font-size: 22px;
             font-weight: 800; color: #00f2ff;
         }
     </style>
+
+    <script>
+        (function() {
+            if (!navigator.onLine) return;
+            function lc(href) { var e = document.createElement('link'); e.rel = 'stylesheet'; e.href = href; document.head.appendChild(e); }
+            function ls(src) { var e = document.createElement('script'); e.src = src; document.head.appendChild(e); }
+            lc('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Playpen+Sans+Arabic&display=swap');
+            window.MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] }, svg: { fontCache: 'global' } };
+            ls('https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js');
+        })();
+    </script>
 </head>
 
 <body>
@@ -66,22 +73,17 @@
         </div>
     </div>
 
+    <script src="_content/NMU.Platform.Components/lib/pako/pako.min.js"></script>
+    <script src="_content/NMU.Platform.Components/lib/d3/d3.min.js"></script>
+    <script src="_content/NMU.Platform.Components/lib/function-plot/function-plot.min.js"></script>
+    <script src="_content/NMU.Platform.Components/lib/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = null;</script>
+    <script src="_content/NMU.Platform.Components/lib/prism/prism.min.js"></script>
+    <script src="_content/NMU.Platform.Components/lib/prism/plugins/line-numbers/prism-line-numbers.min.js"></script>
+    <script src="_content/NMU.Platform.Components/lib/prism/components/prism-csharp.min.js"></script>
     <script src="_content/NMU.Platform.Components/js/app.js"></script>
     <script src="_content/NMU.Platform.Components/js/videoPlayer.js"></script>
     <script src="_content/NMU.Platform.Components/js/youtubePlayer.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.17/d3.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/function-plot/1.22.1/function-plot.min.js"></script>
-    <script>
-        window.MathJax = {
-            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
-            svg: { fontCache: 'global' }
-        };
-    </script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-csharp.min.js"></script>
     <script src="_content/NMU.Platform.Components/js/quiz-interop.js"></script>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
 </body>

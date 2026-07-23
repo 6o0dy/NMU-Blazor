@@ -58,6 +58,13 @@
     private bool _useCanvas;
     private bool _showDownloadOverlay;
 
+    private static string GetPdfCacheKey(string fileUrl)
+    {
+        if (string.IsNullOrEmpty(fileUrl)) return "";
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(fileUrl)))[..16];
+        return $"pdf_{hash}";
+    }
+
     protected override async Task OnInitializedAsync()
     {
         var fileUrl = NavState.CurrentFileUrl ?? "";
@@ -77,20 +84,33 @@
         if (!firstRender) return;
 
         var fileUrl = NavState.CurrentFileUrl ?? "";
+        var pdfKey = GetPdfCacheKey(fileUrl);
+        var fromCache = false;
 
         if (!Platform.IsWeb && !Platform.IsDesktop)
         {
             try
             {
-                _useCanvas = true;
-                StateHasChanged();
-                _loadingText = "LOADING PDF...";
-                StateHasChanged();
+                var found = await JS.InvokeAsync<bool>("nmuFunctions.renderPdfFromCache", pdfKey);
+                fromCache = found;
 
-                var resolvedUrl = await JS.InvokeAsync<string>("nmuFunctions.resolveDirectUrl", fileUrl);
-                var bytes = await Http.GetByteArrayAsync(resolvedUrl);
-                var b64 = Convert.ToBase64String(bytes);
-                await JS.InvokeVoidAsync("nmuFunctions.renderPdfWithPdfJs", b64);
+                if (!found)
+                {
+                    _useCanvas = true;
+                    _loadingText = "LOADING PDF...";
+                    StateHasChanged();
+
+                    var resolvedUrl = await JS.InvokeAsync<string>("nmuFunctions.resolveDirectUrl", fileUrl);
+                    var bytes = await Http.GetByteArrayAsync(resolvedUrl);
+                    await JS.InvokeVoidAsync("nmuFunctions.setCachedPdfBytes", pdfKey, bytes);
+                    await JS.InvokeVoidAsync("nmuFunctions.renderPdfWithPdfJsFromBytes", bytes);
+                }
+                else
+                {
+                    _useCanvas = true;
+                    _showLoader = false;
+                    StateHasChanged();
+                }
             }
             catch { }
         }
@@ -98,17 +118,47 @@
         {
             try
             {
-                _resolvedUrl = await JS.InvokeAsync<string>("nmuFunctions.resolveDirectUrl", fileUrl);
+                // 1. Check cache first for instant offline display (blob URL, no network)
+                var blobUrl = await JS.InvokeAsync<string>("nmuFunctions.getCachedPdfBlobUrl", pdfKey);
+                if (!string.IsNullOrEmpty(blobUrl))
+                {
+                    _resolvedUrl = blobUrl;
+                    _showLoader = false;
+                    fromCache = true;
+                    StateHasChanged();
+                }
+                else
+                {
+                    // 2. Show direct resolved URL immediately (no wait for download)
+                    var resolvedUrl = await JS.InvokeAsync<string>("nmuFunctions.resolveDirectUrl", fileUrl);
+                    _resolvedUrl = resolvedUrl;
+                    _showLoader = false;
+                    StateHasChanged();
+
+                    // 3. Cache in background for offline use next time
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var bytes = await Http.GetByteArrayAsync(resolvedUrl);
+                            await JS.InvokeVoidAsync("nmuFunctions.setCachedPdfBytes", pdfKey, bytes);
+                        }
+                        catch { }
+                    });
+                }
             }
             catch
             {
                 _resolvedUrl = fileUrl;
+                _showLoader = false;
             }
         }
         else
         {
+            // Web: online-only, no IndexedDB caching (display direct URL instantly)
             try
             {
+                // 1. Check if Google Docs viewer is needed (Android Chrome)
                 var viewerUrl = await JS.InvokeAsync<string>("nmuFunctions.getViewerUrl", fileUrl);
                 if (!string.IsNullOrEmpty(viewerUrl))
                 {
@@ -118,34 +168,22 @@
                 }
                 else
                 {
+                    // 2. Show direct resolved URL immediately (the iframe displays it inline)
                     var resolvedUrl = await JS.InvokeAsync<string>("nmuFunctions.resolveDirectUrl", fileUrl);
-                    var blobUrl = await JS.InvokeAsync<string>("nmuFunctions.fetchPdfAsBlob", resolvedUrl);
-
-                    if (!string.IsNullOrEmpty(blobUrl))
-                    {
-                        _resolvedUrl = blobUrl;
-                    }
-                    else
-                    {
-                        _resolvedUrl = resolvedUrl;
-
-                        var ua = await JS.InvokeAsync<string>("nmuFunctions.getUserAgent");
-                        if (ua.Contains("Chrome") || ua.Contains("Chromium"))
-                        {
-                            _fallbackUrl = resolvedUrl;
-                        }
-                    }
+                    _resolvedUrl = resolvedUrl;
+                    _showLoader = false;
                 }
             }
             catch
             {
                 _resolvedUrl = fileUrl;
+                _showLoader = false;
             }
         }
 
         StateHasChanged();
 
-        if (!_useCanvas)
+        if (!_useCanvas && !fromCache)
         {
             _ = HideLoaderAfterDelay();
         }

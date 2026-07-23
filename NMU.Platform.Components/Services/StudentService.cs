@@ -15,7 +15,7 @@ public class StudentService
     {
         try
         {
-            var json = await _js.InvokeAsync<string>("localStorage.getItem", StorageKey);
+            var json = await _js.InvokeAsync<string>("nmuFunctions.safeGetItem", StorageKey);
             if (string.IsNullOrEmpty(json)) return null;
             return JsonSerializer.Deserialize<StudentProfile>(json);
         }
@@ -27,7 +27,7 @@ public class StudentService
         var json = JsonSerializer.Serialize(profile);
         try
         {
-            await _js.InvokeVoidAsync("localStorage.setItem", StorageKey, json);
+            await _js.InvokeVoidAsync("nmuFunctions.safeSetItem", StorageKey, json);
         }
         catch { }
     }
@@ -36,7 +36,7 @@ public class StudentService
     {
         try
         {
-            await _js.InvokeVoidAsync("localStorage.removeItem", StorageKey);
+            await _js.InvokeVoidAsync("nmuFunctions.safeRemoveItem", StorageKey);
         }
         catch { }
     }

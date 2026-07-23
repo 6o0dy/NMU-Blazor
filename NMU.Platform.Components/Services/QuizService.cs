@@ -33,7 +33,7 @@ public class QuizService
         var cacheKey = $"nmu_quiz_list_{level}_{semester}_v4";
         try
         {
-            var cached = await _js.InvokeAsync<string?>("localStorage.getItem", cacheKey);
+            var cached = await _js.InvokeAsync<string>("nmuFunctions.safeGetItem", cacheKey);
             if (!string.IsNullOrEmpty(cached))
             {
                 var parsed = JsonSerializer.Deserialize<List<QuizSubject>>(cached);
@@ -102,7 +102,7 @@ public class QuizService
             }
 
             if (files.Count > 0)
-                await _js.InvokeVoidAsync("localStorage.setItem", cacheKey, JsonSerializer.Serialize(files));
+                await _js.InvokeVoidAsync("nmuFunctions.safeSetItem", cacheKey, JsonSerializer.Serialize(files));
 
             return files;
         }
@@ -118,7 +118,7 @@ public class QuizService
 
         try
         {
-            var cached = await _js.InvokeAsync<string?>("localStorage.getItem", cacheKey);
+            var cached = await _js.InvokeAsync<string>("nmuFunctions.safeGetItem", cacheKey);
             if (!string.IsNullOrEmpty(cached))
             {
                 var parsed = JsonSerializer.Deserialize<List<QuizChapter>>(cached);
@@ -132,7 +132,7 @@ public class QuizService
                             var latestJson = await _http.GetStringAsync(url);
                             if (!string.IsNullOrEmpty(latestJson))
                             {
-                                await _js.InvokeVoidAsync("localStorage.setItem", cacheKey, latestJson);
+                                await _js.InvokeVoidAsync("nmuFunctions.safeSetItem", cacheKey, latestJson);
                             }
                         }
                         catch { }
@@ -156,7 +156,7 @@ public class QuizService
                 return new List<QuizChapter>();
             }
 
-            await _js.InvokeVoidAsync("localStorage.setItem", cacheKey, json);
+            await _js.InvokeVoidAsync("nmuFunctions.safeSetItem", cacheKey, json);
 
             var data = JsonSerializer.Deserialize<List<QuizChapter>>(json);
             if (data == null)

@@ -113,6 +113,12 @@
     private bool _isDownloading;
     private bool _showExitConfirm;
 
+    private void TriggerExitConfirmation()
+    {
+        _showExitConfirm = true;
+        StateHasChanged();
+    }
+
     private DotNetObjectReference<Header>? _dotNetRef;
 
     protected override void OnInitialized()
@@ -188,8 +194,7 @@
 
         if (IsHome && !Platform.IsWeb)
         {
-            _showExitConfirm = true;
-            StateHasChanged();
+            TriggerExitConfirmation();
             return;
         }
 
@@ -220,8 +225,7 @@
     private async Task Minimize() => await Platform.MinimizeAsync();
     private async Task CloseApp()
     {
-        _showExitConfirm = true;
-        StateHasChanged();
+        TriggerExitConfirmation();
     }
 
     private async Task DownloadCurrentFile()

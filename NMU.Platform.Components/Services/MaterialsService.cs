@@ -19,7 +19,7 @@ public class MaterialsService
     public async Task<List<ArchiveFile>> GetFilesAsync(string level, string semester)
     {
         var cacheKey = $"{CacheVersion}{level}_{semester}";
-        var cached = await _js.InvokeAsync<string>("localStorage.getItem", cacheKey);
+        var cached = await _js.InvokeAsync<string>("nmuFunctions.safeGetItem", cacheKey);
         if (!string.IsNullOrEmpty(cached))
         {
             try
@@ -46,7 +46,7 @@ public class MaterialsService
                 .ToList() ?? new List<ArchiveFile>();
 
             if (files.Count > 0)
-                await _js.InvokeVoidAsync("localStorage.setItem", cacheKey, JsonSerializer.Serialize(files));
+                await _js.InvokeVoidAsync("nmuFunctions.safeSetItem", cacheKey, JsonSerializer.Serialize(files));
 
             return files;
         }

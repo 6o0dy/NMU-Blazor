@@ -34,7 +34,7 @@ public class YouTubeService
         var studentSemester = student?.Semester?.Replace(" ", "_") ?? "First_Term";
 
         var cacheKey = $"{CacheVersion}{studentLevel}_{studentSemester}";
-        var cached = await _js.InvokeAsync<string>("localStorage.getItem", cacheKey);
+        var cached = await _js.InvokeAsync<string>("nmuFunctions.safeGetItem", cacheKey);
 
         if (!string.IsNullOrEmpty(cached))
         {
@@ -68,7 +68,7 @@ public class YouTubeService
             _channels = ParseChannelsFromJson(json);
 
             if (_channels.Count > 0)
-                await _js.InvokeVoidAsync("localStorage.setItem", cacheKey, JsonSerializer.Serialize(_channels));
+                await _js.InvokeVoidAsync("nmuFunctions.safeSetItem", cacheKey, JsonSerializer.Serialize(_channels));
         }
         catch { }
     }
