@@ -289,13 +289,20 @@ window.nmuFunctions = {
         });
     },
 
-    // Store PDF bytes from Uint8Array (byte[] in C#)
-    setCachedPdfBytes: function (pdfKey, bytes) {
+    // Store PDF bytes from Uint8Array (byte[] in C#), with optional HTTP metadata
+    setCachedPdfBytes: function (pdfKey, bytes, contentLength, etag, lastModified) {
         return this._openPdfDb().then(function (db) {
             return new Promise(function (resolve, reject) {
                 var tx = db.transaction('pdfs', 'readwrite');
                 var store = tx.objectStore('pdfs');
-                store.put({ key: pdfKey, data: bytes.buffer, timestamp: Date.now() });
+                store.put({
+                    key: pdfKey,
+                    data: bytes.buffer,
+                    contentLength: contentLength || bytes.buffer.byteLength,
+                    etag: etag || '',
+                    lastModified: lastModified || '',
+                    timestamp: Date.now()
+                });
                 tx.oncomplete = resolve;
                 tx.onerror = function () { resolve(); };
             });
@@ -317,6 +324,30 @@ window.nmuFunctions = {
                     resolve(keys);
                 };
                 req.onerror = function () { resolve([]); };
+            });
+        });
+    },
+
+    // Get cached PDF metadata (contentLength, etag, lastModified, timestamp)
+    getCachedPdfMeta: function (pdfKey) {
+        return this._openPdfDb().then(function (db) {
+            return new Promise(function (resolve) {
+                var tx = db.transaction('pdfs', 'readonly');
+                var store = tx.objectStore('pdfs');
+                var get = store.get(pdfKey);
+                get.onsuccess = function () {
+                    if (get.result) {
+                        resolve({
+                            contentLength: get.result.contentLength || 0,
+                            etag: get.result.etag || '',
+                            lastModified: get.result.lastModified || '',
+                            timestamp: get.result.timestamp || 0
+                        });
+                    } else {
+                        resolve(null);
+                    }
+                };
+                get.onerror = function () { resolve(null); };
             });
         });
     },

@@ -4,6 +4,7 @@
 @inject NavigationState NavState
 @inject HttpClient Http
 @inject IPlatformService Platform
+@inject ToastService Toast
 
 <div class="viewer-page">
     <div id="pdf-loading-overlay" style="opacity: @(_showLoader ? "1" : "0"); display: @(_showLoader ? "flex" : "none");">
@@ -183,6 +184,11 @@
 
         StateHasChanged();
 
+        if (fromCache)
+        {
+            _ = TryBackgroundRevalidation(pdfKey, fileUrl);
+        }
+
         if (!_useCanvas && !fromCache)
         {
             _ = HideLoaderAfterDelay();
@@ -215,5 +221,53 @@
     {
         if (!string.IsNullOrEmpty(_fallbackUrl))
             Navigation.NavigateTo(_fallbackUrl);
+    }
+
+    private async Task TryBackgroundRevalidation(string pdfKey, string fileUrl)
+    {
+        try
+        {
+            var online = await JS.InvokeAsync<bool>("nmuFunctions.isOnline");
+            if (!online) return;
+
+            // 1. Get cached metadata from JS
+            var cachedMeta = await JS.InvokeAsync<CachedPdfMeta>("nmuFunctions.getCachedPdfMeta", pdfKey);
+            if (cachedMeta == null || cachedMeta.ContentLength == 0) return;
+
+            // 2. HEAD request from C# (No CORS/Proxy issues)
+            using var request = new HttpRequestMessage(HttpMethod.Head, fileUrl);
+            using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            if (!response.IsSuccessStatusCode) return;
+
+            var serverLength = response.Content.Headers.ContentLength ?? 0;
+            var serverEtag = response.Headers.ETag?.Tag ?? "";
+            var serverLastMod = response.Content.Headers.LastModified?.ToString("R") ?? "";
+
+            // 3. Compare
+            bool changed = false;
+            if (serverLength > 0 && cachedMeta.ContentLength > 0 && serverLength != cachedMeta.ContentLength)
+                changed = true;
+            else if (!string.IsNullOrEmpty(serverEtag) && !string.IsNullOrEmpty(cachedMeta.Etag) && serverEtag != cachedMeta.Etag)
+                changed = true;
+            else if (!string.IsNullOrEmpty(serverLastMod) && !string.IsNullOrEmpty(cachedMeta.LastModified) && serverLastMod != cachedMeta.LastModified)
+                changed = true;
+
+            if (!changed) return;
+
+            // 4. Update Cache (Fetch + Store)
+            var bytes = await Http.GetByteArrayAsync(fileUrl);
+            await JS.InvokeVoidAsync("nmuFunctions.setCachedPdfBytes", pdfKey, bytes, serverLength, serverEtag, serverLastMod);
+            
+            Toast.ShowToast("تم تحديث الملف المفتوح", ToastType.Success);
+        }
+        catch { }
+    }
+
+    public class CachedPdfMeta
+    {
+        public long ContentLength { get; set; }
+        public string Etag { get; set; } = "";
+        public string LastModified { get; set; } = "";
+        public long Timestamp { get; set; }
     }
 }
