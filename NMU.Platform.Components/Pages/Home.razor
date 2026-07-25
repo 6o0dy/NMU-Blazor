@@ -5,6 +5,7 @@
 @inject NavigationManager Navigation
 @inject IPlatformService Platform
 @inject NavigationState NavState
+@inject ToastService Toast
 @inject IJSRuntime _js
 
 @if (currentStudent != null)
@@ -68,6 +69,9 @@
                 <div class="fab-item" @onclick="OpenManageModal" title="My Data">
                     <i class="fas fa-user-shield"></i>
                 </div>
+                <div class="fab-item" @onclick="OpenCacheModal" title="Clear Cache">
+                    <i class="fas fa-trash-can"></i>
+                </div>
             </div>
         </div>
     </div>
@@ -116,6 +120,29 @@
             </div>
         </div>
     }
+
+    @if (showCacheModal)
+    {
+        <div class="custom-modal" style="display: flex;">
+            <div class="modal-card" style="max-width:400px;">
+                <button class="close-modal" @onclick="CloseCacheModal">&times;</button>
+                <h2 style="text-align:center;font-size:1.2rem;color:var(--primary);">🗑️ CLEAR CACHE</h2>
+                <p style="text-align:center;color:#94a3b8;font-size:0.85rem;margin:0 0 20px;">Choose what to delete</p>
+
+                <div style="display:flex;flex-direction:column;gap:12px;">
+                    <button class="action-btn delete-mode" @onclick="ClearPdfCache" style="width:100%;">
+                        <i class="fa-regular fa-file-pdf"></i> Delete Files Cache
+                    </button>
+                    <button class="action-btn delete-mode" @onclick="ClearQuizCache" style="width:100%;">
+                        <i class="fa-solid fa-list-check"></i> Delete Quizzes Cache
+                    </button>
+                    <button class="action-btn delete-mode" @onclick="ClearAllCache" style="width:100%;background:#dc2626;border-color:#dc2626;">
+                        <i class="fa-solid fa-radiation"></i> Delete Everything
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @code {
@@ -123,6 +150,7 @@
     private bool fabActive;
     private bool showManageModal;
     private bool isEditing;
+    private bool showCacheModal;
 
     private string editName = "";
     private string editYear = "Level 1";
@@ -165,6 +193,59 @@
         }
     }
 
+    private void OpenCacheModal()
+    {
+        fabActive = false;
+        showCacheModal = true;
+    }
+
+    private void CloseCacheModal() => showCacheModal = false;
+
+    private async Task ClearPdfCache()
+    {
+        try
+        {
+            var count = await _js.InvokeAsync<int>("nmuFunctions.clearPdfCache");
+            showCacheModal = false;
+            Toast.ShowToast($"تم حذف {count} ملف من الكاش", ToastType.Success);
+        }
+        catch
+        {
+            showCacheModal = false;
+            Toast.ShowToast("حدث خطأ أثناء حذف كاش الملفات", ToastType.Error);
+        }
+    }
+
+    private async Task ClearQuizCache()
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("nmuFunctions.clearQuizCache");
+            showCacheModal = false;
+            Toast.ShowToast("تم حذف كاش الكويزات بنجاح", ToastType.Success);
+        }
+        catch
+        {
+            showCacheModal = false;
+            Toast.ShowToast("حدث خطأ أثناء حذف كاش الكويزات", ToastType.Error);
+        }
+    }
+
+    private async Task ClearAllCache()
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("nmuFunctions.clearAllCache");
+            showCacheModal = false;
+            Toast.ShowToast("تم حذف جميع الكاش بنجاح", ToastType.Success);
+        }
+        catch
+        {
+            showCacheModal = false;
+            Toast.ShowToast("حدث خطأ أثناء حذف الكاش", ToastType.Error);
+        }
+    }
+
     private void CloseManageModal()
     {
         showManageModal = false;
@@ -182,6 +263,11 @@
         if (string.IsNullOrWhiteSpace(editName) || editName.Length < 3)
             return;
 
+        var oldLevel = currentStudent?.AcademicLevel ?? "";
+        var oldSemester = currentStudent?.Semester ?? "";
+        var levelChanged = !string.Equals(oldLevel, editYear, StringComparison.OrdinalIgnoreCase);
+        var semChanged = !string.Equals(oldSemester, editTerm, StringComparison.OrdinalIgnoreCase);
+
         var updated = new StudentProfile
         {
             Name = editName,
@@ -194,6 +280,20 @@
         showManageModal = false;
         isEditing = false;
         StateHasChanged();
+
+        // Smart auto-cleanup: if level or semester changed, remove old cached quiz data
+        if (levelChanged || semChanged)
+        {
+            try
+            {
+                var removed = await _js.InvokeAsync<int>("nmuFunctions.cleanupOldQuizCache", oldLevel, oldSemester, editYear, editTerm);
+                if (removed > 0)
+                {
+                    Toast.ShowToast($"تم حذف {removed} ملف كاش من الترم القديم", ToastType.Success);
+                }
+            }
+            catch { }
+        }
     }
 
     private async Task DeleteProfile()

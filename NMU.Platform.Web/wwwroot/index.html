@@ -55,10 +55,11 @@
 
     <script>
         (function() {
-            if (!navigator.onLine) return;
             function lc(href) { var e = document.createElement('link'); e.rel = 'stylesheet'; e.href = href; document.head.appendChild(e); }
             function ls(src) { var e = document.createElement('script'); e.src = src; document.head.appendChild(e); }
-            lc('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Playpen+Sans+Arabic&display=swap');
+            if (navigator.onLine) {
+                lc('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Playpen+Sans+Arabic&display=swap');
+            }
             window.MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] }, svg: { fontCache: 'global' } };
             ls('https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js');
         })();

@@ -1,5 +1,6 @@
 @using NMU.Platform.Components.Services
 @inject StudentService StudentService
+@inject QuizService QuizService
 @inject IPlatformService Platform
 
 @if (IsVisible)
@@ -72,6 +73,10 @@
             AcademicLevel = academicLevel,
             Semester = semester
         });
+
+        // Trigger background pre-cache of all quizzes for student's level & semester
+        _ = QuizService.EnsureQuizSyncedAsync(academicLevel, semester);
+
         await OnSave.InvokeAsync();
     }
 }

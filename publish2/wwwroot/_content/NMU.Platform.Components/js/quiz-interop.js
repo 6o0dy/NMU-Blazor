@@ -199,16 +199,68 @@ window.quizInterop = {
             var binary = '';
             for (var i = 0; i < compressed.length; i++) binary += String.fromCharCode(compressed[i]);
             var base64Safe = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_');
+            var cacheKey = 'circuit_' + base64Safe.substring(0, 64);
             var imageUrl = 'https://kroki.io/tikz/svg/' + base64Safe;
 
-            var img = new Image();
-            img.onload = function () {
-                container.innerHTML = '<div style="width:100%;display:flex;justify-content:center;align-items:center;background:#fffaf0;border-radius:12px;padding:15px;"><img src="' + imageUrl + '" style="max-width:100%;max-height:400px;object-fit:contain;" alt="Circuit" /></div>';
+            function displaySvg(svgText) {
+                var blob = new Blob([svgText], { type: 'image/svg+xml' });
+                var url = URL.createObjectURL(blob);
+                container.innerHTML = '<div style="width:100%;display:flex;justify-content:center;align-items:center;background:#fffaf0;border-radius:12px;padding:15px;"><img src="' + url + '" style="max-width:100%;max-height:400px;object-fit:contain;" alt="Circuit" /></div>';
+            }
+
+            function showOfflineMsg() {
+                container.innerHTML = '<div style="text-align:center;padding:30px;border:1px solid var(--star-color);border-radius:12px;background:rgba(255,184,0,0.08);"><div style="font-size:2rem;margin-bottom:10px;">📡</div><div style="color:var(--star-color);font-weight:bold;font-size:1rem;">يتطلب اتصال بالإنترنت لعرض الدائرة</div><div style="color:#94a3b8;font-size:0.85rem;margin-top:5px;">حاول مرة أخرى عند الاتصال</div></div>';
+            }
+
+            function fetchAndCache() {
+                if (!navigator.onLine) { showOfflineMsg(); return; }
+                fetch(imageUrl).then(function (r) { if (!r.ok) throw Error(); return r.text(); })
+                    .then(function (svgText) {
+                        var dbReq = indexedDB.open('nmu-pdf-cache', 1);
+                        dbReq.onupgradeneeded = function (e) {
+                            var db = e.target.result;
+                            if (!db.objectStoreNames.contains('pdfs')) db.createObjectStore('pdfs', { keyPath: 'key' });
+                        };
+                        dbReq.onsuccess = function (e) {
+                            var db = e.target.result;
+                            var tx = db.transaction('pdfs', 'readwrite');
+                            tx.objectStore('pdfs').put({ key: cacheKey, data: svgText, timestamp: Date.now() });
+                        };
+                        displaySvg(svgText);
+                    })
+                    .catch(function () { if (!navigator.onLine) showOfflineMsg(); else displayOnline(); });
+            }
+
+            function displayOnline() {
+                var img = new Image();
+                img.onload = function () {
+                    container.innerHTML = '<div style="width:100%;display:flex;justify-content:center;align-items:center;background:#fffaf0;border-radius:12px;padding:15px;"><img src="' + imageUrl + '" style="max-width:100%;max-height:400px;object-fit:contain;" alt="Circuit" /></div>';
+                };
+                img.onerror = function () {
+                    container.innerHTML = '<div style="text-align:center;padding:20px;border:1px solid var(--wrong);border-radius:12px;background:rgba(255,23,68,0.05);"><div style="color:var(--wrong);font-weight:bold;">Failed to load circuit diagram.</div></div>';
+                };
+                img.src = imageUrl;
+            }
+
+            var cacheReq = indexedDB.open('nmu-pdf-cache', 1);
+            cacheReq.onupgradeneeded = function (e) {
+                var db = e.target.result;
+                if (!db.objectStoreNames.contains('pdfs')) db.createObjectStore('pdfs', { keyPath: 'key' });
             };
-            img.onerror = function () {
-                container.innerHTML = '<div style="text-align:center;padding:20px;border:1px solid var(--wrong);border-radius:12px;background:rgba(255,23,68,0.05);"><div style="color:var(--wrong);font-weight:bold;">Failed to load circuit diagram.</div></div>';
+            cacheReq.onsuccess = function (e) {
+                var db = e.target.result;
+                var tx = db.transaction('pdfs', 'readonly');
+                var get = tx.objectStore('pdfs').get(cacheKey);
+                get.onsuccess = function () {
+                    if (get.result && get.result.data) {
+                        displaySvg(get.result.data);
+                    } else {
+                        fetchAndCache();
+                    }
+                };
+                get.onerror = function () { fetchAndCache(); };
             };
-            img.src = imageUrl;
+            cacheReq.onerror = function () { fetchAndCache(); };
         } catch (e) {
             container.innerHTML = '<div style="color:var(--wrong);text-align:center;padding:20px;">Error rendering circuit.</div>';
         }

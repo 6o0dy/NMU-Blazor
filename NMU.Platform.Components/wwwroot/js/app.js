@@ -629,10 +629,190 @@ window.nmuFunctions = {
                     })
                     .catch(function () {
                         return attempt(0);
-                    });
-            });
-    }
-};
+                });
+             });
+     },
+
+     // ---- Cache Clearing Functions ----
+
+     // Clear PDF cache only (keys starting with "pdf_" in IndexedDB)
+     clearPdfCache: function () {
+         return this._openPdfDb().then(function (db) {
+             return new Promise(function (resolve) {
+                 var tx = db.transaction('pdfs', 'readwrite');
+                 var store = tx.objectStore('pdfs');
+                 var req = store.getAllKeys();
+                 req.onsuccess = function () {
+                     var keys = req.result || [];
+                     var deleted = 0;
+                     keys.forEach(function (k) {
+                         if (k.startsWith('pdf_')) {
+                             store.delete(k);
+                             deleted++;
+                         }
+                     });
+                     tx.oncomplete = function () { resolve(deleted); };
+                     tx.onerror = function () { resolve(0); };
+                 };
+                 req.onerror = function () { resolve(0); };
+             });
+         });
+     },
+
+      // Get all localStorage keys matching a prefix (for cleanup detection)
+      getKeysByPrefix: function (prefix) {
+          var keys = [];
+          if (this._lsAvail) {
+              try {
+                  for (var i = 0; i < localStorage.length; i++) {
+                      var key = localStorage.key(i);
+                      if (key && key.startsWith(prefix)) keys.push(key);
+                  }
+              } catch (e) {}
+          }
+          return keys;
+      },
+
+      // Remove multiple localStorage keys at once
+      removeKeys: function (keys) {
+          if (this._lsAvail) {
+              try {
+                  for (var i = 0; i < keys.length; i++) {
+                      localStorage.removeItem(keys[i]);
+                  }
+              } catch (e) {}
+          }
+      },
+
+      // Get all unique level/semester identifiers from cached quiz data (for cleanup detection)
+      getCachedLevelSemesters: function () {
+          var self = this;
+          var result = [];
+          var keys = [];
+          if (self._lsAvail) {
+              try {
+                  for (var i = 0; i < localStorage.length; i++) {
+                      var key = localStorage.key(i);
+                      if (key && key.startsWith('nmu_quiz_list_') || key.startsWith('nmu_q_content_') || key.startsWith('nmu_quiz_sync_done_')) {
+                          keys.push(key);
+                      }
+                  }
+              } catch (e) {}
+          }
+          // Extract level_semester from keys
+          var seen = {};
+          keys.forEach(function (k) {
+              // Pattern: nmu_quiz_list_Level_1_Semester_1_v4 or nmu_q_content_NMU/Level_1/Semester_1/...
+              var match = k.match(/(Level_\d+)_(Semester_\d+)/i);
+              if (match) {
+                  var key = match[1] + '_' + match[2];
+                  if (!seen[key]) { seen[key] = true; result.push(key); }
+              }
+          });
+          return result;
+      },
+
+      // Clear Quiz cache (localStorage keys related to quizzes)
+      clearQuizCache: function () {
+         var self = this;
+         var quizPrefixes = ['nmu_quiz_list_', 'nmu_q_content_', 'nmu_q_meta_', 'nmu_quiz_sync_done_', 'nmu_quiz_path_map'];
+         var count = 0;
+         quizPrefixes.forEach(function (prefix) {
+             // Try localStorage
+             if (self._lsAvail) {
+                 try {
+                     var toRemove = [];
+                     for (var i = 0; i < localStorage.length; i++) {
+                         var key = localStorage.key(i);
+                         if (key && key.startsWith(prefix)) {
+                             toRemove.push(key);
+                         }
+                     }
+                     toRemove.forEach(function (k) { localStorage.removeItem(k); count++; });
+                 } catch (e) {}
+             }
+             // Also try IndexedDB fallback (keys stored as '_meta_' + key)
+             self._openPdfDb().then(function (db) {
+                 return new Promise(function (resolve) {
+                     var tx = db.transaction('pdfs', 'readwrite');
+                     var store = tx.objectStore('pdfs');
+                     var req = store.getAllKeys();
+                     req.onsuccess = function () {
+                         var keys = req.result || [];
+                         keys.forEach(function (k) {
+                             if (k.startsWith('_meta_' + prefix) || k.startsWith('_meta_nmu_q_')) {
+                                 store.delete(k);
+                                 count++;
+                             }
+                         });
+                         resolve();
+                     };
+                     req.onerror = function () { resolve(); };
+                 });
+             });
+         });
+         return Promise.resolve(count);
+     },
+
+      // Smart cleanup: remove cached quiz data for old level/semester when student changes
+      cleanupOldQuizCache: function (oldLevel, oldSemester, newLevel, newSemester) {
+          var self = this;
+          var oldLevelClean = oldLevel.replace(/ /g, '_');
+          var oldSemClean = oldSemester.replace(/ /g, '_');
+          var prefixes = [
+              'nmu_quiz_list_' + oldLevelClean + '_' + oldSemClean,
+              'nmu_quiz_sync_done_' + oldLevelClean + '_' + oldSemClean
+          ];
+          var contentPrefix = 'NMU/' + oldLevelClean + '/' + oldSemClean + '/QUIZE/';
+
+          var removed = 0;
+          // Remove localStorage keys
+          if (self._lsAvail) {
+              try {
+                  var toRemove = [];
+                  for (var i = 0; i < localStorage.length; i++) {
+                      var key = localStorage.key(i);
+                      if (key) {
+                          for (var p = 0; p < prefixes.length; p++) {
+                              if (key.startsWith(prefixes[p]) || key === 'nmu_q_content_' + contentPrefix) {
+                                  toRemove.push(key);
+                                  break;
+                              }
+                          }
+                          // Also match content keys with the old path
+                          if (key.startsWith('nmu_q_content_') && key.indexOf(contentPrefix) >= 0) {
+                              if (toRemove.indexOf(key) < 0) toRemove.push(key);
+                          }
+                          if (key.startsWith('nmu_q_meta_') && key.indexOf(contentPrefix) >= 0) {
+                              if (toRemove.indexOf(key) < 0) toRemove.push(key);
+                          }
+                      }
+                  }
+                  toRemove.forEach(function (k) { localStorage.removeItem(k); removed++; });
+              } catch (e) {}
+          }
+          return removed;
+      },
+
+      // Clear ALL cache: localStorage + IndexedDB (all stores)
+     clearAllCache: function () {
+         var self = this;
+         // Clear localStorage entirely
+         if (self._lsAvail) {
+             try { localStorage.clear(); } catch (e) {}
+         }
+         // Delete entire IndexedDB database
+         return new Promise(function (resolve) {
+             var deleteReq = indexedDB.deleteDatabase('nmu-pdf-cache');
+             deleteReq.onsuccess = function () {
+                 self._pdfDbPromise = null;
+                 resolve(true);
+             };
+             deleteReq.onerror = function () { resolve(false); };
+             deleteReq.onblocked = function () { resolve(false); };
+         });
+     }
+ };
 
 // Quiz iframe message listener
 window.__quizMessageHandler = null;

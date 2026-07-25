@@ -5,6 +5,7 @@
 @implements IDisposable
 @inherits LayoutComponentBase
 @inject StudentService StudentService
+@inject QuizService QuizService
 @inject IPlatformService Platform
 @inject LayoutState LayoutState
 @inject ToastService Toast
@@ -89,8 +90,10 @@ else
         {
             try
             {
-                var hasStudent = await StudentService.HasStudentDataAsync();
-                if (!hasStudent)
+                var student = await StudentService.GetStudentAsync();
+                if (student != null)
+                    _ = QuizService.EnsureQuizSyncedAsync(student.AcademicLevel, student.Semester);
+                else
                     showSetup = true;
             }
             catch
@@ -111,9 +114,12 @@ else
         await Task.Delay(500);
         try
         {
-            var hasStudent = await StudentService.HasStudentDataAsync();
-            if (hasStudent)
+            var student = await StudentService.GetStudentAsync();
+            if (student != null)
+            {
                 showLoading = false;
+                _ = QuizService.EnsureQuizSyncedAsync(student.AcademicLevel, student.Semester);
+            }
             else
             {
                 showLoading = false;

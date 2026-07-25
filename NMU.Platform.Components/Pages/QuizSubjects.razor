@@ -1,5 +1,7 @@
 @page "/quizzes"
 @using NMU.Platform.Components.Models
+@using NMU.Platform.Components.Services
+@implements IDisposable
 @inject QuizService QuizService
 @inject StudentService StudentService
 @inject NavigationManager Navigation
@@ -11,7 +13,34 @@
 {
     <div class="loading-state">
         <i class="fas fa-circle-notch fa-spin fa-2x" style="color:var(--primary)"></i>
-        <br /><br />Synchronizing Data...
+        <br /><br />
+        @if (_syncProgress != null && _syncProgress.Total > 0)
+        {
+            <div class="sync-progress-container">
+                <div class="sync-progress-bar">
+                    <div class="sync-progress-fill" style="width: @(_syncProgress.Current * 100 / _syncProgress.Total)%;"></div>
+                </div>
+                <div class="sync-progress-text">
+                    @if (_syncProgress.IsDownloading)
+                    {
+                        <span>Downloading @_syncProgress.SubjectName...</span>
+                    }
+                    else if (_syncProgress.IsComplete)
+                    {
+                        <span>✓ Sync Complete!</span>
+                    }
+                    else
+                    {
+                        <span>Processing @_syncProgress.Current of @_syncProgress.Total subjects</span>
+                    }
+                </div>
+                <div class="sync-progress-percent">@(_syncProgress.Current * 100 / _syncProgress.Total)%</div>
+            </div>
+        }
+        else
+        {
+            <span>Synchronizing Data...</span>
+        }
     </div>
 }
 else if (_error)
@@ -53,11 +82,15 @@ else
     private List<QuizSubject> _subjects = new();
     private string _studentLevel = "Level_1";
     private string _studentSemester = "First_Term";
+    private SyncProgress? _syncProgress;
 
     protected override async Task OnInitializedAsync()
     {
         NavState.PageTitle = "QUIZZES";
         QuizState.Reset();
+
+        QuizService.SyncProgressChanged += OnSyncProgress;
+
         try
         {
             var student = await StudentService.GetStudentAsync();
@@ -72,13 +105,39 @@ else
             try { await JS.InvokeVoidAsync("localStorage.setItem", "nmu_quiz_path_map", System.Text.Json.JsonSerializer.Serialize(QuizState.SubjectPathMap)); } catch { }
             if (_subjects.Count == 0)
                 _errorMsg = "No quizzes available.";
+
+            _loading = false;
+            StateHasChanged();
+
+            // Background revalidation for quiz list
+            _ = QuizService.CheckAndUpdateQuizListAsync(_studentLevel, _studentSemester, async updatedList =>
+            {
+                _subjects = updatedList;
+                QuizState.SubjectPathMap = _subjects.ToDictionary(s => s.Name, s => s.Path, StringComparer.OrdinalIgnoreCase);
+                await InvokeAsync(StateHasChanged);
+            });
         }
         catch (Exception ex)
         {
             _error = true;
             _errorMsg = $"Error: {ex.Message}";
+            _loading = false;
         }
-        _loading = false;
+    }
+
+    private void OnSyncProgress(SyncProgress progress)
+    {
+        _syncProgress = progress;
+        if (progress.IsComplete)
+        {
+            QuizService.SyncProgressChanged -= OnSyncProgress;
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        QuizService.SyncProgressChanged -= OnSyncProgress;
     }
 
     private void OpenSubject(QuizSubject subject)

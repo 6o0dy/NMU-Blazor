@@ -63,6 +63,8 @@ window.nmuFunctions = {
         }).catch(function () {});
     },
 
+    _iaServerCache: {},
+
     resolveDirectUrl: function (downloadUrl) {
         var parts = downloadUrl.split('/download/');
         if (parts.length < 2) return Promise.resolve(downloadUrl);
@@ -70,15 +72,38 @@ window.nmuFunctions = {
         var itemName = rest[0];
         var filePath = rest.slice(1).join('/');
 
-        return fetch('https://archive.org/metadata/' + itemName)
-            .then(function (r) { return r.json(); })
+        // Instant cache check (0ms)
+        if (this._iaServerCache[itemName]) {
+            return Promise.resolve('https://' + this._iaServerCache[itemName] + '/' + filePath);
+        }
+        try {
+            var cached = sessionStorage.getItem('_ia_server_' + itemName);
+            if (cached) {
+                this._iaServerCache[itemName] = cached;
+                return Promise.resolve('https://' + cached + '/' + filePath);
+            }
+        } catch (e) { }
+
+        var self = this;
+        var controller = new AbortController();
+        var timer = setTimeout(function () { controller.abort(); }, 3000);
+
+        return fetch('https://archive.org/metadata/' + itemName, { signal: controller.signal })
+            .then(function (r) {
+                clearTimeout(timer);
+                return r.json();
+            })
             .then(function (data) {
                 var server = data.d1 || (data.workable_servers && data.workable_servers[0]) || 'ia800100.us.archive.org';
                 var dir = data.dir || '';
                 var cleanDir = dir.startsWith('/') ? dir : '/' + dir;
-                return 'https://' + server + cleanDir + '/' + filePath;
+                var serverPath = server + cleanDir;
+                self._iaServerCache[itemName] = serverPath;
+                try { sessionStorage.setItem('_ia_server_' + itemName, serverPath); } catch (e) { }
+                return 'https://' + serverPath + '/' + filePath;
             })
             .catch(function () {
+                clearTimeout(timer);
                 return downloadUrl;
             });
     },
@@ -118,18 +143,7 @@ window.nmuFunctions = {
 
     _ensurePdfJs: function () {
         if (window.pdfjsLib) return Promise.resolve();
-        if (this._pdfJsReady) return this._pdfJsReady;
-        this._pdfJsReady = new Promise(function (resolve, reject) {
-            var s = document.createElement('script');
-            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-            s.onload = function () {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-                resolve();
-            };
-            s.onerror = reject;
-            document.head.appendChild(s);
-        });
-        return this._pdfJsReady;
+        return Promise.reject();
     },
 
     renderPdfWithPdfJs: function (base64) {
@@ -215,8 +229,590 @@ window.nmuFunctions = {
                     return attempt(idx + 1);
                 });
         })(0);
-    }
-};
+    },
+
+    _pdfDbPromise: null,
+
+    _openPdfDb: function () {
+        if (!this._pdfDbPromise) {
+            this._pdfDbPromise = new Promise(function (resolve, reject) {
+                var request = indexedDB.open('nmu-pdf-cache', 1);
+                request.onupgradeneeded = function (e) {
+                    var db = e.target.result;
+                    if (!db.objectStoreNames.contains('pdfs')) {
+                        db.createObjectStore('pdfs', { keyPath: 'key' });
+                    }
+                };
+                request.onsuccess = function (e) { resolve(e.target.result); };
+                request.onerror = function (e) { reject(e.target.error); };
+            });
+        }
+        return this._pdfDbPromise;
+    },
+
+    // Get cached PDF bytes as Uint8Array (byte[] in C#)
+    getCachedPdfBytes: function (pdfKey) {
+        return this._openPdfDb().then(function (db) {
+            return new Promise(function (resolve, reject) {
+                var tx = db.transaction('pdfs', 'readonly');
+                var store = tx.objectStore('pdfs');
+                var get = store.get(pdfKey);
+                get.onsuccess = function () {
+                    if (get.result) {
+                        resolve(new Uint8Array(get.result.data));
+                    } else {
+                        resolve(null);
+                    }
+                };
+                get.onerror = function () { resolve(null); };
+            });
+        });
+    },
+
+    // Get cached PDF Blob URL directly (for Web path fast load)
+    getCachedPdfBlobUrl: function (pdfKey) {
+        return this._openPdfDb().then(function (db) {
+            return new Promise(function (resolve) {
+                var tx = db.transaction('pdfs', 'readonly');
+                var store = tx.objectStore('pdfs');
+                var get = store.get(pdfKey);
+                get.onsuccess = function () {
+                    if (get.result && get.result.data) {
+                        var blob = new Blob([get.result.data], { type: 'application/pdf' });
+                        resolve(URL.createObjectURL(blob));
+                    } else {
+                        resolve('');
+                    }
+                };
+                get.onerror = function () { resolve(''); };
+            });
+        });
+    },
+
+    // Store PDF bytes from Uint8Array (byte[] in C#), with optional HTTP metadata
+    setCachedPdfBytes: function (pdfKey, bytes, contentLength, etag, lastModified) {
+        return this._openPdfDb().then(function (db) {
+            return new Promise(function (resolve, reject) {
+                var tx = db.transaction('pdfs', 'readwrite');
+                var store = tx.objectStore('pdfs');
+                store.put({
+                    key: pdfKey,
+                    data: bytes.buffer,
+                    contentLength: contentLength || bytes.buffer.byteLength,
+                    etag: etag || '',
+                    lastModified: lastModified || '',
+                    timestamp: Date.now()
+                });
+                tx.oncomplete = resolve;
+                tx.onerror = function () { resolve(); };
+            });
+        });
+    },
+
+    // Get all cached PDF keys for status indicators (keys only, no cursor iteration)
+    getCachedPdfKeys: function () {
+        return this._openPdfDb().then(function (db) {
+            return new Promise(function (resolve, reject) {
+                var tx = db.transaction('pdfs', 'readonly');
+                var store = tx.objectStore('pdfs');
+                var req = store.getAllKeys();
+                req.onsuccess = function () {
+                    var keys = [];
+                    for (var i = 0; i < req.result.length; i++) {
+                        if (req.result[i].startsWith('pdf_')) keys.push(req.result[i]);
+                    }
+                    resolve(keys);
+                };
+                req.onerror = function () { resolve([]); };
+            });
+        });
+    },
+
+    // Get cached PDF metadata (contentLength, etag, lastModified, timestamp)
+    getCachedPdfMeta: function (pdfKey) {
+        return this._openPdfDb().then(function (db) {
+            return new Promise(function (resolve) {
+                var tx = db.transaction('pdfs', 'readonly');
+                var store = tx.objectStore('pdfs');
+                var get = store.get(pdfKey);
+                get.onsuccess = function () {
+                    if (get.result) {
+                        resolve({
+                            contentLength: get.result.contentLength || 0,
+                            etag: get.result.etag || '',
+                            lastModified: get.result.lastModified || '',
+                            timestamp: get.result.timestamp || 0
+                        });
+                    } else {
+                        resolve(null);
+                    }
+                };
+                get.onerror = function () { resolve(null); };
+            });
+        });
+    },
+
+    // Check online status
+    isOnline: function () {
+        return navigator.onLine;
+    },
+
+    // Render PDF from Uint8Array (byte[] from C#) using PDF.js
+    renderPdfWithPdfJsFromBytes: function (bytes) {
+        var self = this;
+        self._ensurePdfJs().then(function () {
+            var container = document.getElementById('pdf-pages');
+            var overlay = document.getElementById('pdf-loading-overlay');
+            if (!container) return;
+            container.innerHTML = '';
+            var loadingTask = pdfjsLib.getDocument({ data: bytes });
+            loadingTask.promise.then(function (pdf) {
+                if (overlay) { overlay.style.display = 'none'; overlay.style.opacity = '0'; }
+                for (var pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    (function (num) {
+                        pdf.getPage(num).then(function (page) {
+                            var viewport = page.getViewport({ scale: 1.5 });
+                            var canvas = document.createElement('canvas');
+                            canvas.className = 'pdf-canvas-page';
+                            canvas.height = viewport.height;
+                            canvas.width = viewport.width;
+                            container.appendChild(canvas);
+                            page.render({
+                                canvasContext: canvas.getContext('2d'),
+                                viewport: viewport
+                            });
+                        });
+                    })(pageNum);
+                }
+            }).catch(function () {
+                if (overlay) overlay.innerHTML = '<div style="color:#ef4444;text-align:center;padding:40px;">Failed to load PDF.</div>';
+            });
+        }).catch(function () {
+            var overlay = document.getElementById('pdf-loading-overlay');
+            if (overlay) overlay.innerHTML = '<div style="color:#ef4444;text-align:center;padding:40px;">Failed to load PDF.js library.</div>';
+        });
+    },
+
+    // Check if PDF exists in cache (for Canvas path)
+    checkPdfCache: function (pdfKey) {
+        var self = this;
+        return self._openPdfDb().then(function (db) {
+            return new Promise(function (resolve) {
+                var tx = db.transaction('pdfs', 'readonly');
+                var store = tx.objectStore('pdfs');
+                var get = store.get(pdfKey);
+                get.onsuccess = function () {
+                    resolve(!!(get.result && get.result.data));
+                };
+                get.onerror = function () { resolve(false); };
+            });
+        });
+    },
+
+    // Canvas path: render PDF from cache (container must already exist)
+    renderPdfFromCache: function (pdfKey) {
+        var self = this;
+        return self._openPdfDb().then(function (db) {
+            return new Promise(function (resolve) {
+                var tx = db.transaction('pdfs', 'readonly');
+                var store = tx.objectStore('pdfs');
+                var get = store.get(pdfKey);
+                get.onsuccess = function () {
+                    if (get.result && get.result.data) {
+                        self.renderPdfWithPdfJsFromBytes(new Uint8Array(get.result.data));
+                    }
+                    resolve();
+                };
+                get.onerror = function () { resolve(); };
+            });
+        });
+    },
+
+    // Create blob URL from Uint8Array (byte[] from C#)
+    createBlobUrlFromBytes: function (bytes, mimeType) {
+        var blob = new Blob([bytes], { type: mimeType });
+        return URL.createObjectURL(blob);
+    },
+
+    // Web path: check cache (instant), or fetch + cache + return blob URL
+    fetchPdfAsBlobWithCache: function (pdfKey, url) {
+        var self = this;
+        return self._openPdfDb().then(function (db) {
+            return new Promise(function (resolve, reject) {
+                var tx = db.transaction('pdfs', 'readonly');
+                var store = tx.objectStore('pdfs');
+                var get = store.get(pdfKey);
+                get.onsuccess = function () {
+                    if (get.result) {
+                        var blob = new Blob([get.result.data], { type: 'application/pdf' });
+                        resolve(URL.createObjectURL(blob));
+                    } else {
+                        resolve('');
+                    }
+                };
+                get.onerror = function () { resolve(''); };
+            });
+        }).then(function (blobUrl) {
+            if (blobUrl) return blobUrl;
+            return self._fetchPdfBytes(url).then(function (buf) {
+                if (!buf) return '';
+                // Await cache write before returning
+                return self._openPdfDb().then(function (db) {
+                    return new Promise(function (resolve, reject) {
+                        var tx = db.transaction('pdfs', 'readwrite');
+                        var store = tx.objectStore('pdfs');
+                        store.put({ key: pdfKey, data: buf, timestamp: Date.now() });
+                        tx.oncomplete = function () {
+                            var blob = new Blob([buf], { type: 'application/pdf' });
+                            resolve(URL.createObjectURL(blob));
+                        };
+                        tx.onerror = function () {
+                            // Cache write failed, still return blob URL
+                            var blob = new Blob([buf], { type: 'application/pdf' });
+                            resolve(URL.createObjectURL(blob));
+                        };
+                    });
+                });
+            });
+        });
+    },
+
+    // Web path: cache PDF in background without blocking (for direct-URL display)
+    cachePdfInBackground: function (pdfKey, url) {
+        var self = this;
+        // Skip if already cached
+        self._openPdfDb().then(function (db) {
+            return new Promise(function (resolve, reject) {
+                var tx = db.transaction('pdfs', 'readonly');
+                var store = tx.objectStore('pdfs');
+                var get = store.get(pdfKey);
+                get.onsuccess = function () { resolve(!!get.result); };
+                get.onerror = function () { resolve(false); };
+            });
+        }).then(function (cached) {
+            if (cached) return;
+            return self._fetchPdfBytes(url).then(function (buf) {
+                if (!buf) return;
+                return self._openPdfDb().then(function (db) {
+                    return new Promise(function (resolve, reject) {
+                        var tx = db.transaction('pdfs', 'readwrite');
+                        var store = tx.objectStore('pdfs');
+                        store.put({ key: pdfKey, data: buf, timestamp: Date.now() });
+                        tx.oncomplete = resolve;
+                        tx.onerror = resolve;
+                    });
+                });
+            });
+        });
+    },
+
+    // Safe localStorage wrapper - falls back to IndexedDB when blocked by tracking prevention
+    _lsAvail: (function () {
+        try { localStorage.setItem('_t_', '1'); localStorage.removeItem('_t_'); return true; } catch (e) { return false; }
+    })(),
+
+    safeGetItem: function (key) {
+        if (this._lsAvail) {
+            try {
+                var val = localStorage.getItem(key);
+                if (val !== null) return val;
+            } catch (e) {}
+        }
+        return this.getCacheItem(key);
+    },
+
+    safeSetItem: function (key, value) {
+        if (this._lsAvail) {
+            try { localStorage.setItem(key, value); return; } catch (e) {}
+        }
+        this.setCacheItem(key, value);
+    },
+
+    safeRemoveItem: function (key) {
+        if (this._lsAvail) {
+            try { localStorage.removeItem(key); return; } catch (e) {}
+        }
+        this.removeCacheItem(key);
+    },
+
+    // Generic IndexedDB cache (for metadata, not PDFs)
+    setCacheItem: function (key, value) {
+        return this._openPdfDb().then(function (db) {
+            return new Promise(function (resolve, reject) {
+                var tx = db.transaction('pdfs', 'readwrite');
+                var store = tx.objectStore('pdfs');
+                store.put({ key: '_meta_' + key, data: value, timestamp: Date.now() });
+                tx.oncomplete = resolve;
+                tx.onerror = function () { resolve(); };
+            });
+        });
+    },
+
+    getCacheItem: function (key) {
+        return this._openPdfDb().then(function (db) {
+            return new Promise(function (resolve, reject) {
+                var tx = db.transaction('pdfs', 'readonly');
+                var store = tx.objectStore('pdfs');
+                var get = store.get('_meta_' + key);
+                get.onsuccess = function () {
+                    if (get.result) {
+                        resolve(get.result.data);
+                    } else {
+                        resolve('');
+                    }
+                };
+                get.onerror = function () { resolve(''); };
+            });
+        });
+    },
+
+    removeCacheItem: function (key) {
+        return this._openPdfDb().then(function (db) {
+            return new Promise(function (resolve, reject) {
+                var tx = db.transaction('pdfs', 'readwrite');
+                var store = tx.objectStore('pdfs');
+                store.delete('_meta_' + key);
+                tx.oncomplete = resolve;
+                tx.onerror = function () { resolve(); };
+            });
+        });
+    },
+
+    // Try local /api/proxy first, then direct fetch / external proxies
+    _fetchPdfBytes: function (url) {
+        var self = this;
+        var localProxy = '/api/proxy?url=' + encodeURIComponent(url);
+        var proxies = [
+            'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+            'https://corsproxy.io/?url=' + encodeURIComponent(url)
+        ];
+
+        function fetchWithTimeout(fetchUrl, ms) {
+            var controller = new AbortController();
+            var timer = setTimeout(function () { controller.abort(); }, ms || 5000);
+            return fetch(fetchUrl, { signal: controller.signal })
+                .then(function (r) {
+                    clearTimeout(timer);
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.arrayBuffer();
+                })
+                .catch(function (err) {
+                    clearTimeout(timer);
+                    throw err;
+                });
+        }
+
+        function attempt(idx) {
+            if (idx >= proxies.length) return Promise.resolve(null);
+            return fetchWithTimeout(proxies[idx], 4000)
+                .then(function (buf) {
+                    if (!buf || buf.byteLength === 0) throw new Error('empty');
+                    return buf;
+                })
+                .catch(function () {
+                    return attempt(idx + 1);
+                });
+        }
+
+        // Try local backend proxy first (blazing fast, no CORS issues)
+        return fetchWithTimeout(localProxy, 5000)
+            .then(function (buf) {
+                if (!buf || buf.byteLength === 0) throw new Error('empty');
+                return buf;
+            })
+            .catch(function () {
+                // Fallback to direct fetch
+                return fetchWithTimeout(url, 3000)
+                    .then(function (buf) {
+                        if (!buf || buf.byteLength === 0) throw new Error('empty');
+                        return buf;
+                    })
+                    .catch(function () {
+                        return attempt(0);
+                });
+             });
+     },
+
+     // ---- Cache Clearing Functions ----
+
+     // Clear PDF cache only (keys starting with "pdf_" in IndexedDB)
+     clearPdfCache: function () {
+         return this._openPdfDb().then(function (db) {
+             return new Promise(function (resolve) {
+                 var tx = db.transaction('pdfs', 'readwrite');
+                 var store = tx.objectStore('pdfs');
+                 var req = store.getAllKeys();
+                 req.onsuccess = function () {
+                     var keys = req.result || [];
+                     var deleted = 0;
+                     keys.forEach(function (k) {
+                         if (k.startsWith('pdf_')) {
+                             store.delete(k);
+                             deleted++;
+                         }
+                     });
+                     tx.oncomplete = function () { resolve(deleted); };
+                     tx.onerror = function () { resolve(0); };
+                 };
+                 req.onerror = function () { resolve(0); };
+             });
+         });
+     },
+
+      // Get all localStorage keys matching a prefix (for cleanup detection)
+      getKeysByPrefix: function (prefix) {
+          var keys = [];
+          if (this._lsAvail) {
+              try {
+                  for (var i = 0; i < localStorage.length; i++) {
+                      var key = localStorage.key(i);
+                      if (key && key.startsWith(prefix)) keys.push(key);
+                  }
+              } catch (e) {}
+          }
+          return keys;
+      },
+
+      // Remove multiple localStorage keys at once
+      removeKeys: function (keys) {
+          if (this._lsAvail) {
+              try {
+                  for (var i = 0; i < keys.length; i++) {
+                      localStorage.removeItem(keys[i]);
+                  }
+              } catch (e) {}
+          }
+      },
+
+      // Get all unique level/semester identifiers from cached quiz data (for cleanup detection)
+      getCachedLevelSemesters: function () {
+          var self = this;
+          var result = [];
+          var keys = [];
+          if (self._lsAvail) {
+              try {
+                  for (var i = 0; i < localStorage.length; i++) {
+                      var key = localStorage.key(i);
+                      if (key && key.startsWith('nmu_quiz_list_') || key.startsWith('nmu_q_content_') || key.startsWith('nmu_quiz_sync_done_')) {
+                          keys.push(key);
+                      }
+                  }
+              } catch (e) {}
+          }
+          // Extract level_semester from keys
+          var seen = {};
+          keys.forEach(function (k) {
+              // Pattern: nmu_quiz_list_Level_1_Semester_1_v4 or nmu_q_content_NMU/Level_1/Semester_1/...
+              var match = k.match(/(Level_\d+)_(Semester_\d+)/i);
+              if (match) {
+                  var key = match[1] + '_' + match[2];
+                  if (!seen[key]) { seen[key] = true; result.push(key); }
+              }
+          });
+          return result;
+      },
+
+      // Clear Quiz cache (localStorage keys related to quizzes)
+      clearQuizCache: function () {
+         var self = this;
+         var quizPrefixes = ['nmu_quiz_list_', 'nmu_q_content_', 'nmu_q_meta_', 'nmu_quiz_sync_done_', 'nmu_quiz_path_map'];
+         var count = 0;
+         quizPrefixes.forEach(function (prefix) {
+             // Try localStorage
+             if (self._lsAvail) {
+                 try {
+                     var toRemove = [];
+                     for (var i = 0; i < localStorage.length; i++) {
+                         var key = localStorage.key(i);
+                         if (key && key.startsWith(prefix)) {
+                             toRemove.push(key);
+                         }
+                     }
+                     toRemove.forEach(function (k) { localStorage.removeItem(k); count++; });
+                 } catch (e) {}
+             }
+             // Also try IndexedDB fallback (keys stored as '_meta_' + key)
+             self._openPdfDb().then(function (db) {
+                 return new Promise(function (resolve) {
+                     var tx = db.transaction('pdfs', 'readwrite');
+                     var store = tx.objectStore('pdfs');
+                     var req = store.getAllKeys();
+                     req.onsuccess = function () {
+                         var keys = req.result || [];
+                         keys.forEach(function (k) {
+                             if (k.startsWith('_meta_' + prefix) || k.startsWith('_meta_nmu_q_')) {
+                                 store.delete(k);
+                                 count++;
+                             }
+                         });
+                         resolve();
+                     };
+                     req.onerror = function () { resolve(); };
+                 });
+             });
+         });
+         return Promise.resolve(count);
+     },
+
+      // Smart cleanup: remove cached quiz data for old level/semester when student changes
+      cleanupOldQuizCache: function (oldLevel, oldSemester, newLevel, newSemester) {
+          var self = this;
+          var oldLevelClean = oldLevel.replace(/ /g, '_');
+          var oldSemClean = oldSemester.replace(/ /g, '_');
+          var prefixes = [
+              'nmu_quiz_list_' + oldLevelClean + '_' + oldSemClean,
+              'nmu_quiz_sync_done_' + oldLevelClean + '_' + oldSemClean
+          ];
+          var contentPrefix = 'NMU/' + oldLevelClean + '/' + oldSemClean + '/QUIZE/';
+
+          var removed = 0;
+          // Remove localStorage keys
+          if (self._lsAvail) {
+              try {
+                  var toRemove = [];
+                  for (var i = 0; i < localStorage.length; i++) {
+                      var key = localStorage.key(i);
+                      if (key) {
+                          for (var p = 0; p < prefixes.length; p++) {
+                              if (key.startsWith(prefixes[p]) || key === 'nmu_q_content_' + contentPrefix) {
+                                  toRemove.push(key);
+                                  break;
+                              }
+                          }
+                          // Also match content keys with the old path
+                          if (key.startsWith('nmu_q_content_') && key.indexOf(contentPrefix) >= 0) {
+                              if (toRemove.indexOf(key) < 0) toRemove.push(key);
+                          }
+                          if (key.startsWith('nmu_q_meta_') && key.indexOf(contentPrefix) >= 0) {
+                              if (toRemove.indexOf(key) < 0) toRemove.push(key);
+                          }
+                      }
+                  }
+                  toRemove.forEach(function (k) { localStorage.removeItem(k); removed++; });
+              } catch (e) {}
+          }
+          return removed;
+      },
+
+      // Clear ALL cache: localStorage + IndexedDB (all stores)
+     clearAllCache: function () {
+         var self = this;
+         // Clear localStorage entirely
+         if (self._lsAvail) {
+             try { localStorage.clear(); } catch (e) {}
+         }
+         // Delete entire IndexedDB database
+         return new Promise(function (resolve) {
+             var deleteReq = indexedDB.deleteDatabase('nmu-pdf-cache');
+             deleteReq.onsuccess = function () {
+                 self._pdfDbPromise = null;
+                 resolve(true);
+             };
+             deleteReq.onerror = function () { resolve(false); };
+             deleteReq.onblocked = function () { resolve(false); };
+         });
+     }
+ };
 
 // Quiz iframe message listener
 window.__quizMessageHandler = null;

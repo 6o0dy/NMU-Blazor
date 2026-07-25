@@ -203,6 +203,7 @@
 .fab-wrapper.active .fab-item:nth-child(1) { transform: translate(-80px, 0); opacity: 1; visibility: visible; transition-delay: 0.1s; }
 .fab-wrapper.active .fab-item:nth-child(2) { transform: translate(-60px, -60px); opacity: 1; visibility: visible; transition-delay: 0.2s; }
 .fab-wrapper.active .fab-item:nth-child(3) { transform: translate(0, -80px); opacity: 1; visibility: visible; transition-delay: 0.3s; }
+.fab-wrapper.active .fab-item:nth-child(4) { transform: translate(60px, -60px); opacity: 1; visibility: visible; transition-delay: 0.4s; }
 
 .fab-item:hover {
     background: var(--primary);
