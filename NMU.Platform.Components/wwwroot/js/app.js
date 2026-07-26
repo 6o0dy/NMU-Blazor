@@ -794,6 +794,30 @@ window.nmuFunctions = {
           return removed;
       },
 
+      // Clear Video/Audio cache only (keys starting with "mch_", "mm_", "mc_" in IndexedDB)
+      clearMediaCache: function () {
+          return this._openPdfDb().then(function (db) {
+              return new Promise(function (resolve) {
+                  var tx = db.transaction('pdfs', 'readwrite');
+                  var store = tx.objectStore('pdfs');
+                  var req = store.getAllKeys();
+                  req.onsuccess = function () {
+                      var keys = req.result || [];
+                      var deleted = 0;
+                      keys.forEach(function (k) {
+                          if (typeof k === 'string' && (k.startsWith('mch_') || k.startsWith('mm_') || k.startsWith('mc_'))) {
+                              store.delete(k);
+                              deleted++;
+                          }
+                      });
+                      tx.oncomplete = function () { resolve(deleted); };
+                      tx.onerror = function () { resolve(0); };
+                  };
+                  req.onerror = function () { resolve(0); };
+              });
+          });
+      },
+
       // Clear ALL cache: localStorage + IndexedDB (all stores)
      clearAllCache: function () {
          var self = this;

@@ -1,10 +1,14 @@
 @page "/recorded/{Group}/player"
 @using System.Globalization
+@using System.Net.Http.Headers
 @implements IDisposable
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @inject NavigationState NavState
 @inject IPlatformService Platform
+@inject HttpClient Http
+@inject MediaCacheService MediaCache
+@inject MediaProxyHost MediaProxyHost
 
 <div class="vp-root @(_idle ? "idle" : "")" id="vp-body"
      @onmousemove="OnActivity" @ontouchstart="OnActivity">
@@ -36,7 +40,21 @@
         <div class="vp-center-play" style="opacity:@(_showCenterPlay ? "1" : "0")">
             <i class="fa-solid fa-play"></i>
         </div>
+
+        @if (_cacheProgress is { } cp && cp.Total > 0 && !cp.Complete)
+        {
+            var pct = cp.Total > 0 ? (int)((double)cp.Cached / cp.Total * 100) : 0;
+            <div class="vp-cache-bar">
+                <div class="vp-cache-fill" style="width:@(pct)%"></div>
+            </div>
+        }
     </div>
+
+    @if (_cacheProgress is { } c && c.Total > 0 && !c.Complete)
+    {
+        var pct2 = c.Total > 0 ? (int)((double)c.Cached / c.Total * 100) : 0;
+        <div class="vp-cache-text">CACHING @pct2%</div>
+    }
 
     <div class="vp-controls" @onclick:stopPropagation @onmousedown:stopPropagation>
         <div class="vp-progress-area">
@@ -93,6 +111,10 @@
     private Timer? _idleTimer;
     private bool _disposed;
     private int _saveCounter;
+    private CacheProgress? _cacheProgress;
+    private Timer? _cachePollTimer;
+    private string _cacheKey = "";
+    private CancellationTokenSource? _cacheCts;
 
     private double ProgressPercent => _duration > 0 ? Math.Round(_currentTime / _duration * 100, 1) : 0;
 
@@ -118,6 +140,7 @@
         _isAudio = _fileName.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ||
                    _fileName.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ||
                    _fileName.EndsWith(".m4a", StringComparison.OrdinalIgnoreCase);
+        _cacheKey = MediaCache.GetCacheKey(_fileUrl);
         NavState.IsFullScreen = true;
         NavState.PageTitle = _fileName;
     }
@@ -127,9 +150,64 @@
         if (firstRender)
         {
             var key = "nmu_prog_" + _fileUrl;
-            await JS.InvokeVoidAsync("videoPlayer.init", _fileUrl, key);
+            await JS.InvokeVoidAsync("videoPlayer.init", key);
+            await InitVideoSourceAsync();
             StartIdleTimer();
+            StartCachePollTimer();
         }
+    }
+
+    private async Task InitVideoSourceAsync()
+    {
+        try
+        {
+            var hasCache = await MediaCache.HasAnyCacheAsync(_cacheKey);
+
+            if (hasCache)
+            {
+                var loaded = await LoadFromCacheAsync();
+                if (!loaded)
+                    await JS.InvokeVoidAsync("videoPlayer.setSource", _fileUrl);
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("videoPlayer.setSource", _fileUrl);
+            }
+
+            if (!await MediaCache.IsCompleteAsync(_cacheKey))
+                _ = BackgroundCacheFromCSharpAsync();
+        }
+        catch { }
+    }
+
+    private async Task<bool> LoadFromCacheAsync()
+    {
+        try
+        {
+            var meta = await MediaCache.GetMetaAsync(_cacheKey);
+            if (meta == null) return false;
+
+            var isComplete = await MediaCache.IsCompleteAsync(_cacheKey);
+
+            if (isComplete)
+            {
+                var chunks = await MediaCache.ReadAvailableChunksAsync(_cacheKey);
+                if (chunks == null || chunks.Count == 0) return false;
+                foreach (var chunk in chunks)
+                    await JS.InvokeVoidAsync("videoPlayer.appendChunk", chunk);
+                await JS.InvokeVoidAsync("videoPlayer.finalizeBlob", meta.MimeType);
+                return true;
+            }
+
+            if (!await MediaCache.IsCachePlayableAsync(_cacheKey))
+                return false;
+
+            var port = MediaProxyHost.EnsureRunning();
+            var proxyUrl = $"http://127.0.0.1:{port}/media/{_cacheKey}";
+            await JS.InvokeVoidAsync("videoPlayer.setSource", proxyUrl);
+            return true;
+        }
+        catch { return false; }
     }
 
     private async Task OnLoadedData()
@@ -275,11 +353,10 @@
     private async Task DownloadCurrentFile()
     {
         if (string.IsNullOrEmpty(_fileUrl)) return;
-        var name = _fileName;
         if (Platform.IsWeb)
             Navigation.NavigateTo(_fileUrl);
         else
-            await Platform.DownloadFileAsync(_fileUrl, name);
+            await Platform.DownloadFileAsync(_fileUrl, _fileName);
     }
 
     private void OnActivity() { _lastActivity = DateTime.UtcNow; if (_idle) { _idle = false; StateHasChanged(); } }
@@ -288,6 +365,87 @@
     {
         _lastActivity = DateTime.UtcNow;
         if (_idle) { _idle = false; InvokeAsync(StateHasChanged); }
+    }
+
+    private async Task BackgroundCacheFromCSharpAsync()
+    {
+        _cacheCts?.Cancel();
+        _cacheCts = new CancellationTokenSource();
+        var ct = _cacheCts.Token;
+
+        try
+        {
+            if (await MediaCache.IsCompleteAsync(_cacheKey)) return;
+
+            long totalSize = 0;
+            string mimeType = "video/mp4";
+            int totalChunks = 0;
+
+            while (!ct.IsCancellationRequested)
+            {
+                try
+                {
+                    using var headReq = new HttpRequestMessage(HttpMethod.Head, _fileUrl);
+                    using var headResp = await Http.SendAsync(headReq, HttpCompletionOption.ResponseHeadersRead, ct);
+                    if (headResp.IsSuccessStatusCode)
+                    {
+                        totalSize = headResp.Content.Headers.ContentLength ?? 0;
+                        if (totalSize > 0)
+                        {
+                            mimeType = headResp.Content.Headers.ContentType?.MediaType ?? "video/mp4";
+                            totalChunks = (int)Math.Ceiling((double)totalSize / 524288L);
+                            break;
+                        }
+                    }
+                }
+                catch when (!ct.IsCancellationRequested) { }
+
+                await Task.Delay(10000, ct);
+            }
+
+            if (totalSize <= 0 || totalChunks <= 0) return;
+
+            var progress = await MediaCache.GetProgressAsync(_cacheKey);
+            var startChunk = progress.Cached;
+            if (startChunk >= totalChunks) return;
+
+            await MediaCache.InitMetaAsync(_cacheKey, _fileUrl, totalSize, totalChunks, mimeType);
+            await MediaCache.PriorityCacheLastChunkAsync(_cacheKey, _fileUrl, totalSize, totalChunks, ct);
+            await MediaCache.CacheFromNetworkAsync(
+                _cacheKey, _fileUrl, startChunk, totalChunks, totalSize, mimeType,
+                onProgress: async cp =>
+                {
+                    _cacheProgress = cp;
+                    await InvokeAsync(StateHasChanged);
+                },
+                ct: ct);
+        }
+        catch (OperationCanceledException) { }
+        catch { }
+    }
+
+    private void StartCachePollTimer()
+    {
+        _cachePollTimer?.Dispose();
+        _cachePollTimer = new Timer(async _ =>
+        {
+            if (_disposed) return;
+            try
+            {
+                var result = await MediaCache.GetProgressAsync(_cacheKey);
+                if (result.Cached > 0 || result.Complete)
+                {
+                    _cacheProgress = result;
+                    await InvokeAsync(StateHasChanged);
+                    if (result.Complete)
+                    {
+                        _cachePollTimer?.Dispose();
+                        _cachePollTimer = null;
+                    }
+                }
+            }
+            catch { }
+        }, null, 2000, 3000);
     }
 
     private void StartIdleTimer()
@@ -306,6 +464,9 @@
 
     private async Task Close()
     {
+        _cacheCts?.Cancel();
+        _cachePollTimer?.Dispose();
+        _cachePollTimer = null;
         _idleTimer?.Dispose();
         try { await JS.InvokeVoidAsync("videoPlayer.destroy"); } catch { }
         NavState.IsFullScreen = false;
@@ -325,6 +486,9 @@
     public void Dispose()
     {
         _disposed = true;
+        _cacheCts?.Cancel();
+        _cacheCts?.Dispose();
+        _cachePollTimer?.Dispose();
         _idleTimer?.Dispose();
     }
 }

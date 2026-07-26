@@ -1,15 +1,28 @@
-window.videoPlayer = {
+﻿window.videoPlayer = {
     _progressKey: '',
+    _buffer: [],
 
-    init: function (src, progressKey) {
-        var video = document.getElementById('vp-video');
-        if (!video) return;
+    init: function (progressKey) {
         this._progressKey = progressKey;
-        video.src = src;
-        var saved = localStorage.getItem(progressKey);
-        if (saved) video.currentTime = parseFloat(saved);
-        document.getElementById('vp-buffer').style.display = 'block';
-        video.play().catch(function () { });
+        this._buffer = [];
+    },
+
+    setSource: function (src) {
+        this._buffer = [];
+        var video = document.getElementById('vp-video');
+        if (video) video.src = src;
+    },
+
+    appendChunk: function (bytes) {
+        this._buffer.push(new Uint8Array(bytes));
+    },
+
+    finalizeBlob: function (mimeType) {
+        var blob = new Blob(this._buffer, { type: mimeType || 'video/mp4' });
+        var url = URL.createObjectURL(blob);
+        this._buffer = [];
+        var video = document.getElementById('vp-video');
+        if (video) video.src = url;
     },
 
     play: function () { var v = document.getElementById('vp-video'); if (v && v.paused) v.play(); },

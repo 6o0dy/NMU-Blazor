@@ -1,4 +1,4 @@
-@page "/recorded/{Group}"
+﻿@page "/recorded/{Group}"
 @using NMU.Platform.Components.Models
 @implements IDisposable
 @inject RecordedService RecordedService
@@ -8,6 +8,7 @@
 @inject LayoutState LayoutState
 @inject IJSRuntime JS
 @inject IPlatformService Platform
+@inject MediaCacheService MediaCache
 
 @if (_loading)
 {
@@ -66,6 +67,17 @@ else
                     <div class="recorded-dl" @onclick:stopPropagation @onclick="() => DownloadFile(f)">
                         <i class="fa-solid fa-download"></i>
                     </div>
+                    @{
+                        var cacheIcon = _cacheStatus.GetValueOrDefault(f.Name) ?? "";
+                        if (cacheIcon == "✓")
+                        {
+                            <div class="recorded-cache-badge" title="Available offline" style="background:var(--correct,#22c55e);color:#fff;">✓</div>
+                        }
+                        else if (cacheIcon == "⏳")
+                        {
+                            <div class="recorded-cache-badge" title="Partially cached" style="background:var(--accent,#00f2ff);color:#000;">⏳</div>
+                        }
+                    }
                 </div>
             }
         }
@@ -83,6 +95,7 @@ else
     private string _searchQuery = "";
     private string _studentLevel = "Level_1";
     private string _studentSemester = "First_Term";
+    private Dictionary<string, string> _cacheStatus = new();
 
     private RenderFragment _searchBarFragment => @<div class="files-search-fixed">
         <div class="search-wrapper">
@@ -127,12 +140,31 @@ else
 
             LayoutState.SearchBar = _searchBarFragment;
             LayoutState.NotifyStateChanged();
+
+            _ = RefreshAllCacheStatuses();
         }
         catch (Exception ex)
         {
             _errorMsg = $"Error: {ex.Message}";
         }
         _loading = false;
+    }
+
+    private async Task RefreshAllCacheStatuses()
+    {
+        try
+        {
+            foreach (var f in _allGroupFiles)
+            {
+                var url = RecordedService.GetDownloadUrl(f.Name);
+                var key = MediaCache.GetCacheKey(url);
+                var complete = await MediaCache.IsCompleteAsync(key);
+                var partial = !complete && await MediaCache.HasAnyCacheAsync(key);
+                _cacheStatus[f.Name] = complete ? "✓" : partial ? "⏳" : "";
+            }
+            await InvokeAsync(StateHasChanged);
+        }
+        catch { }
     }
 
     private void OnLayoutStateChanged() => StateHasChanged();

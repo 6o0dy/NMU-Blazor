@@ -147,6 +147,23 @@
     color: var(--accent, #bd00ff);
 }
 
+/* Cache status badge on recorded cards */
+.recorded-cache-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: bold;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    z-index: 6;
+}
+
 /* Player Overlay */
 .player-overlay {
     position: fixed;

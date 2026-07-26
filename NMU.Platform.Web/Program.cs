@@ -18,6 +18,7 @@ builder.Services.AddScoped<YouTubeService>();
 builder.Services.AddScoped<QuizService>();
 builder.Services.AddScoped<QuizStateService>();
 builder.Services.AddScoped<NavigationHistoryService>();
+builder.Services.AddScoped<MediaCacheService>();
 builder.Services.AddScoped<IPlatformService, DefaultPlatformService>();
 
 await builder.Build().RunAsync();

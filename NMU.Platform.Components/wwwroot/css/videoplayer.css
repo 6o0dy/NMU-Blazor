@@ -49,6 +49,32 @@
     50%      { height: 32px; }
 }
 
+/* Cache progress bar overlay */
+.vp-cache-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.15);
+    z-index: 10;
+}
+
+.vp-cache-fill {
+    height: 100%;
+    background: var(--accent, #00f2ff);
+    transition: width 0.5s ease;
+}
+
+/* Cache text indicator */
+.vp-cache-text {
+    text-align: center;
+    font-size: 11px;
+    color: var(--accent, #00f2ff);
+    padding: 2px 0;
+    letter-spacing: 0.5px;
+}
+
 /* Buffering spinner */
 .vp-buffer {
     position: absolute; top: 50%; left: 50%; translate: -50% -50%;

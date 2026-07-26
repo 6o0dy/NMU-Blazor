@@ -7,6 +7,7 @@
 @inject NavigationState NavState
 @inject ToastService Toast
 @inject IJSRuntime _js
+@inject MediaCacheService MediaCache
 
 @if (currentStudent != null)
 {
@@ -133,6 +134,9 @@
                     <button class="action-btn delete-mode" @onclick="ClearPdfCache" style="width:100%;">
                         <i class="fa-regular fa-file-pdf"></i> Delete Files Cache
                     </button>
+                    <button class="action-btn delete-mode" @onclick="ClearVideoCache" style="width:100%;">
+                        <i class="fa-solid fa-video"></i> Delete Videos Cache
+                    </button>
                     <button class="action-btn delete-mode" @onclick="ClearQuizCache" style="width:100%;">
                         <i class="fa-solid fa-list-check"></i> Delete Quizzes Cache
                     </button>
@@ -216,6 +220,21 @@
         }
     }
 
+    private async Task ClearVideoCache()
+    {
+        try
+        {
+            await MediaCache.ClearAllAsync();
+            showCacheModal = false;
+            Toast.ShowToast("تم حذف كاش الفيديوهات بنجاح", ToastType.Success);
+        }
+        catch
+        {
+            showCacheModal = false;
+            Toast.ShowToast("حدث خطأ أثناء حذف كاش الفيديوهات", ToastType.Error);
+        }
+    }
+
     private async Task ClearQuizCache()
     {
         try
@@ -235,6 +254,7 @@
     {
         try
         {
+            await MediaCache.ClearAllAsync();
             await _js.InvokeVoidAsync("nmuFunctions.clearAllCache");
             showCacheModal = false;
             Toast.ShowToast("تم حذف جميع الكاش بنجاح", ToastType.Success);
