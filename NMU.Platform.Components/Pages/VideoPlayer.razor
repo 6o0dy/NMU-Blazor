@@ -61,7 +61,20 @@
             <span class="vp-time-current">@FormatTime(_currentTime)</span>
             <div class="vp-progress-bg"></div>
             <div class="vp-progress-bar" style="width:@ProgressPercent%"></div>
-            <div class="vp-progress-thumb" style="left:@ProgressPercent%"></div>
+            @if (_cachedSegments.Count > 0 && _duration > 0)
+            {
+                <div class="vp-cache-segments">
+                    @foreach (var seg in _cachedSegments)
+                    {
+                        var left = Math.Clamp(seg.Start / _duration * 100, 0, 100);
+                        var right = Math.Clamp(seg.End / _duration * 100, 0, 100);
+                        if (right <= left) continue;
+                        <div class="vp-cache-seg"
+                             style="left:@(left.ToString("0.##", CultureInfo.InvariantCulture))%;width:@((right - left).ToString("0.##", CultureInfo.InvariantCulture))%"></div>
+                    }
+                </div>
+            }
+            <div class="vp-progress-thumb" style="left:@ProgressPercent%"><span class="vp-thumb-gem"></span></div>
             <input type="range" class="vp-range" min="0" max="@_duration" step="0.1"
                    value="@_currentTime" @oninput="OnSeek" @onchange="OnSeekCommitted" />
             <span class="vp-time-duration">@FormatTime(_duration)</span>
@@ -115,6 +128,10 @@
     private Timer? _cachePollTimer;
     private string _cacheKey = "";
     private CancellationTokenSource? _cacheCts;
+    private bool _cacheStarted;
+    private List<(double Start, double End)> _cachedSegments = [];
+    private Mp4TimeMap? _timeMap;
+    private DateTime _lastTimeMapAttempt = DateTime.MinValue;
 
     private double ProgressPercent => _duration > 0 ? Math.Round(_currentTime / _duration * 100, 1) : 0;
 
@@ -152,6 +169,7 @@
             var key = "nmu_prog_" + _fileUrl;
             await JS.InvokeVoidAsync("videoPlayer.init", key);
             await InitVideoSourceAsync();
+            await RefreshCachedSegmentsAsync();
             StartIdleTimer();
             StartCachePollTimer();
         }
@@ -174,8 +192,20 @@
                 await JS.InvokeVoidAsync("videoPlayer.setSource", _fileUrl);
             }
 
-            if (!await MediaCache.IsCompleteAsync(_cacheKey))
-                _ = BackgroundCacheFromCSharpAsync();
+            if (hasCache && !await MediaCache.IsCompleteAsync(_cacheKey))
+                _ = EnsureCacheEndsAsync();
+        }
+        catch { }
+    }
+
+    private async Task EnsureCacheEndsAsync()
+    {
+        try
+        {
+            var meta = await MediaCache.GetMetaAsync(_cacheKey);
+            if (meta == null || meta.TotalSize <= 0) return;
+            await MediaCache.PriorityCacheFirstChunkAsync(_cacheKey, _fileUrl, meta.TotalSize);
+            await MediaCache.PriorityCacheLastChunkAsync(_cacheKey, _fileUrl, meta.TotalSize, meta.TotalChunks);
         }
         catch { }
     }
@@ -198,9 +228,6 @@
                 await JS.InvokeVoidAsync("videoPlayer.finalizeBlob", meta.MimeType);
                 return true;
             }
-
-            if (!await MediaCache.IsCachePlayableAsync(_cacheKey))
-                return false;
 
             var port = MediaProxyHost.EnsureRunning();
             var proxyUrl = $"http://127.0.0.1:{port}/media/{_cacheKey}";
@@ -269,7 +296,16 @@
     }
 
     private void OnWaiting() { _isBuffering = true; StateHasChanged(); }
-    private void OnPlaying() { _isBuffering = false; StateHasChanged(); }
+    private void OnPlaying()
+    {
+        _isBuffering = false;
+        StateHasChanged();
+        if (!_cacheStarted)
+        {
+            _cacheStarted = true;
+            _ = BackgroundCacheFromCSharpAsync();
+        }
+    }
     private void OnCanPlay() { _isBuffering = false; StateHasChanged(); }
     private void OnLoadStart() { _isBuffering = true; StateHasChanged(); }
 
@@ -301,6 +337,8 @@
         {
             _currentTime = t;
             await JS.InvokeVoidAsync("videoPlayer.seekTo", t.ToString(CultureInfo.InvariantCulture));
+            if (_cacheStarted)
+                _ = BackgroundCacheFromCSharpAsync();
         }
         _seeking = false;
         ResetIdle();
@@ -370,6 +408,7 @@
     private async Task BackgroundCacheFromCSharpAsync()
     {
         _cacheCts?.Cancel();
+        _cacheCts?.Dispose();
         _cacheCts = new CancellationTokenSource();
         var ct = _cacheCts.Token;
 
@@ -400,25 +439,38 @@
                 }
                 catch when (!ct.IsCancellationRequested) { }
 
-                await Task.Delay(10000, ct);
+                await Task.Delay(3000, ct);
             }
 
             if (totalSize <= 0 || totalChunks <= 0) return;
 
-            var progress = await MediaCache.GetProgressAsync(_cacheKey);
-            var startChunk = progress.Cached;
-            if (startChunk >= totalChunks) return;
-
             await MediaCache.InitMetaAsync(_cacheKey, _fileUrl, totalSize, totalChunks, mimeType);
             await MediaCache.PriorityCacheLastChunkAsync(_cacheKey, _fileUrl, totalSize, totalChunks, ct);
+            await MediaCache.PriorityCacheFirstChunkAsync(_cacheKey, _fileUrl, totalSize, ct);
+
+            var posChunk = _duration > 0
+                ? (int)Math.Clamp(_currentTime / _duration * totalChunks, 0, totalChunks - 1)
+                : 0;
+
             await MediaCache.CacheFromNetworkAsync(
-                _cacheKey, _fileUrl, startChunk, totalChunks, totalSize, mimeType,
+                _cacheKey, _fileUrl, posChunk, totalChunks, totalSize, mimeType,
                 onProgress: async cp =>
                 {
                     _cacheProgress = cp;
                     await InvokeAsync(StateHasChanged);
                 },
-                ct: ct);
+                ct: ct, markComplete: false);
+
+            if (ct.IsCancellationRequested) return;
+
+            await MediaCache.CacheFromNetworkAsync(
+                _cacheKey, _fileUrl, 0, posChunk, totalSize, mimeType,
+                onProgress: async cp =>
+                {
+                    _cacheProgress = cp;
+                    await InvokeAsync(StateHasChanged);
+                },
+                ct: ct, markComplete: true);
         }
         catch (OperationCanceledException) { }
         catch { }
@@ -433,19 +485,50 @@
             try
             {
                 var result = await MediaCache.GetProgressAsync(_cacheKey);
-                if (result.Cached > 0 || result.Complete)
+                await RefreshCachedSegmentsAsync();
+                _cacheProgress = result;
+                if (result.Complete)
                 {
-                    _cacheProgress = result;
-                    await InvokeAsync(StateHasChanged);
-                    if (result.Complete)
-                    {
-                        _cachePollTimer?.Dispose();
-                        _cachePollTimer = null;
-                    }
+                    _cachePollTimer?.Dispose();
+                    _cachePollTimer = null;
                 }
+                await InvokeAsync(StateHasChanged);
             }
             catch { }
         }, null, 2000, 3000);
+    }
+
+    private async Task RefreshCachedSegmentsAsync()
+    {
+        try
+        {
+            var ranges = await MediaCache.GetCachedChunkRangesAsync(_cacheKey);
+            if (ranges.Count == 0)
+            {
+                _cachedSegments = [];
+                return;
+            }
+            if (_timeMap == null && (DateTime.UtcNow - _lastTimeMapAttempt).TotalSeconds > 10)
+            {
+                _lastTimeMapAttempt = DateTime.UtcNow;
+                _timeMap = await MediaCache.GetTimeMapAsync(_cacheKey);
+            }
+            var meta = await MediaCache.GetMetaAsync(_cacheKey);
+            var total = meta?.TotalSize ?? 0;
+            var segs = new List<(double, double)>();
+            foreach (var (s, e) in ranges)
+            {
+                var byteStart = s * 524288L;
+                var byteEnd = Math.Min((e + 1) * 524288L, total);
+                if (byteEnd <= byteStart) continue;
+                if (_timeMap != null)
+                    segs.Add((_timeMap.GetSyncTimeAtOrAfter(byteStart), _timeMap.MapTimeAt(byteEnd)));
+                else if (total > 0 && _duration > 0)
+                    segs.Add((byteStart / (double)total * _duration, byteEnd / (double)total * _duration));
+            }
+            _cachedSegments = segs;
+        }
+        catch { }
     }
 
     private void StartIdleTimer()
@@ -478,7 +561,7 @@
 
     private static string FormatTime(double t)
     {
-        if (double.IsNaN(t) || t <= 0) return "0:00";
+        if (double.IsNaN(t) || double.IsInfinity(t) || t <= 0) return "0:00";
         var ts = TimeSpan.FromSeconds(t);
         return $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";
     }

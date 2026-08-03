@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -9,6 +10,7 @@ public class MediaCacheService
     private readonly HttpClient _http;
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     private const long ChunkSize = 524288L;
+    private static readonly ConcurrentDictionary<string, Mp4TimeMap> TimeMaps = new();
 
     public MediaCacheService(HttpClient http) => _http = http;
 
@@ -60,17 +62,42 @@ public class MediaCacheService
         var dir = GetCacheDir(key);
         var cached = 0;
         if (Directory.Exists(dir))
-        {
-            for (int i = 0; i < meta.TotalChunks; i++)
-            {
-                if (File.Exists(Path.Combine(dir, $"chunk_{i:D6}")))
-                    cached++;
-                else
-                    break;
-            }
-        }
+            cached = Directory.GetFiles(dir, "chunk_*").Length;
 
         return new CacheProgress(cached, meta.TotalChunks, complete, meta.TotalSize);
+    }
+
+    public async Task<Mp4TimeMap?> GetTimeMapAsync(string key)
+    {
+        if (TimeMaps.TryGetValue(key, out var cached)) return cached;
+        var meta = await GetMetaAsync(key);
+        if (meta == null || meta.TotalSize <= 0) return null;
+        try
+        {
+            var map = await Mp4SampleTable.TryParseFromCacheAsync(GetCacheDir(key), meta.TotalSize);
+            if (map != null && map.Count > 0)
+                TimeMaps.TryAdd(key, map);
+            return map;
+        }
+        catch { return null; }
+    }
+
+    public async Task<List<(int Start, int End)>> GetCachedChunkRangesAsync(string key)
+    {
+        var meta = await GetMetaAsync(key);
+        if (meta == null) return [];
+        var dir = GetCacheDir(key);
+        if (!Directory.Exists(dir)) return [];
+        var result = new List<(int, int)>();
+        int i = 0;
+        while (i < meta.TotalChunks)
+        {
+            if (!File.Exists(Path.Combine(dir, $"chunk_{i:D6}"))) { i++; continue; }
+            var start = i;
+            while (i < meta.TotalChunks && File.Exists(Path.Combine(dir, $"chunk_{i:D6}"))) i++;
+            result.Add((start, i - 1));
+        }
+        return result;
     }
 
     public async Task InitMetaAsync(string key, string url, long totalSize, int totalChunks, string mimeType)
@@ -174,14 +201,23 @@ public class MediaCacheService
         return result;
     }
 
-    public async Task CacheFromNetworkAsync(string key, string url, int startChunk, int totalChunks, long totalSize, string mimeType, Func<CacheProgress, Task>? onProgress = null, CancellationToken ct = default)
+    public async Task CacheFromNetworkAsync(string key, string url, int startChunk, int totalChunks, long totalSize, string mimeType, Func<CacheProgress, Task>? onProgress = null, CancellationToken ct = default, bool markComplete = true)
     {
-        var anyCached = false;
-        for (int i = startChunk; i < totalChunks; i++)
-        {
-            if (ct.IsCancellationRequested) return;
+        var cachedCount = 0;
 
-            if (await ChunkExistsAsync(key, i)) continue;
+        await Parallel.ForAsync(startChunk, totalChunks, new ParallelOptions
+        {
+            MaxDegreeOfParallelism = 2,
+            CancellationToken = ct
+        }, async (i, innerCt) =>
+        {
+            if (innerCt.IsCancellationRequested) return;
+
+            if (await ChunkExistsAsync(key, i))
+            {
+                Interlocked.Increment(ref cachedCount);
+                return;
+            }
 
             var chunkStart = i * ChunkSize;
             var chunkEnd = Math.Min(chunkStart + ChunkSize - 1, totalSize - 1);
@@ -189,37 +225,34 @@ public class MediaCacheService
             byte[]? bytes = null;
             for (int retry = 0; retry < 3; retry++)
             {
-                if (ct.IsCancellationRequested) return;
+                if (innerCt.IsCancellationRequested) return;
                 try
                 {
                     using var req = new HttpRequestMessage(HttpMethod.Get, url);
                     req.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(chunkStart, chunkEnd);
-                    using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+                    using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, innerCt);
                     if (!resp.IsSuccessStatusCode)
                     {
-                        await Task.Delay(1000 * (1 << retry), ct);
+                        await Task.Delay(1000 * (1 << retry), innerCt);
                         continue;
                     }
-                    bytes = await resp.Content.ReadAsByteArrayAsync(ct);
+                    bytes = await resp.Content.ReadAsByteArrayAsync(innerCt);
                     break;
                 }
-                catch when (!ct.IsCancellationRequested)
+                catch (OperationCanceledException) { return; }
+                catch
                 {
-                    if (retry < 2) await Task.Delay(1000 * (1 << retry), ct);
+                    if (retry < 2) await Task.Delay(1000 * (1 << retry), innerCt);
                 }
             }
 
-            if (bytes == null) continue;
+            if (bytes == null) return;
 
-            anyCached = true;
             await StoreChunkAsync(key, i, bytes);
-            await UpdateProgressAsync(key, i + 1);
+            Interlocked.Increment(ref cachedCount);
+        });
 
-            if (onProgress != null)
-                await onProgress(new CacheProgress(i + 1, totalChunks, false, totalSize));
-        }
-
-        if (!ct.IsCancellationRequested && anyCached)
+        if (!ct.IsCancellationRequested && markComplete && cachedCount > 0)
         {
             await MarkCompleteAsync(key, mimeType);
             if (onProgress != null)
@@ -232,6 +265,8 @@ public class MediaCacheService
         var dir = GetCacheDir(key);
         if (Directory.Exists(dir))
             Directory.Delete(dir, recursive: true);
+        TimeMaps.TryRemove(key, out _);
+        Mp4SampleTable.ResetScanCache();
         return Task.CompletedTask;
     }
 
@@ -240,6 +275,8 @@ public class MediaCacheService
         var dir = GetBasePath();
         if (Directory.Exists(dir))
             Directory.Delete(dir, recursive: true);
+        TimeMaps.Clear();
+        Mp4SampleTable.ResetScanCache();
         return Task.CompletedTask;
     }
 
@@ -296,6 +333,37 @@ public class MediaCacheService
                 }
                 var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
                 await StoreChunkAsync(key, lastIdx, bytes);
+                return true;
+            }
+            catch when (!ct.IsCancellationRequested)
+            {
+                if (retry < 2) await Task.Delay(1000 * (1 << retry), ct);
+            }
+        }
+        return false;
+    }
+
+    public async Task<bool> PriorityCacheFirstChunkAsync(string key, string url, long totalSize, CancellationToken ct = default)
+    {
+        if (await ChunkExistsAsync(key, 0)) return true;
+
+        var firstEnd = Math.Min(ChunkSize - 1, totalSize - 1);
+
+        for (int retry = 0; retry < 3; retry++)
+        {
+            if (ct.IsCancellationRequested) return false;
+            try
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, firstEnd);
+                using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+                if (!resp.IsSuccessStatusCode)
+                {
+                    await Task.Delay(1000 * (1 << retry), ct);
+                    continue;
+                }
+                var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
+                await StoreChunkAsync(key, 0, bytes);
                 return true;
             }
             catch when (!ct.IsCancellationRequested)

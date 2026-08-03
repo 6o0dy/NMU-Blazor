@@ -1,10 +1,12 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Sockets;
 using System.Text;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace NMU.Platform.Components.Services;
 
-public class MediaProxyHost
+public class MediaProxyHost(IServiceProvider serviceProvider)
 {
     private LocalMediaProxyServer? _server;
     private readonly object _lock = new();
@@ -18,7 +20,7 @@ public class MediaProxyHost
         lock (_lock)
         {
             if (_server != null) return _server.Port;
-            _server = new LocalMediaProxyServer();
+            _server = new LocalMediaProxyServer(serviceProvider);
             _server.Start();
             return _server.Port;
         }
@@ -34,7 +36,7 @@ public class MediaProxyHost
     }
 }
 
-public class LocalMediaProxyServer : IDisposable
+public class LocalMediaProxyServer(IServiceProvider serviceProvider) : IDisposable
 {
     private TcpListener? _listener;
     private CancellationTokenSource? _cts;
@@ -116,6 +118,8 @@ public class LocalMediaProxyServer : IDisposable
                 }
             }
 
+            var qIdx = path.IndexOf('?');
+            if (qIdx >= 0) path = path[..qIdx];
             if (path.StartsWith("/media/"))
                 cacheKey = path[7..];
 
@@ -141,9 +145,9 @@ public class LocalMediaProxyServer : IDisposable
 
             if (!File.Exists(chunkPath))
             {
-                await SendResponse(stream, 416, "Range Not Satisfiable",
-                    $"bytes */{meta.TotalSize}", null, null, 0, hasRange);
-                return;
+                var fetched = await FetchOnDemandWithRetryAsync(cacheKey, startChunk, ct);
+                if (fetched == null)
+                    return;
             }
 
             using var fs = new FileStream(chunkPath, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -178,8 +182,7 @@ public class LocalMediaProxyServer : IDisposable
         using var w = new StreamWriter(stream, Encoding.ASCII, 512, true);
         await w.WriteLineAsync($"HTTP/1.1 {code} {text}");
         await w.WriteLineAsync("Accept-Ranges: bytes");
-        if (hasRange)
-            await w.WriteLineAsync($"Content-Range: {contentRange}");
+        await w.WriteLineAsync($"Content-Range: {contentRange}");
         if (contentType != null)
             await w.WriteLineAsync($"Content-Type: {contentType}");
         await w.WriteLineAsync($"Content-Length: {(data != null ? dataLen : 0)}");
@@ -193,6 +196,43 @@ public class LocalMediaProxyServer : IDisposable
     }
 
 
+
+    private async Task<byte[]?> FetchOnDemandWithRetryAsync(string key, int chunkIndex, CancellationToken ct)
+    {
+        var meta = await ReadMetaAsync(key);
+        if (meta == null || string.IsNullOrEmpty(meta.Url)) return null;
+
+        var chunkStart = chunkIndex * ChunkSize;
+        var chunkEnd = Math.Min(chunkStart + ChunkSize - 1, meta.TotalSize - 1);
+
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                using var scope = serviceProvider.CreateScope();
+                var http = scope.ServiceProvider.GetRequiredService<HttpClient>();
+                var cache = scope.ServiceProvider.GetRequiredService<MediaCacheService>();
+
+                using var req = new HttpRequestMessage(HttpMethod.Get, meta.Url);
+                req.Headers.Range = new RangeHeaderValue(chunkStart, chunkEnd);
+                using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+                if (!resp.IsSuccessStatusCode)
+                {
+                    await Task.Delay(3000, ct);
+                    continue;
+                }
+                var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
+                await cache.StoreChunkAsync(key, chunkIndex, bytes);
+                return bytes;
+            }
+            catch (OperationCanceledException) { return null; }
+            catch
+            {
+                await Task.Delay(3000, ct);
+            }
+        }
+        return null;
+    }
 
     private static async Task<CacheMeta?> ReadMetaAsync(string key)
     {
