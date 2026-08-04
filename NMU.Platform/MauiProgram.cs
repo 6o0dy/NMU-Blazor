@@ -29,7 +29,7 @@ public static class MauiProgram
 		builder.Services.AddScoped<NMU.Platform.Components.Services.IPlatformService, DesktopPlatformService>();
 		builder.Services.AddScoped<NMU.Platform.Components.Services.MediaCacheService>();
 		builder.Services.AddSingleton<NMU.Platform.Components.Services.MediaProxyHost>();
-		builder.Services.AddScoped<HttpClient>();
+		builder.Services.AddSingleton<HttpClient>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();

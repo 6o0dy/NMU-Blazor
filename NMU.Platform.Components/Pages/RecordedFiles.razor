@@ -142,6 +142,7 @@ else
             LayoutState.NotifyStateChanged();
 
             _ = RefreshAllCacheStatuses();
+            _ = MediaCache.WarmUpAsync();
         }
         catch (Exception ex)
         {
@@ -201,6 +202,8 @@ else
     {
         var url = RecordedService.GetDownloadUrl(file.Name);
         var name = file.DisplayName + (file.IsAudio ? ".mp3" : ".mp4");
+        if (!Platform.IsWeb && !file.IsAudio)
+            _ = MediaCache.PrefetchCriticalAsync(url);
         NavState.CurrentFileUrl = url;
         NavState.CurrentFileName = name;
         var encodedUrl = Uri.EscapeDataString(url);

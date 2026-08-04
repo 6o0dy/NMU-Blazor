@@ -115,7 +115,7 @@
 
 /* ─── Progress area (Glass Tube, Wavy Liquid Water & Textured Ice Theme) ─── */
 .vp-progress-area {
-    position: relative; width: 100%; height: 26px;
+    position: relative; width: 100%; height: 64px;
     cursor: pointer; display: flex; align-items: center;
     touch-action: none;
 }
@@ -132,34 +132,7 @@
 }
 
 .vp-time-current, .vp-time-duration {
-    position: absolute; top: -18px;
-    font-family: 'Fira Code', monospace; font-size: 11px;
-    color: #e0f2fe; pointer-events: none;
-    text-shadow: 0 1px 4px rgba(0,0,0,.9), 0 0 8px rgba(180, 230, 255, 0.6);
-}
-.vp-time-current { left: 0; }
-.vp-time-duration { right: 0; }
-
-/* Progress area (Glass Tube, Ice Seekbar & Liquid Water Cache Theme) */
-.vp-progress-area {
-    position: relative; width: 100%; height: 26px;
-    cursor: pointer; display: flex; align-items: center;
-    touch-action: none;
-}
-
-/* Outer Glass Tube Container */
-.vp-progress-bg {
-    width: 100%; height: 18px; border-radius: 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1.5px solid rgba(255, 255, 255, 0.35);
-    box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.6), inset 0 -2px 4px rgba(255, 255, 255, 0.25), 0 4px 12px rgba(0, 0, 0, 0.4);
-    position: absolute; left: 0; right: 0;
-    backdrop-filter: blur(8px);
-    overflow: hidden;
-}
-
-.vp-time-current, .vp-time-duration {
-    position: absolute; top: -18px;
+    position: absolute; top: 8px;
     font-family: 'Fira Code', monospace; font-size: 11px;
     color: #e0f2fe; pointer-events: none;
     text-shadow: 0 1px 4px rgba(0,0,0,.9), 0 0 8px rgba(180, 230, 255, 0.6);
@@ -196,7 +169,8 @@
     z-index: 1; pointer-events: none;
 }
 .vp-cache-seg {
-    position: absolute; left: 0; bottom: 3px; height: 10px;
+    position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    height: 10px;
     background: linear-gradient(180deg, rgba(186, 230, 253, 0.95) 0%, rgba(56, 189, 248, 0.85) 45%, rgba(2, 132, 199, 0.95) 100%);
     box-shadow: 0 0 14px rgba(56, 189, 248, 0.85), inset 0 1px 3px rgba(255, 255, 255, 0.9);
     border-radius: 0 0 8px 8px;
@@ -263,13 +237,6 @@
     filter: drop-shadow(0 3px 10px rgba(0,0,0,0.7)) drop-shadow(0 0 14px rgba(180,235,255,1));
 }
 
-/* Invisible range input overlaid on progress area */
-.vp-range {
-    position: absolute; inset: 0; width: 100%; height: 100%;
-    opacity: 0; cursor: pointer; z-index: 2; margin: 0; padding: 0;
-    -webkit-appearance: none; appearance: none;
-}
-
 /* ─── Controls row ─── */
 .vp-controls-row {
     display: flex; align-items: center; justify-content: space-between;
@@ -322,4 +289,26 @@
     .vp-play-btn { width: 34px; height: 34px; font-size: 19px; }
     .vp-volume input[type="range"] { width: 36px !important; }
     .vp-center-play { width: 64px; height: 64px; font-size: 26px; }
+}
+
+.vp-debug-modal {
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,.7);
+    display: flex; align-items: center; justify-content: center;
+    padding: 12px;
+}
+.vp-debug-box {
+    background: #0d1117; border: 1px solid #30363d; border-radius: 10px;
+    width: 100%; max-width: 720px; max-height: 80vh;
+    display: flex; flex-direction: column;
+    font-family: Consolas, monospace; font-size: 11px;
+}
+.vp-debug-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 12px; border-bottom: 1px solid #30363d;
+    color: #00f2ff; font-weight: 700; font-size: 12px;
+}
+.vp-debug-box pre {
+    margin: 0; padding: 10px 12px; overflow: auto;
+    color: #c9d1d9; white-space: pre-wrap; word-break: break-all;
 }

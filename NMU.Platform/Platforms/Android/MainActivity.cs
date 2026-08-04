@@ -39,6 +39,22 @@ public class MainActivity : MauiAppCompatActivity
         HideStatusBar();
     }
 
+    /// <summary>Top display-cutout safe inset in px (camera notch). 0 when none.</summary>
+    public static int GetTopInsetPx()
+    {
+        if (Build.VERSION.SdkInt < BuildVersionCodes.P) return 0;
+        try
+        {
+            var window = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.Window;
+            var insets = window?.DecorView?.RootWindowInsets;
+            var cutout = insets?.DisplayCutout;
+            if (cutout != null && cutout.SafeInsetTop > 0)
+                return cutout.SafeInsetTop;
+        }
+        catch { }
+        return 0;
+    }
+
     private void HideStatusBar()
     {
         if (Window?.DecorView == null) return;
