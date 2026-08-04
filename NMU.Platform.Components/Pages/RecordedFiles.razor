@@ -141,8 +141,24 @@ else
             LayoutState.SearchBar = _searchBarFragment;
             LayoutState.NotifyStateChanged();
 
-            _ = RefreshAllCacheStatuses();
-            _ = MediaCache.WarmUpAsync();
+            if (!Platform.IsWeb)
+            {
+                _ = RefreshAllCacheStatuses();
+                _ = MediaCache.WarmUpAsync();
+            }
+            else
+            {
+                var warmUrls = _allGroupFiles
+                    .Where(f => !f.IsAudio)
+                    .Take(4)
+                    .Select(f => RecordedService.GetDownloadUrl(f.Name))
+                    .ToArray();
+                if (warmUrls.Length > 0)
+                {
+                    _ = JS.InvokeVoidAsync("videoPlayer.warmClick", warmUrls[0]);
+                    _ = JS.InvokeVoidAsync("videoPlayer.warmList", (object)warmUrls);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -204,6 +220,8 @@ else
         var name = file.DisplayName + (file.IsAudio ? ".mp3" : ".mp4");
         if (!Platform.IsWeb && !file.IsAudio)
             _ = MediaCache.PrefetchCriticalAsync(url);
+        if (Platform.IsWeb && !file.IsAudio)
+            _ = JS.InvokeVoidAsync("videoPlayer.warmClick", url);
         NavState.CurrentFileUrl = url;
         NavState.CurrentFileName = name;
         var encodedUrl = Uri.EscapeDataString(url);

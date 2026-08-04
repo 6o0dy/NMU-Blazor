@@ -22,6 +22,7 @@
 
     setSource: function (src) {
         this._buffer = [];
+        if (!src) return;
         var video = document.getElementById('vp-video');
         if (video) video.src = src;
         this._autoPlay();
@@ -86,6 +87,70 @@
         } else {
             this._autoPlay();
         }
+    },
+
+    warmList: function (urls) {
+        if (!urls || !urls.length) return;
+        if (typeof urls === 'string') urls = [urls];
+        var self = this;
+        for (var i = 0; i < urls.length; i++) {
+            var u = urls[i];
+            if (u && !this._warmSeen[u]) {
+                this._warmSeen[u] = 1;
+                this._warmQueue.push(u);
+            }
+        }
+        this._warmPump();
+    },
+
+    warmClick: function (url) {
+        if (!url) return;
+        if (this._warmSeen[url]) return;
+        this._warmSeen[url] = 1;
+        try {
+            var v = document.createElement('video');
+            v.preload = 'auto';
+            v.muted = true;
+            v.playsInline = true;
+            v.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;';
+            v.src = url;
+            document.body.appendChild(v);
+            this._warmEls.push(v);
+        } catch (e) { }
+    },
+
+    _warmQueue: [],
+    _warmEls: [],
+    _warmSeen: {},
+    _warmActive: false,
+
+    _warmPump: function () {
+        var self = this;
+        if (this._warmActive) return;
+        var url = this._warmQueue.shift();
+        if (!url) return;
+        this._warmActive = true;
+        var v = null;
+        var done = function () {
+            try {
+                if (v) { v.removeAttribute('src'); v.load(); }
+                if (v && v.parentNode) v.parentNode.removeChild(v);
+            } catch (e) { }
+            v = null;
+            self._warmActive = false;
+            setTimeout(function () { self._warmPump(); }, 200);
+        };
+        try {
+            v = document.createElement('video');
+            v.preload = 'metadata';
+            v.muted = true;
+            v.playsInline = true;
+            v.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;';
+            v.addEventListener('loadedmetadata', done);
+            v.addEventListener('error', done);
+            v.src = url;
+            document.body.appendChild(v);
+        } catch (e) { done(); }
     },
 
     _ui: function () {

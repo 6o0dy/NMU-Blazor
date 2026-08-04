@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 using NMU.Platform.Components.Services;
 
@@ -102,7 +103,10 @@ public partial class VideoPlayer : IDisposable
         }
         try
         {
-            var port = MediaProxy.EnsureRunning();
+            var proxy = Services.GetService<MediaProxyHost>();
+            if (proxy is null)
+                throw new InvalidOperationException("MediaProxyHost not registered");
+            var port = proxy.EnsureRunning();
             var proxyUrl = $"http://127.0.0.1:{port}/media/{_cacheKey}?url={Uri.EscapeDataString(_fileUrl)}";
             _proxyUrl = proxyUrl;
             _sourceIsProxy = true;

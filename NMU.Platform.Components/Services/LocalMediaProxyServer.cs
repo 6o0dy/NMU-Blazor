@@ -99,7 +99,7 @@ public class LocalMediaProxyServer(IServiceProvider serviceProvider) : IDisposab
     private async Task HandleClientAsync(TcpClient client, CancellationToken ct)
     {
         client.ReceiveTimeout = 15000;
-        client.SendTimeout = 15000;
+        client.SendTimeout = 300000;
 
         using (client)
         using (var stream = client.GetStream())
@@ -203,7 +203,7 @@ public class LocalMediaProxyServer(IServiceProvider serviceProvider) : IDisposab
                         {
                             using var scope = serviceProvider.CreateScope();
                             var cache = scope.ServiceProvider.GetRequiredService<MediaCacheService>();
-                            await cache.PriorityCacheChunksAsync(cacheKey, meta.Url, meta.TotalSize, window, ct, maxParallel: 10);
+                            await cache.PriorityCacheChunksAsync(cacheKey, meta.Url, meta.TotalSize, window, ct, maxParallel: 5);
                         }
                         catch { }
                         if (File.Exists(chunkPath)) break;
@@ -329,35 +329,6 @@ public class LocalMediaProxyServer(IServiceProvider serviceProvider) : IDisposab
 
                 var mime = resp.Content.Headers.ContentType?.MediaType ?? "video/mp4";
                 var chunks = (int)Math.Ceiling((double)total.Value / ChunkSize);
-
-                if (rangeStart == 0 && cr?.HasRange == true)
-                {
-                    var body = await resp.Content.ReadAsStreamAsync(ct);
-                    var totalLen = Math.Min((long)ChunkSize, total.Value);
-                    await SendResponseHeaders(stream, 206, "Partial Content",
-                        $"bytes 0-{totalLen - 1}/{total.Value}", mime, totalLen);
-                    using var ms = new MemoryStream();
-                    long written = 0;
-                    var buf = new byte[81920];
-                    try
-                    {
-                        while (written < totalLen)
-                        {
-                            var read = await body.ReadAsync(buf, 0, (int)Math.Min(buf.Length, totalLen - written), ct);
-                            if (read <= 0) break;
-                            await stream.WriteAsync(buf, 0, read, ct);
-                            ms.Write(buf, 0, read);
-                            written += read;
-                        }
-                        await stream.FlushAsync();
-                    }
-                    catch { }
-                    if (written > 0)
-                        await cache.StoreChunkAsync(key, 0, ms.ToArray());
-                    await cache.InitMetaAsync(key, url, total.Value, chunks, mime);
-                    CacheDiagnostics.Log($"PROXY meta resolved (streamed) key={key} size={total} chunks={chunks} sent={written}");
-                    return (await ReadMetaAsync(key), true);
-                }
 
                 var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
                 if (bytes.Length > 0 && bytes.Length <= ChunkSize)

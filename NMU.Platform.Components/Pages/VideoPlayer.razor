@@ -9,13 +9,13 @@
 @inject IPlatformService Platform
 @inject HttpClient Http
 @inject MediaCacheService MediaCache
-@inject MediaProxyHost MediaProxy
+@inject IServiceProvider Services
 
 <div class="vp-root @(_idle ? "idle" : "")" id="vp-body"
      @onmousemove="OnActivity" @ontouchstart="OnActivity">
     <div class="vp-player-wrapper @(_isAudio ? "audio-mode" : "")" id="vp-player-wrapper"
          @onclick="TogglePlay">
-        <video id="vp-video" src="" playsinline autoplay preload="metadata"
+        <video id="vp-video" playsinline autoplay preload="metadata"
                @onloadeddata="OnLoadedData"
                @onplay="OnPlay"
                @onpause="OnPause"
