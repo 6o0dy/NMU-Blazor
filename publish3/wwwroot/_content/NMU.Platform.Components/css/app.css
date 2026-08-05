@@ -1,4 +1,4 @@
-* { box-sizing: border-box; outline: none; scrollbar-width: thin; scrollbar-color: var(--primary) var(--bg-main); }
+* { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; scrollbar-width: thin; scrollbar-color: var(--primary) var(--bg-main); }
 
 html { height: 100%; overflow: hidden; }
 
