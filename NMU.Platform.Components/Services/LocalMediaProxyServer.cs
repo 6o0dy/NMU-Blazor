@@ -41,7 +41,7 @@ public class LocalMediaProxyServer(IServiceProvider serviceProvider) : IDisposab
 {
     private TcpListener? _listener;
     private CancellationTokenSource? _cts;
-    private const long ChunkSize = 524288L;
+    private const long ChunkSize = MediaCacheService.ChunkSize;
     private static readonly ConcurrentDictionary<string, Task<bool>> CriticalPrefetchTasks = new();
 
     public int Port { get; private set; }
@@ -173,9 +173,7 @@ public class LocalMediaProxyServer(IServiceProvider serviceProvider) : IDisposab
                 }
             }
 
-            var cacheDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "NMU", "MediaCache", cacheKey);
+            var cacheDir = Path.Combine(MediaCacheService.GetMediaCacheBasePath(), cacheKey);
 
             _ = StartCriticalPrefetchAsync(cacheKey, meta);
 
@@ -184,31 +182,14 @@ public class LocalMediaProxyServer(IServiceProvider serviceProvider) : IDisposab
 
             if (!File.Exists(chunkPath))
             {
-                var waitDeadline = DateTime.UtcNow.AddSeconds(3);
-                while (!ct.IsCancellationRequested && DateTime.UtcNow < waitDeadline && !File.Exists(chunkPath))
+                CacheDiagnostics.Log($"PROXY window fetch (persistent) from {startChunk} key {cacheKey}");
+                var last = Math.Min(meta.TotalChunks - 1, startChunk + 3);
+                using var scope = serviceProvider.CreateScope();
+                var cache = scope.ServiceProvider.GetRequiredService<MediaCacheService>();
+                for (int i = startChunk; i <= last && !ct.IsCancellationRequested && !File.Exists(chunkPath); i++)
                 {
                     if (IsClientGone(client)) return;
-                    try { await Task.Delay(250, ct); } catch (OperationCanceledException) { return; }
-                }
-                if (!File.Exists(chunkPath))
-                {
-                    CacheDiagnostics.Log($"PROXY window fetch (persistent) from {startChunk} key {cacheKey}");
-                    var window = new List<int>();
-                    for (int i = startChunk; i <= Math.Min(meta.TotalChunks - 1, startChunk + 15); i++)
-                        window.Add(i);
-                    while (!ct.IsCancellationRequested && !File.Exists(chunkPath))
-                    {
-                        if (IsClientGone(client)) return;
-                        try
-                        {
-                            using var scope = serviceProvider.CreateScope();
-                            var cache = scope.ServiceProvider.GetRequiredService<MediaCacheService>();
-                            await cache.PriorityCacheChunksAsync(cacheKey, meta.Url, meta.TotalSize, window, ct, maxParallel: 5);
-                        }
-                        catch { }
-                        if (File.Exists(chunkPath)) break;
-                        try { await Task.Delay(3000, ct); } catch (OperationCanceledException) { return; }
-                    }
+                    await cache.FetchSingleChunkAsync(cacheKey, meta.Url, i, meta.TotalSize, ct);
                 }
             }
 
@@ -218,7 +199,7 @@ public class LocalMediaProxyServer(IServiceProvider serviceProvider) : IDisposab
                 var pos = rangeStart;
                 var chunk = startChunk;
                 var servedChunks = 0;
-                const int maxChunks = 4;
+                const int maxChunks = 2;
                 while (chunk < meta.TotalChunks && servedChunks < maxChunks)
                 {
                     var cp = Path.Combine(cacheDir, $"chunk_{chunk:D6}");
@@ -310,30 +291,62 @@ public class LocalMediaProxyServer(IServiceProvider serviceProvider) : IDisposab
                 var http = scope.ServiceProvider.GetRequiredService<HttpClient>();
                 var cache = scope.ServiceProvider.GetRequiredService<MediaCacheService>();
 
-                using var req = new HttpRequestMessage(HttpMethod.Get, url);
-                req.Headers.Range = new RangeHeaderValue(0, ChunkSize - 1);
-                using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
-                if (!resp.IsSuccessStatusCode)
+                long? total = null;
+                string mime = "video/mp4";
+                try
                 {
-                    try { await Task.Delay(2000, ct); } catch (OperationCanceledException) { return (null, false); }
-                    continue;
+                    using var headReq = new HttpRequestMessage(HttpMethod.Head, url);
+                    using var headResp = await http.SendAsync(headReq, HttpCompletionOption.ResponseHeadersRead, ct);
+                    if (headResp.IsSuccessStatusCode)
+                        total = headResp.Content.Headers.ContentLength;
+                    if (headResp.Content.Headers.ContentType?.MediaType is { } mt)
+                        mime = mt;
                 }
+                catch { }
 
-                var cr = resp.Content.Headers.ContentRange;
-                var total = cr?.Length ?? resp.Content.Headers.ContentLength;
                 if ((total ?? 0) <= 0)
                 {
-                    try { await Task.Delay(2000, ct); } catch (OperationCanceledException) { return (null, false); }
-                    continue;
+                    using var rangeReq = new HttpRequestMessage(HttpMethod.Get, url);
+                    rangeReq.Headers.Range = new RangeHeaderValue(0, 0);
+                    using var rangeResp = await http.SendAsync(rangeReq, HttpCompletionOption.ResponseHeadersRead, ct);
+                    if (!rangeResp.IsSuccessStatusCode)
+                    {
+                        try { await Task.Delay(2000, ct); } catch (OperationCanceledException) { return (null, false); }
+                        continue;
+                    }
+                    var cr = rangeResp.Content.Headers.ContentRange;
+                    total = cr?.Length ?? rangeResp.Content.Headers.ContentLength;
+                    if ((total ?? 0) <= 0)
+                    {
+                        try { await Task.Delay(2000, ct); } catch (OperationCanceledException) { return (null, false); }
+                        continue;
+                    }
+                    if (rangeResp.Content.Headers.ContentType?.MediaType is { } mt2)
+                        mime = mt2;
+                    CacheDiagnostics.Log($"PROXY meta size via Range 0..0 key={key} size={total}");
                 }
 
-                var mime = resp.Content.Headers.ContentType?.MediaType ?? "video/mp4";
-                var chunks = (int)Math.Ceiling((double)total.Value / ChunkSize);
+                var chunks = (int)Math.Ceiling((double)total!.Value / ChunkSize);
 
-                var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
-                if (bytes.Length > 0 && bytes.Length <= ChunkSize)
-                    await cache.StoreChunkAsync(key, 0, bytes);
                 await cache.InitMetaAsync(key, url, total.Value, chunks, mime);
+                await cache.FetchSingleChunkAsync(key, url, 0, total.Value, ct);
+                if (chunks > 1)
+                {
+                    var tailCount = MediaCacheService.TailChunkCount(chunks);
+                    var tailStart = Math.Max(0, chunks - tailCount);
+                    var tail = Enumerable.Range(tailStart, chunks - tailStart).ToList();
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            using var scope2 = serviceProvider.CreateScope();
+                            var cache2 = scope2.ServiceProvider.GetRequiredService<MediaCacheService>();
+                            await cache2.PriorityCacheChunksAsync(key, url, total.Value, tail, ct, maxParallel: 4);
+                            CacheDiagnostics.Log($"PROXY tail prefetch done key={key} tail={tail.Count} from={tailStart}");
+                        }
+                        catch { }
+                    });
+                }
                 CacheDiagnostics.Log($"PROXY meta resolved key={key} size={total} chunks={chunks}");
                 return (await ReadMetaAsync(key), false);
             }
@@ -349,7 +362,12 @@ public class LocalMediaProxyServer(IServiceProvider serviceProvider) : IDisposab
     private Task<bool>? StartCriticalPrefetchAsync(string key, CacheMeta meta)
     {
         if (meta.TotalChunks <= 0) return null;
-        return CriticalPrefetchTasks.GetOrAdd(key, k => Task.Run(() => PrefetchCriticalAsync(k, meta)));
+        return CriticalPrefetchTasks.GetOrAdd(key, k => Task.Run(async () =>
+        {
+            var ok = await PrefetchCriticalAsync(k, meta);
+            if (!ok) CriticalPrefetchTasks.TryRemove(key, out _);
+            return ok;
+        }));
     }
 
     private async Task<bool> PrefetchCriticalAsync(string key, CacheMeta meta)
@@ -381,16 +399,16 @@ public class LocalMediaProxyServer(IServiceProvider serviceProvider) : IDisposab
 
     private static async Task<CacheMeta?> ReadMetaAsync(string key)
     {
-        var path = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "NMU", "MediaCache", key, ".meta");
+        var path = Path.Combine(MediaCacheService.GetMediaCacheBasePath(), key, ".meta");
         if (!File.Exists(path)) return null;
         try
         {
             var json = await File.ReadAllTextAsync(path);
-            return System.Text.Json.JsonSerializer.Deserialize<CacheMeta>(json,
+            var meta = System.Text.Json.JsonSerializer.Deserialize<CacheMeta>(json,
                 new System.Text.Json.JsonSerializerOptions
                 { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
+            if (meta == null || meta.Version != MediaCacheService.CacheVersion) return null;
+            return meta;
         }
         catch { return null; }
     }

@@ -36,7 +36,12 @@
             </div>
         </div>
 
-        <div class="vp-buffer" id="vp-buffer" style="display:@(_isBuffering ? "block" : "none")"></div>
+        <div class="vp-buffer" id="vp-buffer" style="display:@(_isBuffering ? "block" : "none")">
+            @if (_isBuffering && _videoReady == "0")
+            {
+                <span class="vp-buffer-text">جاري تجهيز التشغيل...</span>
+            }
+        </div>
 
         <div class="vp-center-play" style="opacity:@(_showCenterPlay ? "1" : "0")">
             <i class="fa-solid fa-play"></i>
@@ -98,10 +103,7 @@
                 <button class="vp-btn" @onclick="() => Skip(10)" type="button" title="+10s"><i class="fa-solid fa-rotate-right"></i></button>
                 <button class="vp-btn vp-speed-btn" @onclick="ToggleSpeed" type="button">@_playbackRate.ToString("0.#")x</button>
                 <button class="vp-btn" @onclick="ToggleFullscreen" type="button"><i class="fa-solid fa-expand"></i></button>
-                @if (!Platform.IsWeb)
-                {
-                    <button class="vp-btn" @onclick="ToggleDebug" type="button" title="Diagnostics"><i class="fa-solid fa-wrench"></i></button>
-                }
+                <button class="vp-btn" @onclick="ToggleDebug" type="button" title="Diagnostics"><i class="fa-solid fa-wrench"></i></button>
             </div>
         </div>
     </div>

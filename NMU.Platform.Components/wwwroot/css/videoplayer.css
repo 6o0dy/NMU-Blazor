@@ -10,6 +10,12 @@
     box-sizing: border-box;
 }
 
+/* Forced repaint pass (Android/iOS WebView black-video fix) */
+.vp-root.vp-force-paint {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+}
+
 /* Player wrapper – fills entire root, video centered inside */
 .vp-player-wrapper {
     position: absolute; inset: 0;
@@ -85,6 +91,11 @@
     border-radius: 50%; border: 3px solid transparent;
     border-top-color: var(--primary); border-bottom-color: var(--primary);
     animation: vp-spin .9s linear infinite;
+}
+.vp-buffer-text {
+    position: absolute; top: calc(50% + 40px); left: 50%; translate: -50% 0;
+    white-space: nowrap; font-size: 12px; letter-spacing: 0.5px;
+    color: var(--accent, #00f2ff); text-shadow: 0 1px 3px rgba(0,0,0,.8);
 }
 
 /* Center play button */

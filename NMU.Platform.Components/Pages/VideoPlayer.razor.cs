@@ -33,6 +33,7 @@ public partial class VideoPlayer : IDisposable
     private string _cacheKey = "";
     private CancellationTokenSource? _cacheCts;
     private bool _cacheStarted;
+    private int _cacheFillRunning;
     private VideoSegmentCollection _cachedSegments = [];
     private Mp4TimeMap? _timeMap;
     private DateTime _lastTimeMapAttempt = DateTime.MinValue;
@@ -99,6 +100,7 @@ public partial class VideoPlayer : IDisposable
         if (Platform.IsWeb)
         {
             await JS.InvokeVoidAsync("videoPlayer.setSource", _fileUrl);
+            CacheDiagnostics.Log($"INIT web setSource url={_fileUrl} cacheKey={_cacheKey}");
             return;
         }
         try
@@ -197,11 +199,12 @@ public partial class VideoPlayer : IDisposable
     {
         _isBuffering = false;
         StateHasChanged();
+        _ = JS.InvokeVoidAsync("videoPlayer.forcePaint");
         if (!_cacheStarted)
         {
             _cacheStarted = true;
             CacheDiagnostics.Log("EVENT playing -> start background cache");
-            _ = Task.Run(BackgroundCacheFromCSharpAsync);
+            StartBackgroundCacheIfIdle();
         }
     }
     private void OnCanPlay()
@@ -216,7 +219,7 @@ public partial class VideoPlayer : IDisposable
                 if (_disposed || _cacheStarted) return;
                 _cacheStarted = true;
                 CacheDiagnostics.Log("EVENT canplay fallback (10s) -> start background cache");
-                _ = Task.Run(BackgroundCacheFromCSharpAsync);
+                StartBackgroundCacheIfIdle();
             });
         }
     }
@@ -246,7 +249,7 @@ public partial class VideoPlayer : IDisposable
             {
                 await JS.InvokeVoidAsync("videoPlayer.seekTo", time.ToString(CultureInfo.InvariantCulture));
                 if (_cacheStarted)
-                    _ = Task.Run(BackgroundCacheFromCSharpAsync);
+                    StartBackgroundCacheIfIdle();
                 StateHasChanged();
             });
         }
@@ -324,6 +327,24 @@ public partial class VideoPlayer : IDisposable
     {
         _lastActivity = DateTime.UtcNow;
         if (_idle) { _idle = false; InvokeAsync(StateHasChanged); }
+    }
+
+    private void StartBackgroundCacheIfIdle()
+    {
+        if (_disposed || Platform.IsWeb) return;
+        if (Interlocked.CompareExchange(ref _cacheFillRunning, 1, 0) != 0) return;
+        CacheDiagnostics.Log("CACHE fill start");
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await BackgroundCacheFromCSharpAsync();
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _cacheFillRunning, 0);
+            }
+        });
     }
 
     private async Task BackgroundCacheFromCSharpAsync()
@@ -405,7 +426,7 @@ public partial class VideoPlayer : IDisposable
                     CacheDiagnostics.Log("CACHE size discovery FAILED, aborting");
                     return;
                 }
-                totalChunks = (int)Math.Ceiling((double)totalSize / 524288L);
+                totalChunks = (int)Math.Ceiling((double)totalSize / MediaCacheService.ChunkSize);
 
                 await MediaCache.InitMetaAsync(_cacheKey, _fileUrl, totalSize, totalChunks, mimeType);
                 CacheDiagnostics.Log($"CACHE meta written chunks={totalChunks} size={totalSize}");
@@ -422,7 +443,7 @@ public partial class VideoPlayer : IDisposable
                     _cacheProgress = cp;
                     await InvokeAsync(StateHasChanged);
                 },
-                ct: ct, markComplete: false, maxParallel: 3);
+                ct: ct, markComplete: false, maxParallel: 2);
 
             var probeTask = EnsureMoovCachedAsync(ct);
 
@@ -437,7 +458,7 @@ public partial class VideoPlayer : IDisposable
                     _cacheProgress = cp;
                     await InvokeAsync(StateHasChanged);
                 },
-                ct: ct, markComplete: true, maxParallel: 3);
+                ct: ct, markComplete: true, maxParallel: 2);
 
             if (ct.IsCancellationRequested) return;
 
@@ -458,11 +479,10 @@ public partial class VideoPlayer : IDisposable
         if (meta == null || meta.TotalChunks <= 0) return;
         if (await MediaCache.GetTimeMapAsync(_cacheKey) != null) return;
 
-        const int maxProbes = 20;
-        var probes = new List<int>();
+        const int maxProbes = 8;
+        var probes = new List<int> { 0 };
         for (int i = meta.TotalChunks - 1; i >= Math.Max(0, meta.TotalChunks - maxProbes); i--)
-            probes.Add(i);
-        if (probes.Count == 0 || probes[^1] != 0) probes.Add(0);
+            if (i != 0) probes.Add(i);
 
         foreach (var idx in probes)
         {
@@ -481,7 +501,6 @@ public partial class VideoPlayer : IDisposable
 
     private void StartCachePollTimer()
     {
-        if (Platform.IsWeb) return;
         _cachePollTimer?.Dispose();
         var ticks = 0;
         _cachePollTimer = new Timer(async _ =>
@@ -505,14 +524,14 @@ public partial class VideoPlayer : IDisposable
                 }
                 catch { }
 
-                if (_sourceIsProxy && _videoError != "0" && _videoError != "1")
+                if (!Platform.IsWeb && _sourceIsProxy && _videoError != "0" && _videoError != "1")
                 {
                     _sourceIsProxy = false;
                     _directRetries = 0;
                     CacheDiagnostics.Log($"PROXY fallback to direct (video error code {_videoError})");
                     await JS.InvokeVoidAsync("videoPlayer.switchSource", _fileUrl);
                 }
-                else if (!_sourceIsProxy && _videoError != "0" && _videoError != "1")
+                else if (!Platform.IsWeb && !_sourceIsProxy && _videoError != "0" && _videoError != "1")
                 {
                     _directRetries++;
                     if (result.Complete || _directRetries >= 3)
@@ -580,8 +599,8 @@ public partial class VideoPlayer : IDisposable
             var segs = new VideoSegmentCollection();
             foreach (var (s, e) in ranges)
             {
-                var byteStart = s * 524288L;
-                var byteEnd = Math.Min((e + 1) * 524288L, total);
+                var byteStart = s * MediaCacheService.ChunkSize;
+                var byteEnd = Math.Min((e + 1) * MediaCacheService.ChunkSize, total);
                 if (byteEnd <= byteStart) continue;
                 double startT = 0, endT = 0;
                 if (_timeMap != null)

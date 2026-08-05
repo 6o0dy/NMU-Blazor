@@ -22,6 +22,7 @@
 
     setSource: function (src) {
         this._buffer = [];
+        this._surfaceFixed = false;
         if (!src) return;
         var video = document.getElementById('vp-video');
         if (video) video.src = src;
@@ -36,6 +37,7 @@
         var blob = new Blob(this._buffer, { type: mimeType || 'video/mp4' });
         var url = URL.createObjectURL(blob);
         this._buffer = [];
+        this._surfaceFixed = false;
         var video = document.getElementById('vp-video');
         if (video) video.src = url;
         this._autoPlay();
@@ -52,6 +54,25 @@
 
     play: function () { var v = document.getElementById('vp-video'); if (v && v.paused) v.play(); },
     pause: function () { var v = document.getElementById('vp-video'); if (v && !v.paused) v.pause(); },
+
+    forcePaint: function () {
+        var self = this;
+        var el = document.getElementById('vp-body');
+        var v = document.getElementById('vp-video');
+        try {
+            if (el) el.classList.add('vp-force-paint');
+            if (v && v.videoWidth > 0 && !this._surfaceFixed) {
+                this._surfaceFixed = true;
+                var vis = v.style.visibility;
+                v.style.visibility = 'hidden';
+                void v.offsetHeight;
+                v.style.visibility = vis || '';
+            }
+        } catch (e) { }
+        setTimeout(function () {
+            if (el) el.classList.remove('vp-force-paint');
+        }, 600);
+    },
     seekTo: function (t) { var v = document.getElementById('vp-video'); if (v && isFinite(t)) v.currentTime = t; },
     setVolume: function (val) { var v = document.getElementById('vp-video'); if (v) v.volume = parseFloat(val); },
     setSpeed: function (rate) { var v = document.getElementById('vp-video'); if (v) v.playbackRate = parseFloat(rate); },
@@ -77,6 +98,7 @@
         var v = document.getElementById('vp-video');
         if (!v) return;
         var t = v.currentTime || 0;
+        this._surfaceFixed = false;
         v.src = src;
         if (t > 0) {
             var self = this;
@@ -103,24 +125,7 @@
         this._warmPump();
     },
 
-    warmClick: function (url) {
-        if (!url) return;
-        if (this._warmSeen[url]) return;
-        this._warmSeen[url] = 1;
-        try {
-            var v = document.createElement('video');
-            v.preload = 'auto';
-            v.muted = true;
-            v.playsInline = true;
-            v.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;';
-            v.src = url;
-            document.body.appendChild(v);
-            this._warmEls.push(v);
-        } catch (e) { }
-    },
-
     _warmQueue: [],
-    _warmEls: [],
     _warmSeen: {},
     _warmActive: false,
 

@@ -6,8 +6,7 @@ public static class CacheDiagnostics
     private const int MaxLines = 300;
     private static readonly object Lock = new();
 
-    public static string BasePath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NMU", "MediaCache");
+    public static string BasePath => MediaCacheService.GetMediaCacheBasePath();
 
     public static string LogPath => Path.Combine(BasePath, "log.txt");
 

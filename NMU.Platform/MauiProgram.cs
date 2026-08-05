@@ -1,4 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Components.WebView.Maui;
+using Microsoft.Maui.Handlers;
 
 namespace NMU.Platform;
 
@@ -15,6 +17,12 @@ public static class MauiProgram
 			});
 
 		builder.Services.AddMauiBlazorWebView();
+		builder.ConfigureMauiHandlers(handlers =>
+		{
+#if ANDROID
+			handlers.AddHandler<BlazorWebView, CustomBlazorWebViewHandler>();
+#endif
+		});
 		builder.Services.AddScoped<NMU.Platform.Components.Services.StudentService>();
 		builder.Services.AddScoped<NMU.Platform.Components.Services.FullscreenService>();
 		builder.Services.AddScoped<NMU.Platform.Components.Services.NavigationState>();

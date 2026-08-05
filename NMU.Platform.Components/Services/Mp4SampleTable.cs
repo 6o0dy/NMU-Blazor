@@ -61,7 +61,7 @@ public class Mp4TimeMap
 
 public static class Mp4SampleTable
 {
-    private const long ChunkSize = 524288L;
+    private const long ChunkSize = MediaCacheService.ChunkSize;
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, HashSet<int>> ScannedChunkSets = new();
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte[]> MoovCache = new();
 
@@ -152,8 +152,9 @@ public static class Mp4SampleTable
             return head;
         }
 
-        var tailStart = Math.Max(0, totalSize - ChunkSize);
-        var tail = await TryReadMoovFromRegionAsync(cacheDir, tailStart, Math.Min(ChunkSize, totalSize), tailStart, totalSize);
+        var tailRegion = ChunkSize * MediaCacheService.TailChunkCount(Math.Max(1, (int)(totalSize / ChunkSize)));
+        var tailStart = Math.Max(0, totalSize - tailRegion);
+        var tail = await TryReadMoovFromRegionAsync(cacheDir, tailStart, Math.Min(tailRegion, totalSize), tailStart, totalSize);
         if (tail != null && tail.Length > 0)
         {
             MoovCache.TryAdd(cacheDir, tail);

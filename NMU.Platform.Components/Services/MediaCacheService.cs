@@ -9,7 +9,10 @@ public class MediaCacheService
 {
     private readonly HttpClient _http;
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-    private const long ChunkSize = 524288L;
+    public const int CacheVersion = 4;
+    public const long ChunkSize = 1048576L;
+    public static int TailChunkCount(int totalChunks) => Math.Clamp((totalChunks + 9) / 10, 4, 12);
+    private static readonly SemaphoreSlim FetchGate = new(4, 4);
     private static readonly ConcurrentDictionary<string, Mp4TimeMap> TimeMaps = new();
 
     public MediaCacheService(HttpClient http) => _http = http;
@@ -20,11 +23,16 @@ public class MediaCacheService
         return Convert.ToHexStringLower(hash)[..32];
     }
 
-    private static string GetBasePath() =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NMU", "MediaCache");
+    internal static string GetMediaCacheBasePath()
+    {
+        var root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (OperatingSystem.IsIOS())
+            root = Path.Combine(root, "Caches");
+        return Path.Combine(root, "NMU", "MediaCache");
+    }
 
     private string GetCacheDir(string key) =>
-        Path.Combine(GetBasePath(), key);
+        Path.Combine(GetMediaCacheBasePath(), key);
 
     public async Task<CacheMeta?> GetMetaAsync(string key)
     {
@@ -33,24 +41,27 @@ public class MediaCacheService
         try
         {
             var json = await File.ReadAllTextAsync(path);
-            return JsonSerializer.Deserialize<CacheMeta>(json, JsonOpts);
+            var meta = JsonSerializer.Deserialize<CacheMeta>(json, JsonOpts);
+            if (meta == null || meta.Version != CacheVersion) return null;
+            return meta;
         }
         catch { return null; }
     }
 
-    public Task<bool> IsCompleteAsync(string key)
+    public async Task<bool> IsCompleteAsync(string key)
     {
         var dir = GetCacheDir(key);
-        return Task.FromResult(Directory.Exists(dir) && File.Exists(Path.Combine(dir, ".complete")));
+        if (!Directory.Exists(dir) || !File.Exists(Path.Combine(dir, ".complete"))) return false;
+        return await GetMetaAsync(key) != null;
     }
 
-    public Task<bool> HasAnyCacheAsync(string key)
+    public async Task<bool> HasAnyCacheAsync(string key)
     {
         var dir = GetCacheDir(key);
-        if (!Directory.Exists(dir)) return Task.FromResult(false);
-        return Task.FromResult(
-            File.Exists(Path.Combine(dir, ".complete")) ||
-            (File.Exists(Path.Combine(dir, ".meta")) && Directory.GetFiles(dir, "chunk_*").Length > 0));
+        if (!Directory.Exists(dir)) return false;
+        if (await IsCompleteAsync(key)) return true;
+        if (await GetMetaAsync(key) == null) return false;
+        return Directory.GetFiles(dir, "chunk_*").Length > 0;
     }
 
     public async Task<CacheProgress> GetProgressAsync(string key)
@@ -114,6 +125,20 @@ public class MediaCacheService
     public async Task InitMetaAsync(string key, string url, long totalSize, int totalChunks, string mimeType)
     {
         var dir = GetCacheDir(key);
+        var metaPath = Path.Combine(dir, ".meta");
+        if (File.Exists(metaPath))
+        {
+            try
+            {
+                var old = JsonSerializer.Deserialize<CacheMeta>(await File.ReadAllTextAsync(metaPath), JsonOpts);
+                if (old?.Version != CacheVersion)
+                {
+                    CacheDiagnostics.Log($"CACHE layout version mismatch -> clearing {key}");
+                    if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+                }
+            }
+            catch { }
+        }
         Directory.CreateDirectory(dir);
         var meta = new CacheMeta
         {
@@ -122,7 +147,8 @@ public class MediaCacheService
             TotalChunks = totalChunks,
             MimeType = mimeType,
             NextChunk = 0,
-            Timestamp = DateTime.UtcNow
+            Timestamp = DateTime.UtcNow,
+            Version = CacheVersion
         };
         var json = JsonSerializer.Serialize(meta, JsonOpts);
         await File.WriteAllTextAsync(Path.Combine(dir, ".meta"), json);
@@ -241,40 +267,8 @@ public class MediaCacheService
                 return;
             }
 
-            var chunkStart = i * ChunkSize;
-            var chunkEnd = Math.Min(chunkStart + ChunkSize - 1, totalSize - 1);
-
-            byte[]? bytes = null;
-            for (int retry = 0; retry < 3; retry++)
-            {
-                if (innerCt.IsCancellationRequested) return;
-                try
-                {
-                    using var req = new HttpRequestMessage(HttpMethod.Get, url);
-                    req.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(chunkStart, chunkEnd);
-                    using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, innerCt);
-                    if (!resp.IsSuccessStatusCode)
-                    {
-                        try { await Task.Delay(1000 * (1 << retry), innerCt); } catch (OperationCanceledException) { return; }
-                        continue;
-                    }
-                    bytes = await resp.Content.ReadAsByteArrayAsync(innerCt);
-                    break;
-                }
-                catch (OperationCanceledException) { return; }
-                catch
-                {
-                    if (retry < 2)
-                    {
-                        try { await Task.Delay(1000 * (1 << retry), innerCt); } catch (OperationCanceledException) { return; }
-                    }
-                }
-            }
-
-            if (bytes == null) return;
-
-            await StoreChunkAsync(key, i, bytes);
-            Interlocked.Increment(ref cachedCount);
+            if (await FetchSingleChunkAsync(key, url, i, totalSize, innerCt))
+                Interlocked.Increment(ref cachedCount);
         });
 
         if (!ct.IsCancellationRequested && markComplete && cachedCount > 0)
@@ -297,7 +291,7 @@ public class MediaCacheService
 
     public Task ClearAllAsync()
     {
-        var dir = GetBasePath();
+        var dir = GetMediaCacheBasePath();
         if (Directory.Exists(dir))
             Directory.Delete(dir, recursive: true);
         TimeMaps.Clear();
@@ -335,43 +329,6 @@ public class MediaCacheService
         return false;
     }
 
-    public async Task<bool> PriorityCacheLastChunkAsync(string key, string url, long totalSize, int totalChunks, CancellationToken ct = default)
-    {
-        var lastIdx = totalChunks - 1;
-        if (await ChunkExistsAsync(key, lastIdx)) return true;
-
-        var lastStart = lastIdx * ChunkSize;
-        var lastEnd = Math.Min(lastStart + ChunkSize - 1, totalSize - 1);
-
-        for (int retry = 0; retry < 3; retry++)
-        {
-            if (ct.IsCancellationRequested) return false;
-            try
-            {
-                using var req = new HttpRequestMessage(HttpMethod.Get, url);
-                req.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(lastStart, lastEnd);
-                using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
-                if (!resp.IsSuccessStatusCode)
-                {
-                    try { await Task.Delay(1000 * (1 << retry), ct); } catch (OperationCanceledException) { return false; }
-                    continue;
-                }
-                var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
-                await StoreChunkAsync(key, lastIdx, bytes);
-                return true;
-            }
-            catch (OperationCanceledException) { return false; }
-            catch
-            {
-                if (retry < 2)
-                {
-                    try { await Task.Delay(1000 * (1 << retry), ct); } catch (OperationCanceledException) { return false; }
-                }
-            }
-        }
-        return false;
-    }
-
     private static readonly ConcurrentDictionary<string, Task<bool>> InFlightChunks = new();
 
     public async Task<bool> FetchSingleChunkAsync(string key, string url, int index, long totalSize, CancellationToken ct = default)
@@ -398,28 +355,38 @@ public class MediaCacheService
         for (int retry = 0; retry < 3; retry++)
         {
             if (ct.IsCancellationRequested) return false;
+            var ok = false;
+            var shouldRetry = false;
             try
             {
-                using var req = new HttpRequestMessage(HttpMethod.Get, url);
-                req.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(chunkStart, chunkEnd);
-                using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
-                if (!resp.IsSuccessStatusCode)
+                await FetchGate.WaitAsync(ct);
+                try
                 {
-                    try { await Task.Delay(1000 * (1 << retry), ct); } catch (OperationCanceledException) { return false; }
-                    continue;
+                    using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                    req.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(chunkStart, chunkEnd);
+                    using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+                    if (!resp.IsSuccessStatusCode)
+                    {
+                        shouldRetry = true;
+                    }
+                    else
+                    {
+                        var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
+                        await StoreChunkAsync(key, index, bytes);
+                        ok = true;
+                    }
                 }
-                var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
-                await StoreChunkAsync(key, index, bytes);
-                return true;
+                finally
+                {
+                    FetchGate.Release();
+                }
             }
             catch (OperationCanceledException) { return false; }
-            catch
-            {
-                if (retry < 2)
-                {
-                    try { await Task.Delay(1000 * (1 << retry), ct); } catch (OperationCanceledException) { return false; }
-                }
-            }
+            catch { shouldRetry = true; }
+
+            if (ok) return true;
+            if (!shouldRetry) return false;
+            try { await Task.Delay(1000 * (1 << retry), ct); } catch (OperationCanceledException) { return false; }
         }
         return false;
     }
@@ -446,7 +413,7 @@ public class MediaCacheService
     }
 
     public async Task<bool> PriorityCacheChunksAsync(string key, string url, long totalSize,
-        IEnumerable<int> indices, CancellationToken ct = default, int maxParallel = 3)
+        IEnumerable<int> indices, CancellationToken ct = default, int maxParallel = 2)
     {
         var distinct = indices.Distinct().ToList();
         if (distinct.Count == 0) return true;
@@ -472,10 +439,19 @@ public class MediaCacheService
 
     private static readonly ConcurrentDictionary<string, Task<bool>> CriticalPrefetchTasks = new();
 
-    public Task<bool> PrefetchCriticalAsync(string url, CancellationToken ct = default)
+    public async Task<bool> PrefetchCriticalAsync(string url, CancellationToken ct = default)
     {
         var key = GetCacheKey(url);
-        return CriticalPrefetchTasks.GetOrAdd(key, k => CorePrefetchCriticalAsync(k, url, ct));
+        var task = CriticalPrefetchTasks.GetOrAdd(key, k => CorePrefetchCriticalAsync(k, url, ct));
+        try
+        {
+            return await task;
+        }
+        finally
+        {
+            if (task.IsCompleted && (!task.IsCompletedSuccessfully || task.Result == false))
+                CriticalPrefetchTasks.TryRemove(key, out _);
+        }
     }
 
     private async Task<bool> CorePrefetchCriticalAsync(string key, string url, CancellationToken ct)
@@ -496,15 +472,21 @@ public class MediaCacheService
             }
             if (meta == null || meta.TotalChunks <= 0) return false;
 
-            var targets = new List<int> { 0 };
-            for (int i = meta.TotalChunks - 1; i >= Math.Max(0, meta.TotalChunks - 5); i--)
-                if (i != 0) targets.Add(i);
-            for (int i = 1; i < 8 && i < meta.TotalChunks; i++)
-                targets.Add(i);
+            var headTargets = new List<int>();
+            for (int i = 0; i < 4 && i < meta.TotalChunks; i++)
+                headTargets.Add(i);
+            var headOk = await PriorityCacheChunksAsync(key, meta.Url, meta.TotalSize, headTargets, ct, maxParallel: 4);
 
-            var ok = await PriorityCacheChunksAsync(key, meta.Url, meta.TotalSize, targets, ct, maxParallel: 12);
-            CacheDiagnostics.Log($"PREFETCH critical key={key} targets={targets.Count} ok={ok}");
-            return ok;
+            var tailCount = TailChunkCount(meta.TotalChunks);
+            var tailTargets = new List<int>();
+            for (int i = meta.TotalChunks - 1; i >= Math.Max(0, meta.TotalChunks - tailCount); i--)
+                if (i >= headTargets.Count) tailTargets.Add(i);
+            var tailOk = tailTargets.Count > 0
+                ? await PriorityCacheChunksAsync(key, meta.Url, meta.TotalSize, tailTargets, ct, maxParallel: 4)
+                : true;
+
+            CacheDiagnostics.Log($"PREFETCH critical key={key} head={headTargets.Count} ok={headOk} tail={tailTargets.Count} ok={tailOk}");
+            return headOk && tailOk;
         }
         catch (OperationCanceledException) { return false; }
         catch (Exception ex)
@@ -531,6 +513,7 @@ public class MediaCacheService
 
 public record CacheMeta
 {
+    public int Version { get; init; }
     public string Url { get; init; } = "";
     public long TotalSize { get; init; }
     public int TotalChunks { get; init; }
