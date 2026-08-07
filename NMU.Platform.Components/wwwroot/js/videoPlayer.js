@@ -48,11 +48,48 @@
         if (!v) return;
         try {
             var p = v.play();
+            if (p && p.catch) p.catch(function () {
+                this._mutedFallback(v);
+            }.bind(this));
+        } catch (e) { }
+    },
+
+    _mutedFallback: function (v) {
+        try {
+            if (v.muted) return;
+            v.muted = true;
+            var p = v.play();
             if (p && p.catch) p.catch(function () { });
         } catch (e) { }
     },
 
-    play: function () { var v = document.getElementById('vp-video'); if (v && v.paused) v.play(); },
+    play: function () {
+        var v = document.getElementById('vp-video');
+        if (!v || !v.paused) return;
+        try {
+            v.muted = false;
+            var p = v.play();
+            if (p && p.catch) p.catch(function () { });
+        } catch (e) { }
+    },
+
+    togglePlay: function () {
+        var v = document.getElementById('vp-video');
+        if (!v) return;
+        try {
+            if (v.muted && !v.paused) {
+                v.muted = false;
+                return;
+            }
+            if (v.paused) {
+                v.muted = false;
+                var p = v.play();
+                if (p && p.catch) p.catch(function () { });
+            } else {
+                v.pause();
+            }
+        } catch (e) { }
+    },
     pause: function () { var v = document.getElementById('vp-video'); if (v && !v.paused) v.pause(); },
 
     forcePaint: function () {
@@ -74,7 +111,12 @@
         }, 600);
     },
     seekTo: function (t) { var v = document.getElementById('vp-video'); if (v && isFinite(t)) v.currentTime = t; },
-    setVolume: function (val) { var v = document.getElementById('vp-video'); if (v) v.volume = parseFloat(val); },
+    setVolume: function (val) {
+        var v = document.getElementById('vp-video');
+        if (!v) return;
+        v.volume = parseFloat(val);
+        if (parseFloat(val) > 0) v.muted = false;
+    },
     setSpeed: function (rate) { var v = document.getElementById('vp-video'); if (v) v.playbackRate = parseFloat(rate); },
 
     retryLoad: function () {

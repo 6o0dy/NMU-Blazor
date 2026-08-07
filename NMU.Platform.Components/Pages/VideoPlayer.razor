@@ -16,6 +16,8 @@
     <div class="vp-player-wrapper @(_isAudio ? "audio-mode" : "")" id="vp-player-wrapper"
          @onclick="TogglePlay">
         <video id="vp-video" playsinline autoplay preload="metadata"
+               @onclick="TogglePlay"
+               @onclick:stopPropagation
                @onloadeddata="OnLoadedData"
                @onplay="OnPlay"
                @onpause="OnPause"

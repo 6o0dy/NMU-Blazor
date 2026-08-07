@@ -148,7 +148,8 @@ public partial class VideoPlayer : IDisposable
             if (Math.Abs(_duration - duration) > 0.5)
             {
                 _duration = duration;
-                _ = Task.Run(() => MediaCache.SetDurationAsync(_cacheKey, duration));
+                if (!Platform.IsWeb)
+                    _ = Task.Run(() => MediaCache.SetDurationAsync(_cacheKey, duration));
             }
             else
             {
@@ -157,6 +158,11 @@ public partial class VideoPlayer : IDisposable
         }
         if (current > 0)
             _currentTime = current;
+        else if (_isPaused && ready != "0" && error == "0" && !_showCenterPlay)
+        {
+            _showCenterPlay = true;
+            _ = InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task OnSeeked()
@@ -229,10 +235,7 @@ public partial class VideoPlayer : IDisposable
     {
         try
         {
-            if (_isPaused)
-                await JS.InvokeVoidAsync("videoPlayer.play");
-            else
-                await JS.InvokeVoidAsync("videoPlayer.pause");
+            await JS.InvokeVoidAsync("videoPlayer.togglePlay");
         }
         catch { }
     }
