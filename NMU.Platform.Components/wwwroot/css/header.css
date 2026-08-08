@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    App Header (Slate Developer Theme) - flat top bar
    ========================================================================== */
 
@@ -90,7 +90,7 @@
     font-size: 12px;
 }
 
-.win-btn-max:hover { background: rgba(14, 165, 233, 0.15); color: var(--primary); border-color: var(--primary); }
+.win-btn-max:hover { background: rgba(147, 26, 35, 0.15); color: var(--primary); border-color: var(--primary); }
 .win-btn-min:hover { background: rgba(249, 115, 22, 0.15); color: var(--timer-color); border-color: var(--timer-color); }
 .win-btn-fs:hover { background: rgba(34, 197, 94, 0.15); color: var(--correct); border-color: var(--correct); }
 .win-btn-close:hover { background: var(--wrong); color: #fff; border-color: var(--wrong); }
@@ -106,7 +106,7 @@
     width: 38px;
     height: 38px;
     border-radius: 50%;
-    background: rgba(14, 165, 233, 0.15);
+    background: rgba(147, 26, 35, 0.15);
     border: 1px solid var(--primary);
     color: var(--primary);
     font-weight: 800;
@@ -224,7 +224,7 @@
 
 .btn-spinner {
     width: 16px; height: 16px;
-    border: 2px solid rgba(14, 165, 233, 0.2);
+    border: 2px solid rgba(147, 26, 35, 0.2);
     border-top-color: var(--primary);
     border-radius: 50%;
     animation: header-spin 0.7s linear infinite;

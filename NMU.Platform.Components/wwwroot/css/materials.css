@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    Materials page (Slate Developer Theme)
    ========================================================================== */
 
@@ -43,7 +43,7 @@
 }
 
 .badge-green { background: rgba(34, 197, 94, 0.15); color: var(--correct); border: 1px solid rgba(34, 197, 94, 0.3); }
-.badge-sky { background: rgba(14, 165, 233, 0.15); color: var(--primary); border: 1px solid rgba(14, 165, 233, 0.3); }
+.badge-sky { background: rgba(147, 26, 35, 0.15); color: var(--primary); border: 1px solid rgba(147, 26, 35, 0.3); }
 .badge-red { background: rgba(239, 68, 68, 0.15); color: var(--wrong); border: 1px solid rgba(239, 68, 68, 0.3); }
 
 /* ---------- Dev Card Top Row (icon + badge) ---------- */
@@ -118,12 +118,12 @@
 }
 
 /* Material Colors */
-.color-arabic { color: #2dd4bf; }
-.color-english { color: #818cf8; }
-.color-mech { color: #fb923c; }
-.color-math { color: #f87171; }
-.color-phys { color: #c084fc; }
-.color-prog { color: #4ade80; }
-.color-draw { color: #fbbf24; }
-.color-tech { color: #94a3b8; }
+.color-arabic { color: #0d9488; }
+.color-english { color: #6366f1; }
+.color-mech { color: #ea580c; }
+.color-math { color: #dc2626; }
+.color-phys { color: #9333ea; }
+.color-prog { color: #16a34a; }
+.color-draw { color: #d97706; }
+.color-tech { color: #64748b; }
 .color-default { color: var(--primary); }

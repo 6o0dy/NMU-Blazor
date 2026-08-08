@@ -1,19 +1,19 @@
 :root {
-    --bg-main: #0f172a;
-    --bg-card: #1e293b;
-    --bg-modal: #0f172a;
-    --bg-surface-hover: #334155;
-    --border-color: #334155;
-    --primary: #0ea5e9;
-    --primary-hover: #0284c7;
-    --accent: #38bdf8;
-    --danger: #ef4444;
-    --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
-    --correct: #22c55e;
-    --wrong: #ef4444;
-    --timer-color: #f97316;
-    --star-color: #fbbf24;
-    --grid-color: rgba(14, 165, 233, 0.04);
-    --card-hover: rgba(14, 165, 233, 0.1);
+    --bg-main: #f3f7fb;
+    --bg-card: #ffffff;
+    --bg-modal: #ffffff;
+    --bg-surface-hover: #ecf1f9;
+    --border-color: #dbe3ee;
+    --primary: #931a23;
+    --primary-hover: #7a1520;
+    --accent: #ffb539;
+    --danger: #dc3545;
+    --text-primary: #0f2239;
+    --text-secondary: #72849b;
+    --correct: #28a745;
+    --wrong: #dc3545;
+    --timer-color: #ffb539;
+    --star-color: #ffb539;
+    --grid-color: rgba(147, 26, 35, 0.04);
+    --card-hover: rgba(147, 26, 35, 0.06);
 }

@@ -1,12 +1,12 @@
-.page-container { max-width: 800px; margin: 0 auto; padding: 10px 20px 20px; display: flex; flex-direction: column; }
+﻿.page-container { max-width: 800px; margin: 0 auto; padding: 10px 20px 20px; display: flex; flex-direction: column; }
 .welcome-header { text-align: center; margin-bottom: 35px; }
-.welcome-header h1 { color: var(--primary); font-size: 34px; font-weight: 900; margin: 0; text-shadow: 0 0 25px rgba(14, 165, 233, 0.25); }
+.welcome-header h1 { color: var(--primary); font-size: 34px; font-weight: 900; margin: 0; text-shadow: 0 0 25px rgba(147, 26, 35, 0.25); }
 .welcome-subtitle { text-align: center; color: var(--text-secondary); font-size: 15px; margin-top: 10px; }
 .card-grid { display: flex; flex-direction: column; gap: 18px; }
 .card-item { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; padding: 24px; cursor: pointer; transition: 0.3s; display: flex; align-items: center; gap: 18px; text-decoration: none; }
-.card-item:hover { border-color: var(--primary); background: var(--card-hover); box-shadow: 0 0 25px rgba(14, 165, 233, 0.1); transform: translateY(-3px); }
+.card-item:hover { border-color: var(--primary); background: var(--card-hover); box-shadow: 0 0 25px rgba(147, 26, 35, 0.1); transform: translateY(-3px); }
 .card-icon { width: 52px; height: 52px; border-radius: 14px; display: flex; justify-content: center; align-items: center; font-size: 24px; }
-.card-icon.blue { background: rgba(14, 165, 233, 0.15); }
+.card-icon.blue { background: rgba(147, 26, 35, 0.15); }
 .card-icon.purple { background: rgba(139, 92, 246, 0.15); }
 .card-icon.red { background: rgba(255, 71, 87, 0.15); }
 .card-text h2 { color: var(--text-primary); margin: 0 0 6px; font-size: 18px; font-weight: 800; }

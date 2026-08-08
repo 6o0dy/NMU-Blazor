@@ -1,4 +1,4 @@
-.home-container {
+﻿.home-container {
     max-width: 900px;
     margin: 24px auto;
     padding: 0 20px;
@@ -27,13 +27,13 @@
 
 .code-tag {
     font-family: var(--font-code, 'Fira Code', monospace);
-    background-color: rgba(14, 165, 233, 0.1);
+    background-color: rgba(147, 26, 35, 0.1);
     color: var(--primary);
     padding: 4px 14px;
     border-radius: 6px;
     font-size: 0.85rem;
     display: inline-block;
-    border: 1px solid rgba(14, 165, 233, 0.25);
+    border: 1px solid rgba(147, 26, 35, 0.25);
 }
 
 /* ---------- Cards Grid (Dev Card Spec) ---------- */
@@ -116,7 +116,7 @@
 .modal-card {
     background: var(--bg-card); width: 90%; max-width: 420px;
     padding: 35px; border-radius: 20px; border: 1px solid var(--border-color);
-    position: relative; box-shadow: 0 0 30px rgba(14, 165, 233, 0.1);
+    position: relative; box-shadow: 0 0 30px rgba(147, 26, 35, 0.1);
     animation: slideUp 0.3s ease-out;
 }
 
@@ -159,9 +159,9 @@
 
 .term-radio.selected {
     border-color: var(--primary);
-    background: rgba(14, 165, 233, 0.1);
+    background: rgba(147, 26, 35, 0.1);
     color: var(--primary);
-    box-shadow: 0 0 10px rgba(14, 165, 233, 0.2);
+    box-shadow: 0 0 10px rgba(147, 26, 35, 0.2);
 }
 
 .modal-actions { display: flex; gap: 12px; margin-top: 30px; }

@@ -12,7 +12,7 @@
     margin: 0 auto 40px;
     background: rgba(15, 23, 42, 0.6);
     backdrop-filter: blur(16px);
-    border: 1px solid rgba(14, 165, 233, 0.2);
+    border: 1px solid rgba(147, 26, 35, 0.2);
     border-radius: 24px;
     padding: 25px;
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
@@ -39,7 +39,7 @@
     align-items: center;
     gap: 15px;
     margin-bottom: 20px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--border-color);
     padding-bottom: 15px;
 }
 
@@ -49,7 +49,7 @@
     border-radius: 50%;
     border: 2px solid var(--primary);
     object-fit: cover;
-    box-shadow: 0 0 15px rgba(14, 165, 233, 0.2);
+    box-shadow: 0 0 15px rgba(147, 26, 35, 0.2);
     flex-shrink: 0;
 }
 
@@ -117,7 +117,7 @@
 .star-right { right: 0; }
 
 .star-icon {
-    color: rgba(255, 255, 255, 0.1);
+    color: var(--border-color);
     transition: 0.2s;
 }
 
@@ -134,12 +134,12 @@
     background: rgba(0, 0, 0, 0.2);
     padding: 5px 12px;
     border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
     transition: 0.3s;
 }
 
 .toggle-wrapper:hover {
-    background: rgba(0, 0, 0, 0.4);
+    background: var(--bg-surface-hover);
 }
 
 .toggle-switch {
@@ -166,7 +166,7 @@
 
 .toggle-wrapper.active {
     border-color: var(--primary);
-    background: rgba(14, 165, 233, 0.05);
+    background: rgba(147, 26, 35, 0.05);
 }
 
 .toggle-wrapper.active .toggle-switch {
@@ -199,9 +199,9 @@
 
 .input-field {
     width: 100%;
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: white;
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
     padding: 12px 15px;
     border-radius: 12px;
     font-size: 14px;
@@ -214,8 +214,8 @@
 
 .input-field:focus {
     border-color: var(--primary);
-    background: rgba(0, 0, 0, 0.6);
-    box-shadow: 0 0 10px rgba(14, 165, 233, 0.1);
+    background: var(--bg-card);
+    box-shadow: 0 0 10px rgba(147, 26, 35, 0.1);
 }
 
 textarea.input-field {
@@ -244,8 +244,7 @@ textarea.input-field {
 }
 
 .btn-primary {
-    background: var(--primary);
-    color: #000;
+    background: var(--primary); color: #fff;
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -254,8 +253,8 @@ textarea.input-field {
 }
 
 .btn-primary:disabled {
-    background: #334155;
-    color: #94a3b8;
+    background: var(--bg-surface-hover);
+    color: var(--text-secondary);
     cursor: not-allowed;
 }
 
@@ -303,7 +302,7 @@ textarea.input-field {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid var(--border-color);
     padding-bottom: 10px;
     margin-bottom: 25px;
     max-width: 600px;
@@ -319,7 +318,7 @@ textarea.input-field {
 }
 
 .reviews-count-badge {
-    background: rgba(14, 165, 233, 0.1);
+    background: rgba(147, 26, 35, 0.1);
     color: var(--primary);
     padding: 3px 10px;
     border-radius: 20px;
@@ -334,8 +333,8 @@ textarea.input-field {
 }
 
 @keyframes flashUpdate {
-    0% { background: var(--correct); color: #000; transform: scale(1.1); }
-    100% { background: rgba(14, 165, 233, 0.1); color: var(--primary); transform: scale(1); }
+    0% { background: var(--correct); color: #fff; transform: scale(1.1); }
+    100% { background: rgba(147, 26, 35, 0.1); color: var(--primary); transform: scale(1); }
 }
 
 .reviews-list {
@@ -348,7 +347,7 @@ textarea.input-field {
 
 .review-card {
     background: rgba(30, 41, 59, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
     border-radius: 16px;
     padding: 20px;
     display: flex;
@@ -359,14 +358,14 @@ textarea.input-field {
 }
 
 .review-card:hover {
-    border-color: rgba(255, 255, 255, 0.1);
+    border-color: var(--border-color);
     background: rgba(30, 41, 59, 0.7);
 }
 
 .review-card.my-review {
     border: 1px solid var(--primary);
-    background: rgba(14, 165, 233, 0.03);
-    box-shadow: inset 0 0 20px rgba(14, 165, 233, 0.05);
+    background: rgba(147, 26, 35, 0.03);
+    box-shadow: inset 0 0 20px rgba(147, 26, 35, 0.05);
 }
 
 .reviewer-avatar {
@@ -375,7 +374,7 @@ textarea.input-field {
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border-color);
 }
 
 .review-content {
@@ -392,7 +391,7 @@ textarea.input-field {
 .r-name {
     font-size: 15px;
     font-weight: 800;
-    color: #fff;
+    color: var(--text-primary);
     display: flex;
     align-items: center;
     gap: 5px;
@@ -484,7 +483,7 @@ textarea.input-field {
 
 .modal-msg {
     font-size: 15px;
-    color: #fff;
+    color: var(--text-primary);
     font-weight: 600;
     line-height: 1.5;
     margin-bottom: 20px;
@@ -508,8 +507,7 @@ textarea.input-field {
 }
 
 .c-btn-primary {
-    background: var(--primary);
-    color: #000;
+    background: var(--primary); color: #fff;
 }
 
 .c-btn-primary:hover {
@@ -527,8 +525,8 @@ textarea.input-field {
 }
 
 .c-btn-cancel {
-    background: #334155;
-    color: #fff;
+    background: var(--bg-surface-hover);
+    color: var(--text-primary);
 }
 
 @keyframes slideDown {

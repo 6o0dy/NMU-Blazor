@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    Video Player (Slate Developer Theme) - Crystalline Diamond Seekbar
    ========================================================================== */
 
@@ -28,7 +28,7 @@
     display: block; cursor: pointer;
 }
 
-/* ─── Audio mode ─── */
+/* â”€â”€â”€ Audio mode â”€â”€â”€ */
 .vp-audio-visual {
     display: none; flex-direction: column; align-items: center; justify-content: center;
     position: absolute; inset: 0; gap: 24px;
@@ -36,14 +36,14 @@
 .vp-player-wrapper.audio-mode video { display: none; }
 .vp-player-wrapper.audio-mode .vp-audio-visual { display: flex; }
 
-.vp-audio-icon { font-size: 90px; color: var(--primary); filter: drop-shadow(0 0 40px rgba(14,165,233,.35)); }
+.vp-audio-icon { font-size: 90px; color: var(--primary); filter: drop-shadow(0 0 40px rgba(147, 26, 35,.35)); }
 .vp-audio-bars { display: flex; gap: 6px; height: 56px; align-items: center; }
 
 .vp-bar {
     width: 6px; border-radius: 4px;
     background: linear-gradient(180deg, var(--primary), var(--primary-hover));
     animation: vp-wave 1.2s ease-in-out infinite;
-    box-shadow: 0 0 10px rgba(14,165,233,.3);
+    box-shadow: 0 0 10px rgba(147, 26, 35,.3);
 }
 .vp-bar:nth-child(2) { animation-delay: .15s; }
 .vp-bar:nth-child(3) { animation-delay: .3s;  }
@@ -112,7 +112,7 @@
     box-shadow: 0 0 40px rgba(0,0,0,.5);
 }
 
-/* ─── Controls bar (overlaid on video) ─── */
+/* â”€â”€â”€ Controls bar (overlaid on video) â”€â”€â”€ */
 .vp-controls {
     position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
     background: linear-gradient(0deg, rgba(0,0,0,.95) 0%, transparent 100%);
@@ -126,7 +126,7 @@
     opacity: 0 !important; pointer-events: none; transform: translateY(16px);
 }
 
-/* ─── Seekbar (Diamond Handle Spec) ─── */
+/* â”€â”€â”€ Seekbar (Diamond Handle Spec) â”€â”€â”€ */
 .vp-progress-area {
     position: relative; width: 100%; height: 48px;
     cursor: pointer; display: flex; align-items: center;
@@ -156,7 +156,7 @@
 .vp-progress-bar {
     height: 10px; border-radius: 20px; position: absolute; left: 0; top: 50%; translate: 0 -50%; z-index: 2;
     background: var(--primary);
-    box-shadow: 0 0 8px rgba(14, 165, 233, 0.5);
+    box-shadow: 0 0 8px rgba(147, 26, 35, 0.5);
 }
 
 /* Cached offline segments */
@@ -167,7 +167,7 @@
 .vp-cache-seg {
     position: absolute; left: 0; top: 50%; transform: translateY(-50%);
     height: 8px;
-    background: rgba(14, 165, 233, 0.35);
+    background: rgba(147, 26, 35, 0.35);
     border-radius: 20px;
 }
 
@@ -179,7 +179,7 @@
     transform: rotate(45deg);
     background: #ffffff;
     border: 2px solid var(--primary);
-    box-shadow: 0 0 8px rgba(14, 165, 233, 0.8);
+    box-shadow: 0 0 8px rgba(147, 26, 35, 0.8);
     pointer-events: none;
     opacity: 0.95;
     transition: opacity .2s, filter .2s;
@@ -190,10 +190,10 @@
 .vp-progress-area:hover .vp-progress-thumb,
 .vp-progress-area:active .vp-progress-thumb {
     opacity: 1;
-    filter: drop-shadow(0 0 8px rgba(14, 165, 233, 1));
+    filter: drop-shadow(0 0 8px rgba(147, 26, 35, 1));
 }
 
-/* ─── Controls row ─── */
+/* â”€â”€â”€ Controls row â”€â”€â”€ */
 .vp-controls-row {
     display: flex; align-items: center; justify-content: space-between;
     gap: 12px;
@@ -219,7 +219,7 @@
     width: auto; padding: 0 10px; border-radius: 8px; letter-spacing: .5px;
     background: rgba(255,255,255,.06); color: #bbb;
 }
-.vp-speed-btn:hover { background: rgba(14,165,233,.15); color: var(--primary); }
+.vp-speed-btn:hover { background: rgba(147, 26, 35,.15); color: var(--primary); }
 
 .vp-time {
     font-family: 'Fira Code', monospace; font-size: 12px; color: #ccc;
@@ -237,7 +237,7 @@
 
 @keyframes vp-spin { 100% { transform: rotate(360deg); } }
 
-/* ─── Responsive ─── */
+/* â”€â”€â”€ Responsive â”€â”€â”€ */
 @media (max-width: 480px) {
     .vp-controls { padding: 8px 12px 14px; }
     .vp-left, .vp-right { gap: 8px; }
@@ -247,7 +247,7 @@
     .vp-center-play { width: 64px; height: 64px; font-size: 26px; }
 }
 
-/* ─── Debug Modal ─── */
+/* â”€â”€â”€ Debug Modal â”€â”€â”€ */
 .vp-debug-modal {
     position: fixed; inset: 0; z-index: 9999;
     background: rgba(0,0,0,.7);

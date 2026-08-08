@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    Quiz pages (Subjects / Chapters / Play / Result)
    ========================================================================== */
 
@@ -16,10 +16,10 @@
 .sync-progress-bar {
     width: 100%;
     height: 8px;
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--bg-surface-hover);
     border-radius: 10px;
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
 }
 
 .sync-progress-fill {
@@ -64,10 +64,10 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 20px;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--bg-surface-hover);
     padding: 10px 15px;
     border-radius: 15px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
 }
 
 .chapters-header-row h3 {
@@ -115,7 +115,7 @@
 }
 
 .timer-active .toggle-switch-main {
-    background: rgba(14, 165, 233, 0.2);
+    background: rgba(147, 26, 35, 0.2);
     border-color: var(--primary);
 }
 
@@ -127,7 +127,7 @@
 
 .timer-active .timer-label {
     color: var(--primary);
-    text-shadow: 0 0 10px rgba(14, 165, 233, 0.4);
+    text-shadow: 0 0 10px rgba(147, 26, 35, 0.4);
 }
 
 .chapters-list {
@@ -157,7 +157,7 @@
 .chapter-card {
     width: 100%;
     background: rgba(30, 41, 59, 0.7);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-color);
     border-right: 4px solid var(--primary);
     border-left: 4px solid var(--primary);
     border-radius: 12px;
@@ -179,7 +179,7 @@
     transform: translateY(-3px) scale(1.01);
     background: rgba(30, 41, 59, 0.95);
     border-color: var(--primary);
-    box-shadow: 0 10px 20px rgba(14, 165, 233, 0.15);
+    box-shadow: 0 10px 20px rgba(147, 26, 35, 0.15);
 }
 
 .chapter-title {
@@ -194,7 +194,7 @@
 .chapter-count {
     font-size: 0.8rem;
     color: var(--text-secondary);
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--bg-surface-hover);
     padding: 4px 12px;
     border-radius: 20px;
     font-family: 'Fira Code', monospace;
@@ -232,11 +232,11 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--bg-surface-hover);
     padding: 12px;
     border-radius: 10px;
     margin-bottom: 15px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
     cursor: pointer;
 }
 
@@ -284,8 +284,8 @@
 }
 
 .chapter-checkbox-card {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: var(--bg-surface-hover);
+    border: 1px solid var(--border-color);
     padding: 12px;
     margin-right: 10px;
     border-radius: 10px;
@@ -297,20 +297,20 @@
 }
 
 .chapter-checkbox-card:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--bg-surface-hover);
     border-color: var(--primary);
 }
 
 .chapter-checkbox-card.selected {
     border-color: var(--primary);
-    background: rgba(14, 165, 233, 0.05);
+    background: rgba(147, 26, 35, 0.05);
 }
 
 .chk-circle {
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    border: 2px solid var(--border-color);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -328,8 +328,7 @@
 
 .chapter-checkbox-card.selected .chk-circle {
     border-color: var(--primary);
-    background: var(--primary);
-    color: #000;
+    background: var(--primary); color: #fff;
 }
 
 /* ---------- Config Modal ---------- */
@@ -345,11 +344,11 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--bg-surface-hover);
     padding: 12px;
     border-radius: 10px;
     margin-bottom: 15px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
     cursor: pointer;
 }
 
@@ -393,7 +392,7 @@
     align-items: center;
     margin-bottom: 25px;
     padding-bottom: 15px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .exam-mode-label {
@@ -405,8 +404,8 @@
 .custom-time-input {
     width: 100%;
     padding: 10px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--text-secondary);
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
     color: var(--text-primary);
     border-radius: 8px;
     margin-top: 5px;
@@ -431,7 +430,7 @@
     backdrop-filter: blur(10px);
     padding: 10px 15px;
     border-radius: 18px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border-color);
     margin-bottom: 25px;
     position: sticky;
     top: 10px;
@@ -478,7 +477,7 @@
     white-space: nowrap;
     padding: 5px 0;
     scrollbar-width: thin;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .quiz-palette-strip {
@@ -491,7 +490,7 @@
     width: 30px;
     height: 30px;
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--bg-surface-hover);
     color: #aaa;
     display: flex;
     align-items: center;
@@ -499,18 +498,17 @@
     font-family: 'Fira Code', monospace;
     font-size: 0.85rem;
     cursor: pointer;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border-color);
     transition: 0.2s;
     flex-shrink: 0;
 }
 
 .mini-q-num.active {
-    background: var(--primary);
-    color: #000;
+    background: var(--primary); color: #fff;
     border-color: var(--primary);
     font-weight: 700;
     transform: translateY(-5px);
-    box-shadow: 0 5px 15px rgba(14, 165, 233, 0.3);
+    box-shadow: 0 5px 15px rgba(147, 26, 35, 0.3);
 }
 
 .mini-q-num.answered {
@@ -531,8 +529,7 @@
 }
 
 .mini-q-num.active.answered {
-    background: var(--primary);
-    color: #000;
+    background: var(--primary); color: #fff;
     border-color: var(--primary);
 }
 
@@ -549,8 +546,7 @@
 }
 
 .mini-q-num.active.correct {
-    background: var(--correct);
-    color: #000;
+    background: var(--correct); color: #fff;
     border-color: var(--correct);
 }
 
@@ -563,7 +559,7 @@
 .progress-wrapper {
     width: 100%;
     height: 6px;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--bg-surface-hover);
     border-radius: 10px;
     overflow: hidden;
 }
@@ -584,7 +580,7 @@
     backdrop-filter: blur(5px);
     border-radius: 12px;
     padding: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--border-color);
 }
 
 .quiz-question-text {
@@ -640,8 +636,7 @@
     display: block;
     width: 100%;
     padding: 15px;
-    background: var(--primary);
-    color: #000;
+    background: var(--primary); color: #fff;
     border: none;
     border-radius: 12px;
     cursor: pointer;
@@ -689,7 +684,7 @@
     width: 100%;
     height: 100%;
     background: var(--bg-card);
-    border: 2px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border-color);
     color: var(--text-primary);
     cursor: pointer;
     transition: 0.2s;
@@ -711,7 +706,7 @@
 
 .quiz-option-btn:hover {
     border-color: var(--primary);
-    background: rgba(14, 165, 233, 0.05);
+    background: rgba(147, 26, 35, 0.05);
     transform: translateY(-2px);
 }
 
@@ -746,9 +741,9 @@
 
 .quiz-option-btn.selected {
     border-color: var(--primary);
-    background: rgba(14, 165, 233, 0.15);
+    background: rgba(147, 26, 35, 0.15);
     color: var(--text-primary);
-    box-shadow: 0 0 15px rgba(14, 165, 233, 0.2);
+    box-shadow: 0 0 15px rgba(147, 26, 35, 0.2);
 }
 
 .quiz-option-btn img {
@@ -756,7 +751,7 @@
     max-height: 140px;
     object-fit: contain;
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.9);
+    background: var(--bg-main);
     padding: 5px;
 }
 
@@ -766,7 +761,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    background: rgba(255, 255, 255, 0.9);
+    background: var(--bg-main);
     border-radius: 8px;
     padding: 5px;
     overflow: hidden;
@@ -786,7 +781,7 @@
     margin-bottom: 25px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border-color);
     direction: ltr;
     text-align: left;
 }
@@ -797,7 +792,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .mac-dots {
@@ -816,9 +811,9 @@
 .mac-dot.green { background: #27c93f; }
 
 .mac-copy-btn {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--bg-surface-hover);
     border: none;
-    color: #fff;
+    color: var(--text-primary);
     padding: 4px 10px;
     border-radius: 5px;
     cursor: pointer;
@@ -831,7 +826,7 @@
 }
 
 .mac-copy-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--bg-surface-hover);
 }
 
 .quiz-mac-code-window pre[class*="language-"] {
@@ -892,7 +887,7 @@
     width: 100%;
     max-width: 450px;
     margin: 0 auto;
-    box-shadow: 0 0 30px rgba(14, 165, 233, 0.05);
+    box-shadow: 0 0 30px rgba(147, 26, 35, 0.05);
 }
 
 .result-card h1 {
@@ -925,8 +920,8 @@
     flex: 1;
     padding: 8px 12px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface-hover);
     color: var(--text-secondary);
     cursor: pointer;
     white-space: nowrap;
@@ -937,10 +932,9 @@
 }
 
 .quiz-filter-btn.active {
-    background: var(--primary);
-    color: #000;
+    background: var(--primary); color: #fff;
     border-color: var(--primary);
-    box-shadow: 0 2px 10px rgba(14, 165, 233, 0.15);
+    box-shadow: 0 2px 10px rgba(147, 26, 35, 0.15);
 }
 
 .quiz-review-list {
@@ -948,7 +942,7 @@
 }
 
 .quiz-review-item {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--bg-surface-hover);
     border-left: 4px solid var(--text-secondary);
     padding: 15px;
     margin-bottom: 10px;
@@ -1000,8 +994,7 @@
 }
 
 .btn-small.active {
-    background: var(--primary);
-    color: #000;
+    background: var(--primary); color: #fff;
 }
 
 .modal-overlay {
@@ -1066,7 +1059,7 @@
     background: rgba(10, 17, 30, 0.95);
     backdrop-filter: blur(5px);
     padding: 15px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--border-color);
     margin: 0 -25px;
     display: flex;
     gap: 10px;

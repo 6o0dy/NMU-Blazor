@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    Recorded lectures (Slate Developer Theme)
    ========================================================================== */
 
@@ -42,7 +42,7 @@
     aspect-ratio: 16 / 9;
     object-fit: cover;
     display: block;
-    background: #0b1526;
+    background: var(--bg-surface-hover);
 }
 
 .audio-placeholder {
@@ -51,7 +51,7 @@
     justify-content: center;
     color: var(--primary);
     font-size: 2.2rem;
-    background: linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, #0b1526 100%);
+    background: linear-gradient(135deg, rgba(147, 26, 35, 0.15) 0%, var(--bg-surface-hover) 100%);
 }
 
 .recorded-info {
@@ -76,9 +76,9 @@
 
 /* ---------- Badges ---------- */
 .badge-vid {
-    background: rgba(14, 165, 233, 0.15);
+    background: rgba(147, 26, 35, 0.15);
     color: var(--primary);
-    border: 1px solid rgba(14, 165, 233, 0.3);
+    border: 1px solid rgba(147, 26, 35, 0.3);
     font-size: 0.7rem;
     padding: 2px 8px;
     border-radius: 6px;
