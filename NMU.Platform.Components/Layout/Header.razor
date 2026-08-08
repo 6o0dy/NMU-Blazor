@@ -13,34 +13,15 @@
 
 <header class="header" dir="ltr" lang="en">
     <div class="header-left">
+        <button class="menu-toggle-btn" @onclick="ToggleSidebar" title="Menu" aria-label="Menu">
+            <i class="fas fa-bars"></i>
+        </button>
         @if (!IsHome)
         {
             <button class="back-btn" @onclick="GoBack" title="Back">
                 <i class="fas fa-arrow-left"></i>
             </button>
         }
-        <div class="avatar-btn-wrap">
-            <button class="avatar-btn" @onclick="ToggleAvatarMenu" title="Menu" aria-label="Menu">
-                <i class="fas fa-user"></i>
-            </button>
-            @if (_showAvatarMenu)
-            {
-                <div class="avatar-menu" @onclick:stopPropagation>
-                    <button class="avatar-menu-item" @onclick="MenuWhatsApp">
-                        <i class="fab fa-whatsapp"></i> WhatsApp
-                    </button>
-                    <button class="avatar-menu-item" @onclick="MenuFeedback">
-                        <i class="fas fa-star"></i> Feedback &amp; Suggestions
-                    </button>
-                    <button class="avatar-menu-item" @onclick="MenuManageData">
-                        <i class="fas fa-user-shield"></i> My Data
-                    </button>
-                    <button class="avatar-menu-item danger" @onclick="MenuClearCache">
-                        <i class="fas fa-trash-can"></i> Clear Cache
-                    </button>
-                </div>
-            }
-        </div>
     </div>
 
     <div class="header-center">
@@ -127,51 +108,8 @@
     private bool IsYouTubePlayer => Navigation.Uri.Contains("/youtube/") && Navigation.Uri.Contains("/player");
     private bool _isDownloading;
     private bool _showExitConfirm;
-    private bool _showAvatarMenu;
 
-    private void ToggleAvatarMenu() => _showAvatarMenu = !_showAvatarMenu;
-
-    private async Task MenuWhatsApp()
-    {
-        _showAvatarMenu = false;
-        await JS.InvokeVoidAsync("open", "https://wa.me/201029691937", "_blank");
-    }
-
-    private void MenuFeedback()
-    {
-        _showAvatarMenu = false;
-        Navigation.NavigateTo("feedback", replace: true);
-    }
-
-    private void MenuManageData()
-    {
-        _showAvatarMenu = false;
-        var onHome = string.IsNullOrEmpty(Navigation.ToBaseRelativePath(Navigation.Uri).Trim('/'));
-        if (onHome)
-        {
-            LayoutState.RequestSettings();
-        }
-        else
-        {
-            LayoutState.PendingSettings = true;
-            Navigation.NavigateTo("", replace: true);
-        }
-    }
-
-    private void MenuClearCache()
-    {
-        _showAvatarMenu = false;
-        var onHome = string.IsNullOrEmpty(Navigation.ToBaseRelativePath(Navigation.Uri).Trim('/'));
-        if (onHome)
-        {
-            LayoutState.RequestClearCache();
-        }
-        else
-        {
-            LayoutState.PendingCache = true;
-            Navigation.NavigateTo("", replace: true);
-        }
-    }
+    private void ToggleSidebar() => LayoutState.ToggleSidebar();
 
     private void TriggerExitConfirmation()
     {
@@ -229,7 +167,6 @@
             NavState.CurrentFileUrl = null;
             NavState.CurrentFileName = null;
         }
-        _showAvatarMenu = false;
         StateHasChanged();
     }
 

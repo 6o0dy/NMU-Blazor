@@ -11,6 +11,27 @@ public class LayoutState
     public event Action? CacheRequested;
     public bool PendingSettings { get; set; }
     public bool PendingCache { get; set; }
+    public bool SidebarOpen { get; set; }
+
+    public void ToggleSidebar()
+    {
+        SidebarOpen = !SidebarOpen;
+        NotifyStateChanged();
+    }
+
+    public void OpenSidebar()
+    {
+        if (SidebarOpen) return;
+        SidebarOpen = true;
+        NotifyStateChanged();
+    }
+
+    public void CloseSidebar()
+    {
+        if (!SidebarOpen) return;
+        SidebarOpen = false;
+        NotifyStateChanged();
+    }
 
     public void Clear()
     {

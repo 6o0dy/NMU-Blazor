@@ -19,116 +19,145 @@
 else
 {
     <div class="feedback-container">
-        <div class="feedback-widget">
-            <div class="widget-header">
-                <img src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhoHaelFYav8PXI1IdRySjwvoS2AvCXGjtQ1m61L4IncpasjOykB_ksA3IwQJJGBF4VMqsbn2WJ4D7fziJbXpYxlqSnfmEUKYfSVDXSuiMwGrz25nFTr49aBfGbeO_apptQX-CeVo6CzSVJk84HJRGefeaeWqSaG01aZL9NCXxrzhQI-uoqrFmGS30Mcaw/s1024/1000071927.jpg"
-                     class="widget-img" alt="Profile" />
-                <div class="widget-title">
-                    <h3>ABDELRHMAN ELSAYED</h3>
-                    <p>أخبرنا عن تجربتك واقتراحاتك</p>
-                </div>
-                <img src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhoHaelFYav8PXI1IdRySjwvoS2AvCXGjtQ1m61L4IncpasjOykB_ksA3IwQJJGBF4VMqsbn2WJ4D7fziJbXpYxlqSnfmEUKYfSVDXSuiMwGrz25nFTr49aBfGbeO_apptQX-CeVo6CzSVJk84HJRGefeaeWqSaG01aZL9NCXxrzhQI-uoqrFmGS30Mcaw/s1024/1000071927.jpg"
-                     class="widget-img" alt="Profile" />
-            </div>
-
-            <div class="row-flex">
-                <div class="rating-container" @onmouseleave="ClearHover">
-                    @for (int i = 1; i <= 5; i++)
-                    {
-                        var idx = i;
-                        <span class="star-wrapper">
-                            <span class="star-hitbox star-left" @onclick="() => SetRating(idx - 0.5)" @onmouseover="() => _hoverRating = idx - 0.5"></span>
-                            <span class="star-hitbox star-right" @onclick="() => SetRating(idx)" @onmouseover="() => _hoverRating = idx"></span>
-                            <i class="@GetStarClass(idx)"></i>
-                        </span>
-                    }
-                </div>
-                <div class="toggle-wrapper @(_isAnonymous ? "active" : "")" @onclick="ToggleAnonymous">
-                    <div class="toggle-switch"></div>
-                    <div class="toggle-label">مجهول</div>
+        <div class="feedback-hero">
+            <div class="feedback-hero-left">
+                <span class="feedback-hero-icon"><i class="fa-solid fa-star"></i></span>
+                <div>
+                    <h2>آراء وتقييمات الطلاب</h2>
+                    <p>شاركنا رأيك واقتراحاتك لتطوير المنصة ومساعدتنا على التحسن</p>
                 </div>
             </div>
-
-            <div class="input-group">
-                <input type="text" @bind="_nameInput" class="input-field" disabled="@_isAnonymous"
-                       placeholder="@(_isAnonymous ? "مجهول (Anonymous)" : "ادخل اسمك هنا...")" />
-                <textarea @bind="_commentInput" class="input-field" placeholder="اكتب تقييمك أو مشكلتك هنا..."></textarea>
-            </div>
-
-            <div class="actions-row">
-                <button class="btn btn-primary" @onclick="SubmitReview" disabled="@_isSending">
-                    @if (_isSending)
-                    {
-                        <i class="fa-solid fa-circle-notch fa-spin"></i>
-                    }
-                    else if (_hasExistingReview)
-                    {
-                        <i class="fa-solid fa-pen"></i>
-                    }
-                    else
-                    {
-                        <i class="fa-solid fa-paper-plane"></i>
-                    }
-                    @_buttonText
-                </button>
-                @if (_hasExistingReview)
-                {
-                    <button class="btn btn-danger" @onclick="RequestDelete" title="حذف تقييمي">
-                        <i class="fa-solid fa-trash"></i>
-                    </button>
-                }
-            </div>
-
-            <a href="https://wa.me/201029691937" target="_blank" class="wa-strip">
-                <i class="fa-brands fa-whatsapp"></i>
-                عندك مشكلة تقنية؟ تواصل معي على الواتساب
-            </a>
-        </div>
-
-        <div class="reviews-header" id="reviews-header-anchor">
-            <h3>آراء الطلاب</h3>
-            <span class="reviews-count-badge @(_countPulse ? "pulse-update" : "")" id="reviews-count-badge">
+            <span class="reviews-count-badge @(_countPulse ? "pulse-update" : "")">
+                <i class="fa-solid fa-comment"></i>
                 <span id="reviews-count">@_reviews.Count</span> تقييم
             </span>
         </div>
 
-        <div class="reviews-list">
-            @foreach (var rev in _reviews)
-            {
-                var r = rev;
-                var isMine = r.Serial == _fingerprint;
-                var val = double.TryParse(r.ReviewRating, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0;
-                var safeName = r.Name == "مجهول" ? "طالب مجهول" : r.Name;
-                var avatarUrl = r.Name == "مجهول" || r.Name == "طالب مجهول"
-                    ? "https://ui-avatars.com/api/?name=A&background=1e293b&color=94a3b8"
-                    : $"https://ui-avatars.com/api/?name={Uri.EscapeDataString(safeName)}&background=00f2ff&color=000&font-weight=bold";
-                var dateStr = r.Timestamp > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(r.Timestamp).ToString("dd/MM/yyyy") : "";
-
-                <div class="review-card @(isMine ? "my-review" : "")">
-                    <img src="@avatarUrl" class="reviewer-avatar" alt="avatar" />
-                    <div class="review-content">
-                        <div class="review-top">
-                            <div>
-                                <div class="r-name">
-                                    @safeName
-                                    @if (r.IsVerified)
-                                    {
-                                        <i class="fa-solid fa-circle-check r-verified" title="طالب مسجل"></i>
-                                    }
-                                </div>
-                                <div class="r-date">@dateStr</div>
-                            </div>
-                            <div class="r-stars">
-                                @RenderStars(val)
-                            </div>
+        <div class="feedback-layout">
+            <div class="feedback-form-col">
+                <div class="form-card">
+                    <div class="form-card-head">
+                        <span class="form-card-num">1</span>
+                        <div>
+                            <h3>قيّم المنصة</h3>
+                            <p>اضغط على النجوم لاختيار تقييمك</p>
                         </div>
-                        @if (!string.IsNullOrEmpty(r.Comment))
+                    </div>
+
+                    <div class="rating-container" @onmouseleave="ClearHover">
+                        @for (int i = 1; i <= 5; i++)
                         {
-                            <div class="r-text">@r.Comment</div>
+                            var idx = i;
+                            <span class="star-wrapper">
+                                <span class="star-hitbox star-left" @onclick="() => SetRating(idx - 0.5)" @onmouseover="() => _hoverRating = idx - 0.5"></span>
+                                <span class="star-hitbox star-right" @onclick="() => SetRating(idx)" @onmouseover="() => _hoverRating = idx"></span>
+                                <i class="@GetStarClass(idx)"></i>
+                            </span>
                         }
                     </div>
+
+                    <div class="form-card-head">
+                        <span class="form-card-num">2</span>
+                        <div>
+                            <h3>اكتب تقييمك</h3>
+                            <p>يمكنك إرسال التقييم باسم مجهول</p>
+                        </div>
+                    </div>
+
+                    <div class="row-flex">
+                        <input type="text" @bind="_nameInput" class="input-field input-name" disabled="@_isAnonymous"
+                               placeholder="@(_isAnonymous ? "مجهول (Anonymous)" : "ادخل اسمك هنا...")" />
+                        <div class="toggle-wrapper @(_isAnonymous ? "active" : "")" @onclick="ToggleAnonymous">
+                            <div class="toggle-switch"></div>
+                            <div class="toggle-label">مجهول</div>
+                        </div>
+                    </div>
+
+                    <textarea @bind="_commentInput" class="input-field input-comment" placeholder="اكتب تقييمك أو مشكلتك هنا..."></textarea>
+
+                    <div class="actions-row">
+                        <button class="btn btn-primary" @onclick="SubmitReview" disabled="@_isSending">
+                            @if (_isSending)
+                            {
+                                <i class="fa-solid fa-circle-notch fa-spin"></i>
+                            }
+                            else if (_hasExistingReview)
+                            {
+                                <i class="fa-solid fa-pen"></i>
+                            }
+                            else
+                            {
+                                <i class="fa-solid fa-paper-plane"></i>
+                            }
+                            @_buttonText
+                        </button>
+                        @if (_hasExistingReview)
+                        {
+                            <button class="btn btn-danger" @onclick="RequestDelete" title="حذف تقييمي">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        }
+                    </div>
+
+                    <a href="https://wa.me/201029691937" target="_blank" class="wa-strip">
+                        <i class="fa-brands fa-whatsapp"></i>
+                        عندك مشكلة تقنية؟ تواصل معي على الواتساب
+                    </a>
                 </div>
-            }
+            </div>
+
+            <div class="feedback-reviews-col">
+                <div class="reviews-header" id="reviews-header-anchor">
+                    <h3><i class="fa-solid fa-quote-left"></i> آراء الطلاب</h3>
+                </div>
+
+                <div class="reviews-list">
+                    @foreach (var rev in _reviews)
+                    {
+                        var r = rev;
+                        var isMine = r.Serial == _fingerprint;
+                        var val = double.TryParse(r.ReviewRating, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0;
+                        var safeName = r.Name == "مجهول" ? "طالب مجهول" : r.Name;
+                        var avatarUrl = r.Name == "مجهول" || r.Name == "طالب مجهول"
+                            ? "https://ui-avatars.com/api/?name=A&background=1e293b&color=94a3b8"
+                            : $"https://ui-avatars.com/api/?name={Uri.EscapeDataString(safeName)}&background=931a23&color=fff&font-weight=bold";
+                        var dateStr = r.Timestamp > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(r.Timestamp).ToString("dd/MM/yyyy") : "";
+
+                        <div class="review-card @(isMine ? "my-review" : "")">
+                            <img src="@avatarUrl" class="reviewer-avatar" alt="avatar" />
+                            <div class="review-content">
+                                <div class="review-top">
+                                    <div class="r-id">
+                                        <span class="r-name">
+                                            @safeName
+                                            @if (r.IsVerified)
+                                            {
+                                                <i class="fa-solid fa-circle-check r-verified" title="طالب مسجل"></i>
+                                            }
+                                        </span>
+                                        <span class="r-date">@dateStr</span>
+                                    </div>
+                                    <div class="r-stars">
+                                        @RenderStars(val)
+                                    </div>
+                                </div>
+                                @if (!string.IsNullOrEmpty(r.Comment))
+                                {
+                                    <div class="r-text">@r.Comment</div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                @if (_reviews.Count == 0)
+                {
+                    <div class="reviews-empty">
+                        <i class="fa-solid fa-inbox"></i>
+                        <p>لا توجد تقييمات بعد — كن أول من يشارك برأيه!</p>
+                    </div>
+                }
+            </div>
         </div>
     </div>
 }

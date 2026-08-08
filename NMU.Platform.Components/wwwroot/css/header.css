@@ -74,6 +74,33 @@
     fill: currentColor;
 }
 
+/* ---------- Mobile Sidebar Toggle (Hidden on Desktop) ---------- */
+.menu-toggle-btn {
+    display: none;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    color: var(--text-secondary);
+    font-size: 15px;
+    flex-shrink: 0;
+}
+
+.menu-toggle-btn:hover {
+    background: var(--bg-surface-hover);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+@media (max-width: 1023px) {
+    .menu-toggle-btn { display: flex; }
+}
+
 /* ---------- Desktop Window Controls ---------- */
 .win-btn {
     background: transparent;
@@ -94,98 +121,6 @@
 .win-btn-min:hover { background: rgba(249, 115, 22, 0.15); color: var(--timer-color); border-color: var(--timer-color); }
 .win-btn-fs:hover { background: rgba(34, 197, 94, 0.15); color: var(--correct); border-color: var(--correct); }
 .win-btn-close:hover { background: var(--wrong); color: #fff; border-color: var(--wrong); }
-
-/* ---------- Avatar Menu (replaces FAB) ---------- */
-.avatar-btn-wrap {
-    position: relative;
-    display: flex;
-}
-
-.avatar-btn {
-    position: relative;
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: rgba(147, 26, 35, 0.15);
-    border: 1px solid var(--primary);
-    color: var(--primary);
-    font-weight: 800;
-    font-size: 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    flex-shrink: 0;
-    font-family: 'Cairo', sans-serif;
-}
-
-.avatar-btn:hover {
-    background: var(--primary);
-    color: #fff;
-}
-
-.avatar-menu {
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    min-width: 190px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 6px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    z-index: 30000;
-    direction: ltr;
-}
-
-.avatar-menu-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 10px 12px;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    color: var(--text-primary);
-    font-family: 'Cairo', sans-serif;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    text-align: left;
-    transition: 0.15s;
-}
-
-.avatar-menu-item i {
-    width: 18px;
-    color: var(--text-secondary);
-    transition: 0.15s;
-}
-
-.avatar-menu-item:hover {
-    background: var(--bg-surface-hover);
-    color: var(--primary);
-}
-
-.avatar-menu-item:hover i {
-    color: var(--primary);
-}
-
-.avatar-menu-item.danger {
-    color: var(--wrong);
-}
-
-.avatar-menu-item.danger i {
-    color: var(--wrong);
-}
-
-.avatar-menu-item.danger:hover {
-    background: rgba(239, 68, 68, 0.1);
-}
 
 /* ---------- Other Header Elements ---------- */
 .download-btn {

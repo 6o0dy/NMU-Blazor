@@ -166,8 +166,17 @@
         }
     }
 
-    private void OnSettingsRequested() => OpenManageModal();
-    private void OnCacheRequested() => OpenCacheModal();
+    private void OnSettingsRequested()
+    {
+        OpenManageModal();
+        StateHasChanged();
+    }
+
+    private void OnCacheRequested()
+    {
+        OpenCacheModal();
+        StateHasChanged();
+    }
 
     public void Dispose()
     {

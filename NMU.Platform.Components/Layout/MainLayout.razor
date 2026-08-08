@@ -2,6 +2,7 @@
 @using NMU.Platform.Components.Loading
 @using NMU.Platform.Components.Setup
 @using NMU.Platform.Components.Models
+@using Microsoft.JSInterop
 @implements IDisposable
 @inherits LayoutComponentBase
 @inject StudentService StudentService
@@ -11,27 +12,35 @@
 @inject ToastService Toast
 @inject NavigationState NavState
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <div class="app-shell" dir="ltr">
     @if (!NavState.IsFullScreen && !showLoading)
     {
-        <aside class="sidebar">
+        @if (LayoutState.SidebarOpen)
+        {
+            <div class="sidebar-backdrop" @onclick="CloseSidebar"></div>
+        }
+        <aside class="sidebar @(LayoutState.SidebarOpen ? "sidebar-open" : "")">
             <div class="brand-box">
                 <div class="brand-badge">N</div>
                 <span class="brand-name">NMU Platform</span>
             </div>
 
             <nav class="sidebar-nav">
-                <NavLink class="sidebar-nav-item" href="/" Match="NavLinkMatch.All">🏠 Home</NavLink>
-                <NavLink class="sidebar-nav-item" href="/materials" Match="NavLinkMatch.Prefix">📚 Study Materials</NavLink>
-                <NavLink class="sidebar-nav-item" href="/recorded" Match="NavLinkMatch.Prefix">🎥 Recorded Lectures</NavLink>
-                <NavLink class="sidebar-nav-item" href="/quizzes" Match="NavLinkMatch.Prefix">🧩 Quizzes &amp; Bank</NavLink>
-                <NavLink class="sidebar-nav-item" href="/laboratory" Match="NavLinkMatch.Prefix">🧪 Virtual Lab</NavLink>
-                <NavLink class="sidebar-nav-item" href="/feedback" Match="NavLinkMatch.Prefix">⭐ Feedback</NavLink>
+                <NavLink class="sidebar-nav-item" href="/" Match="NavLinkMatch.All" @onclick="CloseSidebar">🏠 Home</NavLink>
+                <NavLink class="sidebar-nav-item" href="/materials" Match="NavLinkMatch.Prefix" @onclick="CloseSidebar">📚 Study Materials</NavLink>
+                <NavLink class="sidebar-nav-item" href="/recorded" Match="NavLinkMatch.Prefix" @onclick="CloseSidebar">🎥 Recorded Lectures</NavLink>
+                <NavLink class="sidebar-nav-item" href="/quizzes" Match="NavLinkMatch.Prefix" @onclick="CloseSidebar">🧩 Quizzes &amp; Bank</NavLink>
+                <NavLink class="sidebar-nav-item" href="/laboratory" Match="NavLinkMatch.Prefix" @onclick="CloseSidebar">🧪 Virtual Lab</NavLink>
+                <NavLink class="sidebar-nav-item" href="/feedback" Match="NavLinkMatch.Prefix" @onclick="CloseSidebar">⭐ Feedback</NavLink>
             </nav>
 
             <div class="sidebar-spacer"></div>
-            <button class="sidebar-nav-item" @onclick="OpenSettings" title="Settings">⚙️ Settings</button>
+            <div class="sidebar-divider"></div>
+            <button class="sidebar-nav-item" @onclick="MenuWhatsApp">💬 WhatsApp</button>
+            <button class="sidebar-nav-item" @onclick="MenuManageData">👤 My Data</button>
+            <button class="sidebar-nav-item danger" @onclick="MenuClearCache">🗑️ Clear Cache</button>
         </aside>
     }
 
@@ -62,7 +71,7 @@
                     <div class="search-section">@LayoutState.SearchBar</div>
                 }
                 <div class="scroll-frame">
-                    <div class="page-container">
+                    <div class="page-container @(IsFeedbackPage ? "page-container-wide" : "")">
                         @Body
                     </div>
                 </div>
@@ -122,8 +131,19 @@
 
     private bool IsHome => string.IsNullOrEmpty(Navigation.ToBaseRelativePath(Navigation.Uri).Trim('/'));
 
-    private void OpenSettings()
+    private bool IsFeedbackPage => Navigation.ToBaseRelativePath(Navigation.Uri).TrimStart('/').StartsWith("feedback", StringComparison.OrdinalIgnoreCase);
+
+    private void CloseSidebar() => LayoutState.CloseSidebar();
+
+    private async Task MenuWhatsApp()
     {
+        LayoutState.CloseSidebar();
+        await JS.InvokeVoidAsync("open", "https://wa.me/201029691937", "_blank");
+    }
+
+    private void MenuManageData()
+    {
+        LayoutState.CloseSidebar();
         if (IsHome)
         {
             LayoutState.RequestSettings();
@@ -135,10 +155,25 @@
         }
     }
 
+    private void MenuClearCache()
+    {
+        LayoutState.CloseSidebar();
+        if (IsHome)
+        {
+            LayoutState.RequestClearCache();
+        }
+        else
+        {
+            LayoutState.PendingCache = true;
+            Navigation.NavigateTo("", replace: true);
+        }
+    }
+
     protected override void OnInitialized()
     {
         LayoutState.StateChanged += OnLayoutStateChanged;
         Toast.Show += OnToastShow;
+        Navigation.LocationChanged += OnLocationChanged;
     }
 
     protected override async Task OnInitializedAsync()
@@ -168,6 +203,12 @@
     }
 
     private void OnLayoutStateChanged() => StateHasChanged();
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        LayoutState.CloseSidebar();
+        StateHasChanged();
+    }
 
     private async Task OnLoadingDone()
     {
@@ -240,5 +281,6 @@
             Platform.FullScreenChanged -= OnFullScreenChanged;
         LayoutState.StateChanged -= OnLayoutStateChanged;
         Toast.Show -= OnToastShow;
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 }
