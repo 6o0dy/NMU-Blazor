@@ -71,11 +71,11 @@ else
                         var cacheIcon = _cacheStatus.GetValueOrDefault(f.Name) ?? "";
                         if (cacheIcon == "✓")
                         {
-                            <div class="recorded-cache-badge" title="Available offline" style="background:var(--correct,#22c55e);color:#fff;">✓</div>
+                            <div class="recorded-cache-badge cached" title="Available offline">✓ Available Offline</div>
                         }
                         else if (cacheIcon == "⏳")
                         {
-                            <div class="recorded-cache-badge" title="Partially cached" style="background:var(--accent,#00f2ff);color:#000;">⏳</div>
+                            <div class="recorded-cache-badge partial" title="Partially cached">⏳ Caching</div>
                         }
                     }
                 </div>

@@ -10,42 +10,87 @@
 @inject LayoutState LayoutState
 @inject ToastService Toast
 @inject NavigationState NavState
+@inject NavigationManager Navigation
 
-@if (!NavState.HideHeader)
-{
-    <Header />
-}
-
-@if (showLoading)
-{
-    <LoadingScreen IsVisible="true" OnComplete="@OnLoadingDone" />
-}
-else if (showSetup)
-{
-    <SetupModal IsVisible="true" OnSave="@OnSetupSaved" />
-}
-else
-{
-    @if (NavState.IsFullScreen)
+<div class="app-shell" dir="ltr">
+    @if (!NavState.IsFullScreen && !showLoading)
     {
-        @Body
-    }
-    else
-    {
-        @if (LayoutState.SearchBar != null)
-        {
-            <div class="search-section">@LayoutState.SearchBar</div>
-        }
-        <div class="scroll-frame">
-            <div class="page-container">
-                @Body
+        <aside class="sidebar">
+            <div class="brand-box">
+                <div class="brand-badge">N</div>
+                <span class="brand-name">NMU Platform</span>
             </div>
-        </div>
-        @if (LayoutState.BottomBar != null)
-        {
-            <div class="bottom-section">@LayoutState.BottomBar</div>
-        }
+
+            <nav class="sidebar-nav">
+                <NavLink class="sidebar-nav-item" href="/" Match="NavLinkMatch.All">🏠 Home</NavLink>
+                <NavLink class="sidebar-nav-item" href="/materials" Match="NavLinkMatch.Prefix">📚 Study Materials</NavLink>
+                <NavLink class="sidebar-nav-item" href="/recorded" Match="NavLinkMatch.Prefix">🎥 Recorded Lectures</NavLink>
+                <NavLink class="sidebar-nav-item" href="/quizzes" Match="NavLinkMatch.Prefix">🧩 Quizzes &amp; Bank</NavLink>
+                <NavLink class="sidebar-nav-item" href="/laboratory" Match="NavLinkMatch.Prefix">🧪 Virtual Lab</NavLink>
+                <NavLink class="sidebar-nav-item" href="/feedback" Match="NavLinkMatch.Prefix">⭐ Feedback</NavLink>
+            </nav>
+
+            <div class="sidebar-spacer"></div>
+            <button class="sidebar-nav-item" @onclick="OpenSettings" title="Settings">⚙️ Settings</button>
+        </aside>
     }
+
+    <div class="main-wrapper">
+        @if (!NavState.HideHeader)
+        {
+            <Header />
+        }
+
+        @if (showLoading)
+        {
+            <LoadingScreen IsVisible="true" OnComplete="@OnLoadingDone" />
+        }
+        else if (showSetup)
+        {
+            <SetupModal IsVisible="true" OnSave="@OnSetupSaved" />
+        }
+        else
+        {
+            @if (NavState.IsFullScreen)
+            {
+                @Body
+            }
+            else
+            {
+                @if (LayoutState.SearchBar != null)
+                {
+                    <div class="search-section">@LayoutState.SearchBar</div>
+                }
+                <div class="scroll-frame">
+                    <div class="page-container">
+                        @Body
+                    </div>
+                </div>
+                @if (LayoutState.BottomBar != null)
+                {
+                    <div class="bottom-section">@LayoutState.BottomBar</div>
+                }
+            }
+        }
+    </div>
+</div>
+
+@if (!NavState.IsFullScreen)
+{
+    <nav class="mobile-bottom-nav" dir="ltr">
+        <NavLink class="mobile-nav-btn" href="/" Match="NavLinkMatch.All">
+            <span>🏠</span><span>Home</span>
+        </NavLink>
+        <NavLink class="mobile-nav-btn" href="/materials" Match="NavLinkMatch.Prefix">
+            <span>📚</span><span>Materials</span>
+        </NavLink>
+        <NavLink class="mobile-nav-btn" href="/recorded" Match="NavLinkMatch.Prefix">
+            <span>🎥</span><span>Lectures</span>
+        </NavLink>
+        <NavLink class="mobile-nav-btn" href="/quizzes" Match="NavLinkMatch.Prefix">
+            <span>🧩</span><span>Quizzes</span>
+        </NavLink>
+    </nav>
 }
 
 @if (_toastVisible)
@@ -74,6 +119,21 @@ else
         ToastType.Error => "✕",
         _ => "✓"
     };
+
+    private bool IsHome => string.IsNullOrEmpty(Navigation.ToBaseRelativePath(Navigation.Uri).Trim('/'));
+
+    private void OpenSettings()
+    {
+        if (IsHome)
+        {
+            LayoutState.RequestSettings();
+        }
+        else
+        {
+            LayoutState.PendingSettings = true;
+            Navigation.NavigateTo("", replace: true);
+        }
+    }
 
     protected override void OnInitialized()
     {

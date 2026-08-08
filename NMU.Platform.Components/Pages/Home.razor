@@ -1,6 +1,7 @@
 @page "/"
 @using NMU.Platform.Components.Models
 @using NMU.Platform.Components.Services
+@implements IDisposable
 @inject StudentService StudentService
 @inject NavigationManager Navigation
 @inject IPlatformService Platform
@@ -8,71 +9,49 @@
 @inject ToastService Toast
 @inject IJSRuntime _js
 @inject MediaCacheService MediaCache
+@inject LayoutState LayoutState
 
 @if (currentStudent != null)
 {
     <div class="home-container">
         <div class="hero-section">
-            <div class="hero-glow"></div>
-            <h1 dir="rtl" lang="ar">
-                مرحباً بك يا
+            <h1>
+                Welcome,
                 <span class="hero-name">@currentStudent.Name</span>
-                🚀
+                👋
             </h1>
-            <p>&lt; Everything you need is here /&gt;</p>
+            <div class="code-tag">&lt; Everything you need is here /&gt;</div>
         </div>
 
-        <div class="grid">
-            <div class="card card-full" @onclick="GoToMaterials">
-                <div class="card-icon">🧠</div>
-                <div class="text-content">
-                    <div class="card-title">Study Materials</div>
-                    <div class="card-desc">Structure Programming, Mechanics...</div>
-                </div>
+        <div class="cards-grid">
+            <div class="dev-card" @onclick="GoToMaterials">
+                <div class="dev-card-title"><span>📚</span> Study Materials</div>
+                <div class="dev-card-desc">Browse lectures and material files available for the current term.</div>
+                <button class="btn-sky" @onclick="GoToMaterials" @onclick:stopPropagation>Browse Materials ➔</button>
             </div>
 
-            <div class="card" @onclick="GoToYouTube">
-                <div class="card-icon">🤖</div>
-                <div class="card-title">YouTube Videos</div>
-                <div class="card-desc">Explanations From YouTube</div>
+            <div class="dev-card" @onclick="GoToQuizzes">
+                <div class="dev-card-title"><span>🧩</span> Quizzes &amp; Bank</div>
+                <div class="dev-card-desc">Practice exams and real quiz mode with answer explanations.</div>
+                <button class="btn-outlined" @onclick="GoToQuizzes" @onclick:stopPropagation>Start Quizzes ➔</button>
             </div>
 
-            <div class="card" @onclick="GoToRecorded">
-                <div class="card-icon">💾</div>
-                <div class="card-title">Recorded Lecturer</div>
-                <div class="card-desc">Videos And Audio Recordings</div>
+            <div class="dev-card" @onclick="GoToRecorded">
+                <div class="dev-card-title"><span>🎥</span> Recorded Lectures</div>
+                <div class="dev-card-desc">Built-in player with seek bar and offline caching support.</div>
+                <button class="btn-outlined" @onclick="GoToRecorded" @onclick:stopPropagation>Watch Lectures ➔</button>
             </div>
 
-            <div class="card" @onclick="GoToQuizzes">
-                <div class="card-icon">⚡</div>
-                <div class="card-title">Tests</div>
-                <div class="card-desc">Test Your Skills</div>
+            <div class="dev-card" @onclick="GoToYouTube">
+                <div class="dev-card-title"><span>▶️</span> YouTube Videos</div>
+                <div class="dev-card-desc">Curated subject explanations from YouTube channels.</div>
+                <button class="btn-outlined" @onclick="GoToYouTube" @onclick:stopPropagation>Browse Videos ➔</button>
             </div>
 
-            <div class="card" @onclick="GoToLaboratory">
-                <div class="card-icon">🔌</div>
-                <div class="card-title">Laboratory</div>
-                <div class="card-desc">Some practical experiments</div>
-            </div>
-        </div>
-
-        <div class="fab-wrapper @(fabActive ? "active" : "")" id="main-fab">
-            <button class="fab-main" @onclick="ToggleFab" aria-label="setting">
-                <i class="fas fa-plus"></i>
-            </button>
-            <div class="fab-menu">
-                <div class="fab-item" @onclick="OpenWhatsApp" title="WhatsApp">
-                    <i class="fab fa-whatsapp"></i>
-                </div>
-                <div class="fab-item" @onclick="GoToFeedback" title="Evaluation">
-                    <i class="fas fa-star"></i>
-                </div>
-                <div class="fab-item" @onclick="OpenManageModal" title="My Data">
-                    <i class="fas fa-user-shield"></i>
-                </div>
-                <div class="fab-item" @onclick="OpenCacheModal" title="Clear Cache">
-                    <i class="fas fa-trash-can"></i>
-                </div>
+            <div class="dev-card" @onclick="GoToLaboratory">
+                <div class="dev-card-title"><span>🧪</span> Virtual Lab</div>
+                <div class="dev-card-desc">Live simulations of practical electricity and circuits experiments.</div>
+                <button class="btn-outlined" @onclick="GoToLaboratory" @onclick:stopPropagation>Enter Lab ➔</button>
             </div>
         </div>
     </div>
@@ -151,7 +130,6 @@
 
 @code {
     private StudentProfile? currentStudent;
-    private bool fabActive;
     private bool showManageModal;
     private bool isEditing;
     private bool showCacheModal;
@@ -159,6 +137,12 @@
     private string editName = "";
     private string editYear = "Level 1";
     private string editTerm = "Semester 1";
+
+    protected override void OnInitialized()
+    {
+        LayoutState.SettingsRequested += OnSettingsRequested;
+        LayoutState.CacheRequested += OnCacheRequested;
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -168,26 +152,31 @@
             currentStudent = await StudentService.GetStudentAsync();
         }
         catch { }
+
+        if (LayoutState.PendingSettings)
+        {
+            LayoutState.PendingSettings = false;
+            OpenManageModal();
+        }
+
+        if (LayoutState.PendingCache)
+        {
+            LayoutState.PendingCache = false;
+            OpenCacheModal();
+        }
     }
 
-    private void ToggleFab() => fabActive = !fabActive;
+    private void OnSettingsRequested() => OpenManageModal();
+    private void OnCacheRequested() => OpenCacheModal();
 
-    private async Task OpenWhatsApp()
+    public void Dispose()
     {
-        fabActive = false;
-        var url = "https://wa.me/201029691937";
-        await _js.InvokeVoidAsync("open", url, "_blank");
-    }
-
-    private void GoToFeedback()
-    {
-        fabActive = false;
-        Navigation.NavigateTo("feedback", replace: true);
+        LayoutState.SettingsRequested -= OnSettingsRequested;
+        LayoutState.CacheRequested -= OnCacheRequested;
     }
 
     private void OpenManageModal()
     {
-        fabActive = false;
         if (currentStudent != null)
         {
             editName = currentStudent.Name;
@@ -199,7 +188,6 @@
 
     private void OpenCacheModal()
     {
-        fabActive = false;
         showCacheModal = true;
     }
 
@@ -211,12 +199,12 @@
         {
             var count = await _js.InvokeAsync<int>("nmuFunctions.clearPdfCache");
             showCacheModal = false;
-            Toast.ShowToast($"تم حذف {count} ملف من الكاش", ToastType.Success);
+            Toast.ShowToast($"Deleted {count} files from cache", ToastType.Success);
         }
         catch
         {
             showCacheModal = false;
-            Toast.ShowToast("حدث خطأ أثناء حذف كاش الملفات", ToastType.Error);
+            Toast.ShowToast("An error occurred while clearing file cache", ToastType.Error);
         }
     }
 
@@ -226,12 +214,12 @@
         {
             await MediaCache.ClearAllAsync();
             showCacheModal = false;
-            Toast.ShowToast("تم حذف كاش الفيديوهات بنجاح", ToastType.Success);
+            Toast.ShowToast("Video cache cleared successfully", ToastType.Success);
         }
         catch
         {
             showCacheModal = false;
-            Toast.ShowToast("حدث خطأ أثناء حذف كاش الفيديوهات", ToastType.Error);
+            Toast.ShowToast("An error occurred while clearing video cache", ToastType.Error);
         }
     }
 
@@ -241,12 +229,12 @@
         {
             await _js.InvokeVoidAsync("nmuFunctions.clearQuizCache");
             showCacheModal = false;
-            Toast.ShowToast("تم حذف كاش الكويزات بنجاح", ToastType.Success);
+            Toast.ShowToast("Quiz cache cleared successfully", ToastType.Success);
         }
         catch
         {
             showCacheModal = false;
-            Toast.ShowToast("حدث خطأ أثناء حذف كاش الكويزات", ToastType.Error);
+            Toast.ShowToast("An error occurred while clearing quiz cache", ToastType.Error);
         }
     }
 
@@ -257,12 +245,12 @@
             await MediaCache.ClearAllAsync();
             await _js.InvokeVoidAsync("nmuFunctions.clearAllCache");
             showCacheModal = false;
-            Toast.ShowToast("تم حذف جميع الكاش بنجاح", ToastType.Success);
+            Toast.ShowToast("All cache cleared successfully", ToastType.Success);
         }
         catch
         {
             showCacheModal = false;
-            Toast.ShowToast("حدث خطأ أثناء حذف الكاش", ToastType.Error);
+            Toast.ShowToast("An error occurred while clearing cache", ToastType.Error);
         }
     }
 
@@ -309,7 +297,7 @@
                 var removed = await _js.InvokeAsync<int>("nmuFunctions.cleanupOldQuizCache", oldLevel, oldSemester, editYear, editTerm);
                 if (removed > 0)
                 {
-                    Toast.ShowToast($"تم حذف {removed} ملف كاش من الترم القديم", ToastType.Success);
+                    Toast.ShowToast($"Deleted {removed} cached files from the old term", ToastType.Success);
                 }
             }
             catch { }

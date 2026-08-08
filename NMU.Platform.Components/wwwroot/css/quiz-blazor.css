@@ -1,8 +1,8 @@
-/* ========================================
-   Quiz Blazor Pages - Styles
-   ======================================== */
+/* ==========================================================================
+   Quiz pages (Subjects / Chapters / Play / Result)
+   ========================================================================== */
 
-/* --- Sync Progress Bar --- */
+/* ---------- Sync Progress ---------- */
 .sync-progress-container {
     display: flex;
     flex-direction: column;
@@ -43,7 +43,7 @@
     font-weight: 700;
 }
 
-/* --- Quiz Subjects Page --- */
+/* ---------- Subjects Page ---------- */
 .quiz-subjects-container {
     max-width: 900px;
     margin: 15px auto;
@@ -51,7 +51,7 @@
     width: 100%;
 }
 
-/* --- Quiz Chapters Page --- */
+/* ---------- Chapters Page ---------- */
 .quiz-chapters-container {
     max-width: 800px;
     margin: 0 auto;
@@ -95,10 +95,10 @@
     position: relative;
     width: 46px;
     height: 24px;
-    background: #222;
+    background: var(--bg-modal);
     border-radius: 20px;
     transition: 0.3s;
-    border: 1px solid #444;
+    border: 1px solid var(--border-color);
 }
 
 .toggle-switch-main::after {
@@ -108,14 +108,14 @@
     left: 2px;
     width: 18px;
     height: 18px;
-    background: #fff;
+    background: var(--text-primary);
     border-radius: 50%;
-    transition: 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
 }
 
 .timer-active .toggle-switch-main {
-    background: rgba(0, 242, 255, 0.2);
+    background: rgba(14, 165, 233, 0.2);
     border-color: var(--primary);
 }
 
@@ -127,7 +127,7 @@
 
 .timer-active .timer-label {
     color: var(--primary);
-    text-shadow: 0 0 10px rgba(0, 242, 255, 0.4);
+    text-shadow: 0 0 10px rgba(14, 165, 233, 0.4);
 }
 
 .chapters-list {
@@ -143,6 +143,11 @@
         grid-template-columns: 1fr 1fr;
         gap: 15px;
     }
+
+    .chapter-card {
+        grid-column: auto;
+    }
+
     .comprehensive-card,
     .custom-select-card {
         grid-column: 1 / -1;
@@ -151,7 +156,7 @@
 
 .chapter-card {
     width: 100%;
-    background: rgba(30, 41, 59, 0.6);
+    background: rgba(30, 41, 59, 0.7);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-right: 4px solid var(--primary);
     border-left: 4px solid var(--primary);
@@ -161,7 +166,7 @@
     align-items: center;
     justify-content: space-between;
     flex-direction: row-reverse;
-    color: #fff;
+    color: var(--text-primary);
     cursor: pointer;
     transition: all 0.3s;
     position: relative;
@@ -172,9 +177,9 @@
 
 .chapter-card:hover {
     transform: translateY(-3px) scale(1.01);
-    background: rgba(30, 41, 59, 0.9);
+    background: rgba(30, 41, 59, 0.95);
     border-color: var(--primary);
-    box-shadow: 0 10px 20px rgba(0, 242, 255, 0.15);
+    box-shadow: 0 10px 20px rgba(14, 165, 233, 0.15);
 }
 
 .chapter-title {
@@ -192,78 +197,37 @@
     background: rgba(255, 255, 255, 0.05);
     padding: 4px 12px;
     border-radius: 20px;
-    font-family: 'Fira Code';
+    font-family: 'Fira Code', monospace;
     white-space: nowrap;
 }
 
+.chapter-icon {
+    font-size: 1.6rem;
+    color: var(--primary);
+    flex-shrink: 0;
+}
+
+.comprehensive-card .chapter-icon {
+    color: var(--accent);
+}
+
+.custom-select-card .chapter-icon {
+    color: var(--star-color);
+}
+
 .comprehensive-card {
-    border-right: none;
     border: 1px solid var(--accent);
-    background: linear-gradient(135deg, rgba(189, 0, 255, 0.1) 0%, rgba(30, 41, 59, 0.8) 100%);
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.12) 0%, rgba(30, 41, 59, 0.85) 100%);
     margin-bottom: 5px;
 }
 
 .custom-select-card {
-    border-right: none;
     border: 1px solid var(--star-color);
-    background: rgba(255, 184, 0, 0.05);
+    background: rgba(251, 191, 36, 0.05);
     margin-bottom: 15px;
 }
 
-/* --- Config Modal --- */
-.config-title {
-    margin-bottom: 10px;
-    font-size: 1.2rem;
-    font-weight: bold;
-    border-bottom: 1px solid #333;
-    padding-bottom: 10px;
-}
-
-.mode-toggle-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: rgba(255, 255, 255, 0.03);
-    padding: 12px;
-    border-radius: 10px;
-    margin-bottom: 15px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    cursor: pointer;
-}
-
-.mode-toggle-switch {
-    width: 40px;
-    height: 22px;
-    background: var(--primary);
-    border-radius: 20px;
-    position: relative;
-    transition: 0.3s;
-}
-
-.mode-toggle-switch::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    left: 22px;
-    width: 18px;
-    height: 18px;
-    background: #fff;
-    border-radius: 50%;
-    transition: 0.3s;
-}
-
-.mode-toggle-wrapper.normal-mode .mode-toggle-switch {
-    background: #333;
-}
-
-.mode-toggle-wrapper.normal-mode .mode-toggle-switch::after {
-    left: 2px;
-}
-
-.config-group {
-    margin-bottom: 25px;
-}
-
+/* ---------- Chapter Select Modal ---------- */
 .modal-timer-toggle {
     display: flex;
     justify-content: space-between;
@@ -278,16 +242,17 @@
 
 .modal-timer-toggle.active {
     border-color: var(--timer-color);
-    background: rgba(255, 159, 67, 0.05);
+    background: rgba(249, 115, 22, 0.05);
 }
 
 .toggle-switch-modal {
     width: 40px;
     height: 22px;
-    background: #333;
+    background: var(--bg-modal);
     border-radius: 20px;
     position: relative;
     transition: 0.3s;
+    border: 1px solid var(--border-color);
 }
 
 .toggle-switch-modal::after {
@@ -297,13 +262,14 @@
     left: 2px;
     width: 18px;
     height: 18px;
-    background: #fff;
+    background: var(--text-primary);
     border-radius: 50%;
     transition: 0.3s;
 }
 
 .modal-timer-toggle.active .toggle-switch-modal {
     background: var(--timer-color);
+    border-color: var(--timer-color);
 }
 
 .modal-timer-toggle.active .toggle-switch-modal::after {
@@ -337,7 +303,7 @@
 
 .chapter-checkbox-card.selected {
     border-color: var(--primary);
-    background: rgba(0, 242, 255, 0.05);
+    background: rgba(14, 165, 233, 0.05);
 }
 
 .chk-circle {
@@ -353,6 +319,7 @@
     font-weight: 900;
     font-size: 12px;
     color: transparent;
+    flex-shrink: 0;
 }
 
 .chk-circle::before {
@@ -365,7 +332,93 @@
     color: #000;
 }
 
-/* --- Quiz Play Page --- */
+/* ---------- Config Modal ---------- */
+.config-title {
+    margin-bottom: 10px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+}
+
+.mode-toggle-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+}
+
+.mode-toggle-switch {
+    width: 40px;
+    height: 22px;
+    background: var(--primary);
+    border-radius: 20px;
+    position: relative;
+    transition: 0.3s;
+}
+
+.mode-toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 22px;
+    width: 18px;
+    height: 18px;
+    background: var(--text-primary);
+    border-radius: 50%;
+    transition: 0.3s;
+}
+
+.mode-toggle-wrapper.normal-mode .mode-toggle-switch {
+    background: var(--bg-modal);
+    border: 1px solid var(--border-color);
+}
+
+.mode-toggle-wrapper.normal-mode .mode-toggle-switch::after {
+    left: 2px;
+}
+
+.config-group {
+    margin-bottom: 25px;
+}
+
+.exam-mode-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.exam-mode-label {
+    font-weight: 700;
+    color: var(--wrong);
+    font-size: 0.95rem;
+}
+
+.custom-time-input {
+    width: 100%;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--text-secondary);
+    color: var(--text-primary);
+    border-radius: 8px;
+    margin-top: 5px;
+    font-family: 'Fira Code', monospace;
+    text-align: center;
+}
+
+.config-modal-box {
+    max-width: 420px;
+}
+
+/* ---------- Play Page ---------- */
 .quiz-play-page {
     max-width: 800px;
     margin: 0 auto;
@@ -401,10 +454,10 @@
     font-weight: 700;
     font-size: 1.1rem;
     color: var(--timer-color);
-    background: rgba(255, 159, 67, 0.1);
+    background: rgba(249, 115, 22, 0.1);
     padding: 5px 12px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 159, 67, 0.3);
+    border: 1px solid rgba(249, 115, 22, 0.3);
     animation: pulse-timer 2s infinite;
 }
 
@@ -415,7 +468,7 @@
 }
 
 .quiz-live-score {
-    font-family: 'Fira Code';
+    font-family: 'Fira Code', monospace;
     font-size: 0.9rem;
 }
 
@@ -424,7 +477,7 @@
     overflow-x: auto;
     white-space: nowrap;
     padding: 5px 0;
-    scrollbar-width: block;
+    scrollbar-width: thin;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
@@ -443,7 +496,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Fira Code';
+    font-family: 'Fira Code', monospace;
     font-size: 0.85rem;
     cursor: pointer;
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -457,13 +510,13 @@
     border-color: var(--primary);
     font-weight: 700;
     transform: translateY(-5px);
-    box-shadow: 0 5px 15px rgba(0, 242, 255, 0.3);
+    box-shadow: 0 5px 15px rgba(14, 165, 233, 0.3);
 }
 
 .mini-q-num.answered {
     border-color: var(--correct);
     color: var(--correct);
-    background: rgba(0, 230, 118, 0.1);
+    background: rgba(34, 197, 94, 0.1);
 }
 
 .mini-q-num.flagged {
@@ -472,7 +525,7 @@
 }
 
 .mini-q-num.answered.flagged {
-    background: rgba(0, 230, 118, 0.15) !important;
+    background: rgba(34, 197, 94, 0.15) !important;
     border: 2px solid var(--wrong) !important;
     color: var(--correct) !important;
 }
@@ -484,7 +537,7 @@
 }
 
 .mini-q-num.correct {
-    background: rgba(0, 230, 118, 0.2);
+    background: rgba(34, 197, 94, 0.2);
     border-color: var(--correct);
     color: var(--correct);
 }
@@ -551,9 +604,9 @@
     font-size: 0.95rem;
     line-height: 1.6;
     width: 100%;
-    background: rgba(255, 184, 0, 0.1);
+    background: rgba(251, 191, 36, 0.1);
     border-left: 4px solid var(--star-color);
-    color: #fff;
+    color: var(--text-primary);
 }
 
 .quiz-explanation-box {
@@ -564,9 +617,9 @@
     font-size: 0.95rem;
     line-height: 1.6;
     width: 100%;
-    background: rgba(189, 0, 255, 0.1);
+    background: rgba(56, 189, 248, 0.08);
     border: 1px solid var(--accent);
-    color: #fff;
+    color: var(--text-primary);
     position: relative;
 }
 
@@ -658,19 +711,19 @@
 
 .quiz-option-btn:hover {
     border-color: var(--primary);
-    background: rgba(0, 242, 255, 0.05);
+    background: rgba(14, 165, 233, 0.05);
     transform: translateY(-2px);
 }
 
 .quiz-option-btn.correct {
-    background: rgba(0, 230, 118, 0.2) !important;
+    background: rgba(34, 197, 94, 0.2) !important;
     border-color: var(--correct) !important;
     color: var(--correct) !important;
-    box-shadow: 0 0 15px rgba(0, 230, 118, 0.2);
+    box-shadow: 0 0 15px rgba(34, 197, 94, 0.2);
 }
 
 .quiz-option-btn.wrong {
-    background: rgba(255, 23, 68, 0.2) !important;
+    background: rgba(239, 68, 68, 0.2) !important;
     border-color: var(--wrong) !important;
     color: var(--wrong) !important;
     opacity: 0.6;
@@ -679,8 +732,8 @@
 .quiz-correct-answer-box {
     margin-top: 12px;
     padding: 10px 15px;
-    background: rgba(0, 230, 118, 0.1);
-    border: 1px solid rgba(0, 230, 118, 0.3);
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.3);
     border-radius: 8px;
     color: var(--correct);
     font-size: 0.95rem;
@@ -693,9 +746,18 @@
 
 .quiz-option-btn.selected {
     border-color: var(--primary);
-    background: rgba(0, 242, 255, 0.15);
-    color: #fff;
-    box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+    background: rgba(14, 165, 233, 0.15);
+    color: var(--text-primary);
+    box-shadow: 0 0 15px rgba(14, 165, 233, 0.2);
+}
+
+.quiz-option-btn img {
+    max-width: 100%;
+    max-height: 140px;
+    object-fit: contain;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 5px;
 }
 
 .opt-mini-graph {
@@ -717,7 +779,7 @@
     object-fit: contain;
 }
 
-/* --- Mac Code Window --- */
+/* ---------- Mac Code Window ---------- */
 .quiz-mac-code-window {
     background: #282a36;
     border-radius: 10px;
@@ -780,7 +842,40 @@
     padding: 1em 1em 1em 3.8em !important;
 }
 
-/* --- Quiz Result Page --- */
+/* ---------- Graphs (function-plot / main graph) ---------- */
+.function-plot .grid line {
+    stroke: rgba(0, 0, 0, 0.15) !important;
+}
+
+.function-plot .domain {
+    stroke: #333 !important;
+    stroke-width: 2px !important;
+}
+
+.function-plot .tick text {
+    fill: #444 !important;
+    font-weight: bold;
+}
+
+#quiz-main-graph text,
+.quiz-review-list text {
+    fill: #3a3a3a !important;
+    font-size: 13px !important;
+    font-family: 'Fira Code', monospace !important;
+    font-weight: 700 !important;
+}
+
+#quiz-main-graph .axis path,
+#quiz-main-graph .axis line,
+.quiz-review-list .axis path,
+.quiz-review-list .axis line {
+    fill: none;
+    stroke: #333 !important;
+    stroke-width: 1.5px;
+    shape-rendering: crispEdges;
+}
+
+/* ---------- Result Page ---------- */
 .quiz-result-page {
     max-width: 800px;
     margin: 0 auto;
@@ -797,7 +892,7 @@
     width: 100%;
     max-width: 450px;
     margin: 0 auto;
-    box-shadow: 0 0 30px rgba(0, 242, 255, 0.05);
+    box-shadow: 0 0 30px rgba(14, 165, 233, 0.05);
 }
 
 .result-card h1 {
@@ -820,7 +915,7 @@
     overflow-x: auto;
     padding: 10px 5px;
     position: sticky;
-    top: 10px;
+    top: 70px;
     z-index: 100;
     background: transparent;
     border-radius: 0 0 15px 15px;
@@ -845,7 +940,7 @@
     background: var(--primary);
     color: #000;
     border-color: var(--primary);
-    box-shadow: 0 2px 10px rgba(0, 242, 255, 0.15);
+    box-shadow: 0 2px 10px rgba(14, 165, 233, 0.15);
 }
 
 .quiz-review-list {
@@ -864,19 +959,24 @@
 
 .quiz-review-item.r-correct {
     border-left-color: var(--correct);
-    background: rgba(0, 230, 118, 0.05);
+    background: rgba(34, 197, 94, 0.05);
 }
 
 .quiz-review-item.r-wrong {
     border-left-color: var(--wrong);
-    background: rgba(255, 23, 68, 0.05);
+    background: rgba(239, 68, 68, 0.05);
 }
 
 .quiz-review-item.r-noans {
     border-left-color: var(--star-color);
-    background: rgba(255, 184, 0, 0.05);
+    background: rgba(251, 191, 36, 0.05);
 }
 
+.quiz-review-item.hidden {
+    display: none !important;
+}
+
+/* ---------- Shared: ctrl button + modals ---------- */
 .ctrl-btn {
     background: rgba(30, 41, 59, 0.6);
     border: 1px solid var(--primary);
@@ -888,23 +988,22 @@
     font-family: 'Fira Code', monospace;
 }
 
-.function-plot .grid line {
-    stroke: rgba(0, 0, 0, 0.15) !important;
+.btn-small {
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    border-radius: 6px;
+    border: 1px solid var(--primary);
+    background: transparent;
+    color: var(--primary);
+    cursor: pointer;
+    margin-left: 10px;
 }
 
-.function-plot .domain {
-    stroke: #333 !important;
-    stroke-width: 2px !important;
+.btn-small.active {
+    background: var(--primary);
+    color: #000;
 }
 
-.function-plot .tick text {
-    fill: #444 !important;
-    font-weight: bold;
-}
-
-/* ========================================
-   Modal Styles (generic - matching original)
-   ======================================== */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -971,87 +1070,4 @@
     margin: 0 -25px;
     display: flex;
     gap: 10px;
-}
-
-.config-modal-box {
-    max-width: 420px;
-}
-
-.exam-mode-toggle {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 25px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.exam-mode-label {
-    font-weight: 700;
-    color: var(--wrong);
-    font-size: 0.95rem;
-}
-
-.custom-time-input {
-    width: 100%;
-    padding: 10px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--text-secondary);
-    color: #fff;
-    border-radius: 8px;
-    margin-top: 5px;
-    font-family: 'Fira Code';
-    text-align: center;
-    display: none;
-}
-
-.btn-small {
-    padding: 4px 10px;
-    font-size: 0.8rem;
-    border-radius: 6px;
-    border: 1px solid var(--primary);
-    background: transparent;
-    color: var(--primary);
-    cursor: pointer;
-    margin-left: 10px;
-}
-
-.btn-small.active {
-    background: var(--primary);
-    color: #000;
-}
-
-.quiz-option-btn img {
-    max-width: 100%;
-    max-height: 140px;
-    object-fit: contain;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.9);
-    padding: 5px;
-}
-
-.quiz-review-item.hidden {
-    display: none !important;
-}
-
-.quiz-filter-tabs {
-    top: 70px;
-}
-
-#quiz-main-graph text,
-.quiz-review-list text {
-    fill: #3a3a3a !important;
-    font-size: 13px !important;
-    font-family: 'Fira Code', monospace !important;
-    font-weight: 700 !important;
-}
-
-#quiz-main-graph .axis path,
-#quiz-main-graph .axis line,
-.quiz-review-list .axis path,
-.quiz-review-list .axis line {
-    fill: none;
-    stroke: #333 !important;
-    stroke-width: 1.5px;
-    shape-rendering: crispEdges;
 }

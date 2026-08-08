@@ -22,22 +22,31 @@ else if (_error)
 }
 else
 {
-    <div class="recorded-groups">
-        <div class="grid-view">
+    <div class="recorded-container">
+        <div class="page-heading">
+            <h2>🎥 Recorded Lectures</h2>
+            <span class="code-tag">@_studentLevel.Replace("_", " ") • @_studentSemester.Replace("_", " ")</span>
+        </div>
+
+        <div class="cards-grid">
             @for (int i = 0; i < _groups.Count; i++)
             {
                 var g = _groups[i];
                 var icon = RecordedService.GetIconClass(g);
                 var count = _groupCounts[g];
-                <div class="subject-card" @onclick="() => OpenGroup(g)">
-                    <div class="card-icon" style="color:var(--primary)"><i class="@icon"></i></div>
-                    <div class="card-label">@g.Replace("_", " ")</div>
-                    <div style="font-size:10px; color:#94a3b8; margin-top:5px;">@count media</div>
+                <div class="dev-card" @onclick="() => OpenGroup(g)">
+                    <div class="dev-card-top">
+                        <span class="dev-card-icon" style="color:var(--primary)"><i class="@icon"></i></span>
+                        <span class="badge badge-sky">@count Recordings</span>
+                    </div>
+                    <div class="dev-card-title">@g.Replace("_", " ")</div>
+                    <div class="dev-card-desc">@count recorded lectures available for viewing and playback.</div>
+                    <button class="btn-outlined" style="width: 100%;" @onclick="() => OpenGroup(g)" @onclick:stopPropagation>View Recordings ➔</button>
                 </div>
             }
             @if (_groups.Count == 0)
             {
-                <div style="color:#94a3b8; text-align:center; grid-column:1/-1; padding-top:50px;">
+                <div style="color:var(--text-secondary); text-align:center; grid-column:1/-1; padding-top:50px;">
                     No recorded lectures available yet.
                 </div>
             }

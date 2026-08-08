@@ -94,6 +94,7 @@ else
     private List<ArchiveFile> _allFiles = new();
     private string _studentLevel = "Level_1";
     private string _studentSemester = "First_Term";
+    private bool _showFolderDropdown;
 
     private static string GetPdfCacheKey(string fileUrl)
     {
@@ -109,6 +110,36 @@ else
                    value="@_searchQuery"
                    @oninput="OnSearchInput" />
         </div>
+        @if (_folders.Count > 1)
+        {
+            <div class="files-folder-dropdown">
+                <button type="button" class="folder-dropdown-toggle @(_showFolderDropdown ? "open" : "")"
+                        @onclick="ToggleFolderDropdown">
+                    <i class="fa-solid fa-folder-tree"></i>
+                    <span class="folder-dropdown-current">@_currentFolder.ToUpper()</span>
+                    <i class="fa-solid fa-chevron-down"></i>
+                </button>
+                @if (_showFolderDropdown)
+                {
+                    <div class="folder-dropdown-menu" @onclick:stopPropagation>
+                        @foreach (var folder in _folders)
+                        {
+                            var f = folder;
+                            var icon = "fa-folder";
+                            var lower = f.ToLower();
+                            if (lower.Contains("lec")) icon = "fa-person-chalkboard";
+                            else if (lower.Contains("lab")) icon = "fa-flask";
+                            else if (lower.Contains("tut")) icon = "fa-file-pen";
+                            <button class="folder-dropdown-item @(f == _currentFolder ? "active" : "")"
+                                    @onclick="() => SelectFolderFromDropdown(f)">
+                                <i class="fa-solid @icon"></i>
+                                @f.ToUpper()
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        }
     </div>;
 
     RenderFragment _bottomNavFragment => @<div class="bottom-nav" dir="ltr">
@@ -203,6 +234,18 @@ else
         _currentFolder = folder;
         ApplyFileFilter();
         LayoutState.NotifyStateChanged();
+    }
+
+    private void ToggleFolderDropdown()
+    {
+        _showFolderDropdown = !_showFolderDropdown;
+        LayoutState.NotifyStateChanged();
+    }
+
+    private void SelectFolderFromDropdown(string folder)
+    {
+        _showFolderDropdown = false;
+        ChangeFolder(folder);
     }
 
     private void ApplyFileFilter()

@@ -7,6 +7,10 @@ public class LayoutState
     public RenderFragment? SearchBar { get; set; }
     public RenderFragment? BottomBar { get; set; }
     public event Action? StateChanged;
+    public event Action? SettingsRequested;
+    public event Action? CacheRequested;
+    public bool PendingSettings { get; set; }
+    public bool PendingCache { get; set; }
 
     public void Clear()
     {
@@ -14,6 +18,9 @@ public class LayoutState
         BottomBar = null;
         NotifyStateChanged();
     }
+
+    public void RequestSettings() => SettingsRequested?.Invoke();
+    public void RequestClearCache() => CacheRequested?.Invoke();
 
     public void NotifyStateChanged() => StateChanged?.Invoke();
 }

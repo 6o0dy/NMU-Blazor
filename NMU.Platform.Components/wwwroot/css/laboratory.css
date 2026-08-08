@@ -1,4 +1,4 @@
-/* Laboratory page - experiments grid, viewer, warning modal */
+﻿/* Laboratory page - experiments grid, viewer, warning modal */
 
 .lab-page {
     max-width: 900px;
@@ -29,7 +29,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    background: rgba(0, 242, 255, 0.1);
+    background: rgba(14, 165, 233, 0.1);
     border: 1px solid var(--primary);
     color: var(--primary);
     padding: 7px 14px;
@@ -46,7 +46,7 @@
 .lab-tool-btn:hover {
     background: var(--primary);
     color: #000;
-    box-shadow: 0 0 15px rgba(0, 242, 255, 0.3);
+    box-shadow: 0 0 15px rgba(14, 165, 233, 0.3);
 }
 
 .search-wrapper {
@@ -70,7 +70,7 @@
 
 .search-wrapper .search-input:focus {
     border-color: var(--primary);
-    box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+    box-shadow: 0 0 15px rgba(14, 165, 233, 0.2);
 }
 
 .search-wrapper .search-icon {
@@ -149,7 +149,7 @@
     position: absolute;
     top: 0; right: 0;
     width: 100%; height: 100%;
-    background: linear-gradient(135deg, rgba(0,242,255,0.1) 0%, transparent 100%);
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.08) 0%, transparent 100%);
     opacity: 0;
     transition: 0.3s;
     pointer-events: none;
@@ -158,7 +158,7 @@
 .exp-card:hover {
     transform: translateY(-3px);
     border-color: var(--primary);
-    box-shadow: 0 10px 30px -10px rgba(0, 242, 255, 0.2);
+    box-shadow: 0 10px 30px -10px rgba(14, 165, 233, 0.2);
 }
 
 .exp-card:hover::before {
@@ -246,7 +246,7 @@
     width: 85%;
     transform: translateY(30px) scale(0.95);
     transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    box-shadow: 0 15px 40px rgba(0, 242, 255, 0.15);
+    box-shadow: 0 15px 40px rgba(14, 165, 233, 0.15);
 }
 
 .lab-modal-overlay.show .lab-modal-box {
@@ -289,8 +289,8 @@
 }
 
 .lab-modal-btn:hover {
-    background: #fff;
-    box-shadow: 0 0 20px rgba(255,255,255,0.4);
+    background: var(--primary-hover);
+    color: #fff;
 }
 
 /* Viewer overlay */

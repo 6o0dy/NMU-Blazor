@@ -1,4 +1,4 @@
-/* Feedback page - widget, reviews, modals */
+﻿/* Feedback page - widget, reviews, modals */
 
 .feedback-container {
     max-width: 800px;
@@ -12,7 +12,7 @@
     margin: 0 auto 40px;
     background: rgba(15, 23, 42, 0.6);
     backdrop-filter: blur(16px);
-    border: 1px solid rgba(0, 242, 255, 0.2);
+    border: 1px solid rgba(14, 165, 233, 0.2);
     border-radius: 24px;
     padding: 25px;
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
@@ -49,7 +49,7 @@
     border-radius: 50%;
     border: 2px solid var(--primary);
     object-fit: cover;
-    box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+    box-shadow: 0 0 15px rgba(14, 165, 233, 0.2);
     flex-shrink: 0;
 }
 
@@ -166,7 +166,7 @@
 
 .toggle-wrapper.active {
     border-color: var(--primary);
-    background: rgba(0, 242, 255, 0.05);
+    background: rgba(14, 165, 233, 0.05);
 }
 
 .toggle-wrapper.active .toggle-switch {
@@ -215,7 +215,7 @@
 .input-field:focus {
     border-color: var(--primary);
     background: rgba(0, 0, 0, 0.6);
-    box-shadow: 0 0 10px rgba(0, 242, 255, 0.1);
+    box-shadow: 0 0 10px rgba(14, 165, 233, 0.1);
 }
 
 textarea.input-field {
@@ -249,8 +249,8 @@ textarea.input-field {
 }
 
 .btn-primary:hover:not(:disabled) {
-    background: #fff;
-    box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+    background: var(--primary-hover);
+    color: #fff;
 }
 
 .btn-primary:disabled {
@@ -269,7 +269,6 @@ textarea.input-field {
 .btn-danger:hover {
     background: var(--danger);
     color: #fff;
-    box-shadow: 0 0 15px rgba(255, 71, 87, 0.4);
 }
 
 .wa-strip {
@@ -320,7 +319,7 @@ textarea.input-field {
 }
 
 .reviews-count-badge {
-    background: rgba(0, 242, 255, 0.1);
+    background: rgba(14, 165, 233, 0.1);
     color: var(--primary);
     padding: 3px 10px;
     border-radius: 20px;
@@ -335,8 +334,8 @@ textarea.input-field {
 }
 
 @keyframes flashUpdate {
-    0% { background: #00e676; color: #000; box-shadow: 0 0 15px #00e676; transform: scale(1.1); }
-    100% { background: rgba(0, 242, 255, 0.1); color: var(--primary); transform: scale(1); }
+    0% { background: var(--correct); color: #000; transform: scale(1.1); }
+    100% { background: rgba(14, 165, 233, 0.1); color: var(--primary); transform: scale(1); }
 }
 
 .reviews-list {
@@ -366,8 +365,8 @@ textarea.input-field {
 
 .review-card.my-review {
     border: 1px solid var(--primary);
-    background: rgba(0, 242, 255, 0.03);
-    box-shadow: inset 0 0 20px rgba(0, 242, 255, 0.05);
+    background: rgba(14, 165, 233, 0.03);
+    box-shadow: inset 0 0 20px rgba(14, 165, 233, 0.05);
 }
 
 .reviewer-avatar {
@@ -514,8 +513,8 @@ textarea.input-field {
 }
 
 .c-btn-primary:hover {
-    background: #fff;
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+    background: var(--primary-hover);
+    color: #fff;
 }
 
 .c-btn-danger {
@@ -524,7 +523,7 @@ textarea.input-field {
 }
 
 .c-btn-danger:hover {
-    box-shadow: 0 0 15px rgba(255, 71, 87, 0.4);
+    background: rgba(239, 68, 68, 0.8);
 }
 
 .c-btn-cancel {
