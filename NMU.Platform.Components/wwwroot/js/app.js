@@ -1,12 +1,83 @@
-// منع أزرار باك وفورورد في المتصفح - التحكم يكون بس من الهيدر
-window.addEventListener('popstate', function () {
-    var url = location.href;
-    history.pushState(null, '', url);
-});
+// --- Back System ---
+// The app owns navigation. Every internal navigation uses replaceState, so the
+// browser history NEVER accumulates entries for app pages. As long as the app
+// is the first page opened in the tab (history.length === 1), the browser's
+// native back button stays disabled (grayed out) on its own — a web page
+// cannot disable the browser chrome button directly.
+//
+// Browser back/forward is additionally neutralized here: any popstate that
+// still fires (e.g. a leftover entry from before the app loaded) is swallowed
+// in the capture phase before Blazor's own router sees it. Desktop restores in
+// place with history.go(1) — moving back to the same entry WITHOUT adding a new
+// one (unlike history.pushState, which duplicates the URL on every press).
+// Mobile web instead re-pushes a live entry on top of the guard and drives the
+// app's own hierarchical back (GetBackTarget), the single source of truth.
+//
+// Real back navigation is driven only by the header button and the Android
+// hardware back key (__goBack → nmu-goback → HandleGoBack).
 
-// Browser & Android hardware back → يرجع للصفحة السابقة
-window.nmuBrowserBack = function() {
-    history.back();
+window.addEventListener('popstate', function (e) {
+    e.stopImmediatePropagation();
+    if (window.__nmuRestoring) { window.__nmuRestoring = false; return; }
+    if (window.__nmuWebBackRef) {
+        // Mobile web: cancel the browser's back the same reliable way as
+        // desktop — go one step FORWARD with history.go(1). The browser moves
+        // back onto the live entry, so the guard below is never touched and a
+        // later replaceState can never overwrite it (pushState inside this
+        // handler was unreliable: some mobile browsers drop it mid-gesture, the
+        // guard got replaced, and the next back press exited the site). Drive
+        // the app's own hierarchical back (HandleGoBack) only AFTER the forward
+        // jump has settled, so Blazor's NavigateTo(replace) replaces the live
+        // entry — not the guard — and the URL stays correct. Navigation.Uri was
+        // never changed (popstate is swallowed), so GetBackTarget still knows
+        // the page we were on.
+        window.__nmuRestoring = true;
+        history.go(1);
+        setTimeout(function () { window.__nmuRestoring = false; }, 500);
+        setTimeout(function () {
+            window.__nmuWebBackRef.invokeMethodAsync('HandleGoBack');
+        }, 200);
+    } else {
+        // Desktop web: swallow back and restore position (button stays dead).
+        window.__nmuRestoring = true;
+        history.go(1);
+        setTimeout(function () { window.__nmuRestoring = false; }, 500);
+    }
+}, true);
+
+// Guarantee a guard entry always sits below the app's current page, so the
+// browser back can never step off the site. Call after every internal
+// navigation (replace:true would otherwise overwrite the guard).
+window.nmuEnsureWebBackTrap = function () {
+    if (!window.__nmuWebBackRef) return;
+    if (history.length < 2) {
+        history.pushState({ nmuWebBack: true }, '', location.href);
+    }
+};
+
+// Detect mobile web so the back trap is only enabled there (desktop keeps the
+// grayed-out / dead browser back button).
+window.nmuIsMobile = function () {
+    var ua = navigator.userAgent || '';
+    if (/(iPad|iPhone|iPod)/i.test(ua)) return true;
+    if (/Android/i.test(ua) && /Mobile/i.test(ua)) return true;
+    return /Mobile|Opera Mini|IEMobile|webOS|BlackBerry/i.test(ua);
+};
+
+// Mobile web: build a permanent guard below the app's live page.
+//   replaceState: turn the CURRENT entry into the guard (same URL).
+//   pushState:    put a live page on top of it.
+// From then on, every internal navigation uses replace:true, so it replaces the
+// TOP entry only — the guard survives below forever. A browser-back press pops
+// to the guard (same-origin, never the external page the user arrived from),
+// the popstate handler cancels it (history.go(1)) and drives HandleGoBack —
+// the same hierarchical back as the Android app.
+window.nmuEnableWebBack = function (dotNetRef) {
+    window.__nmuWebBackRef = dotNetRef;
+    if (window.__nmuWebBackWired) return;
+    window.__nmuWebBackWired = true;
+    history.replaceState({ nmuWebBack: true }, '', location.href);
+    history.pushState(null, '', location.href);
 };
 
 window.__goBack = function() {
@@ -14,12 +85,64 @@ window.__goBack = function() {
 };
 
 window.nmuAddGoBackListener = function(dotNetRef) {
-    window.addEventListener('nmu-goback', function() {
-        dotNetRef.invokeMethodAsync('HandleGoBack');
+    window.__nmuGoBackRef = dotNetRef;
+    if (window.__nmuGoBackWired) return;
+    window.__nmuGoBackWired = true;
+
+    // Android hardware back (MainPage fires __goBack → nmu-goback)
+    window.addEventListener('nmu-goback', function () {
+        if (window.__nmuGoBackRef) {
+            window.__nmuGoBackRef.invokeMethodAsync('HandleGoBack');
+        }
     });
 };
 
+// Intercept internal <a> clicks so Blazor navigates with replaceState instead
+// of pushState. This keeps the browser history at a single entry, so the
+// browser's native back button stays disabled (grayed out).
+window.nmuWireInternalLinks = function (dotNetRef) {
+    window.__nmuLinkRef = dotNetRef;
+    if (window.__nmuLinkWired) return;
+    window.__nmuLinkWired = true;
+
+    document.addEventListener('click', function (e) {
+        if (e.defaultPrevented) return;
+        // Let modified clicks (new tab / new window) keep native browser behavior.
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        var a = e.target && e.target.closest ? e.target.closest('a') : null;
+        if (!a) return;
+        var href = a.getAttribute('href');
+        if (!href) return;
+
+        // Leave external links, new-tab links, downloads and special schemes alone.
+        if (a.target === '_blank' || a.hasAttribute('download')) return;
+        if (href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) return;
+
+        var url;
+        try { url = new URL(href, location.href); } catch (err) { return; }
+        if (url.origin !== location.origin) return;
+
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (window.__nmuLinkRef) {
+            window.__nmuLinkRef.invokeMethodAsync('HandleInternalLink', url.pathname + url.search + url.hash);
+        }
+    }, true); // capture phase on document: runs before Blazor's window-level navigation handler
+};
+
 window.nmuFunctions = {
+    // Open an external URL in a new tab. Keeping the app in the current tab
+    // means the browser history never gains an entry for the app itself.
+    openExternal: function (url) {
+        window.open(url, '_blank', 'noopener');
+    },
+
+    // Hard-reload a URL without adding a browser history entry
+    // (location.replace rewrites the current entry instead of pushing a new one).
+    reloadWithoutHistory: function (url) {
+        window.location.replace(url || window.location.href);
+    },
+
     toggleFullScreen: function () {
         const btn = document.querySelector('#fullscreen-btn i');
         if (!document.fullscreenElement) {

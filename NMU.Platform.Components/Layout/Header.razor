@@ -7,7 +7,6 @@
 @inject IJSRuntime JS
 @inject NavigationState NavState
 @inject ToastService Toast
-@inject NavigationHistoryService NavHistory
 @inject QuizStateService QuizState
 @inject LayoutState LayoutState
 
@@ -133,18 +132,23 @@
         if (Platform.IsDesktop)
             Platform.FullScreenChanged += OnFullScreenChanged;
         Navigation.LocationChanged += OnLocationChanged;
-        var initUrl = Navigation.ToBaseRelativePath(Navigation.Uri).TrimEnd('/');
-        NavHistory.NavigatedTo(string.IsNullOrEmpty(initUrl) ? "/" : "/" + initUrl);
     }
 
     private void OnFullScreenChanged() => StateHasChanged();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && !Platform.IsWeb)
+        if (firstRender)
         {
             _dotNetRef = DotNetObjectReference.Create(this);
-            await JS.InvokeVoidAsync("window.nmuAddGoBackListener", _dotNetRef);
+            if (!Platform.IsWeb)
+            {
+                await JS.InvokeVoidAsync("window.nmuAddGoBackListener", _dotNetRef);
+            }
+            else if (await JS.InvokeAsync<bool>("window.nmuIsMobile"))
+            {
+                await JS.InvokeVoidAsync("window.nmuEnableWebBack", _dotNetRef);
+            }
         }
     }
 
@@ -156,10 +160,8 @@
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
-        var newPath = Navigation.ToBaseRelativePath(e.Location).TrimEnd('/');
+        var newPath = Navigation.ToBaseRelativePath(e.Location).Split('?')[0].TrimEnd('/');
         if (newPath == "") newPath = "/";
-
-        NavHistory.NavigatedTo(newPath);
 
         var parts = newPath.Split('/');
         if (!(parts.Length >= 3 && parts[0] == "materials" && parts[^1] == "viewer"))
@@ -184,10 +186,10 @@
             return;
         }
 
-        var prev = NavHistory.Pop();
-        if (prev != null)
+        var target = GetBackTarget();
+        if (target != null)
         {
-            Navigation.NavigateTo(prev.TrimStart('/'), replace: true);
+            Navigation.NavigateTo(target.TrimStart('/'), replace: true);
             return;
         }
 
@@ -196,8 +198,46 @@
             TriggerExitConfirmation();
             return;
         }
+    }
 
-        Navigation.NavigateTo("", replace: true);
+    // Static hierarchical back: each page's back target is derived from the
+    // current route (the app does not use browser history).
+    //   /                    → null (home, no back)
+    //   /materials|recorded|quizzes|youtube|laboratory|feedback → /
+    //   /materials/{subject}          → /materials
+    //   /materials/{subject}/viewer   → /materials/{subject}
+    //   /recorded/{group}             → /recorded
+    //   /recorded/{group}/player      → /recorded/{group}
+    //   /quizzes/{subject}            → /quizzes
+    //   /quizzes/{subject}/play|result→ /quizzes/{subject}
+    //   /youtube/{channel}            → /youtube
+    //   /youtube/{channel}/player     → /youtube/{channel}
+    //   /laboratory                   → /
+    //   /laboratory/{exp}/viewer      → /laboratory
+    //   /feedback                     → /
+    private string? GetBackTarget()
+    {
+        var rel = Navigation.ToBaseRelativePath(Navigation.Uri);
+        var path = rel.Split('?')[0].Trim('/');
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0) return null;
+
+        switch (segments[0])
+        {
+            case "materials":
+            case "recorded":
+            case "quizzes":
+            case "youtube":
+                if (segments.Length == 1) return "/";
+                if (segments.Length == 2) return "/" + segments[0];
+                return "/" + segments[0] + "/" + segments[1];
+            case "laboratory":
+                return segments.Length == 1 ? "/" : "/laboratory";
+            case "feedback":
+                return "/";
+            default:
+                return "/";
+        }
     }
 
     private async Task ToggleFullscreen()
@@ -298,7 +338,7 @@
         if (Platform.IsDesktop)
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
         else
-            Navigation.NavigateTo(url);
+            _ = JS.InvokeVoidAsync("nmuFunctions.openExternal", url);
     }
 
     public void Dispose()

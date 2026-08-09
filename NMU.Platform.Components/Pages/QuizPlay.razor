@@ -3,7 +3,6 @@
 @inject NavigationManager Navigation
 @inject NavigationState NavState
 @inject QuizStateService QuizState
-@inject NavigationHistoryService NavHistory
 @inject IJSRuntime JS
 
 @if (_isNavigatingToResult)
@@ -475,7 +474,6 @@
         _timer?.Dispose();
         _timer = null;
         QuizState.FinishQuiz(timeout);
-        NavHistory.Pop();
         Navigation.NavigateTo($"quizzes/{Uri.EscapeDataString(Subject)}/result", replace: true);
     }
 
@@ -491,8 +489,7 @@
         QuizState.BackRequested = false;
         _timer?.Dispose();
         _timer = null;
-        var prev = NavHistory.Pop();
-        Navigation.NavigateTo((prev ?? "").TrimStart('/'), replace: true);
+        Navigation.NavigateTo($"quizzes/{Uri.EscapeDataString(Subject)}", replace: true);
         QuizState.Reset();
     }
 

@@ -214,13 +214,13 @@
     {
         var url = NavState.CurrentFileUrl ?? "";
         if (!string.IsNullOrEmpty(url))
-            Navigation.NavigateTo(url);
+            _ = JS.InvokeVoidAsync("nmuFunctions.openExternal", url);
     }
 
     private void OpenFallback()
     {
         if (!string.IsNullOrEmpty(_fallbackUrl))
-            Navigation.NavigateTo(_fallbackUrl);
+            _ = JS.InvokeVoidAsync("nmuFunctions.openExternal", _fallbackUrl);
     }
 
     private async Task TryBackgroundRevalidation(string pdfKey, string fileUrl)

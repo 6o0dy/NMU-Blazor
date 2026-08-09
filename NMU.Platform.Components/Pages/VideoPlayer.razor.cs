@@ -319,7 +319,7 @@ public partial class VideoPlayer : IDisposable
     {
         if (string.IsNullOrEmpty(_fileUrl)) return;
         if (Platform.IsWeb)
-            Navigation.NavigateTo(_fileUrl);
+            await JS.InvokeVoidAsync("nmuFunctions.openExternal", _fileUrl);
         else
             await Platform.DownloadFileAsync(_fileUrl, _fileName);
     }

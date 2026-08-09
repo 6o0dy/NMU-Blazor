@@ -126,7 +126,7 @@ else
 
     private void OpenOnYoutube(string url)
     {
-        Navigation.NavigateTo(url, forceLoad: true);
+        _ = JS.InvokeVoidAsync("nmuFunctions.openExternal", url);
     }
 
     public void Dispose()

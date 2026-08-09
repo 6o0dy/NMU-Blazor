@@ -319,7 +319,7 @@
         {
             await StudentService.DeleteStudentAsync();
             currentStudent = null;
-            Navigation.NavigateTo("", true, true);
+            await _js.InvokeVoidAsync("nmuFunctions.reloadWithoutHistory", Navigation.BaseUri);
         }
         catch { }
     }

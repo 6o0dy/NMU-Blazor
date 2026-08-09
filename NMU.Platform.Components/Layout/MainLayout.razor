@@ -176,6 +176,28 @@
         Navigation.LocationChanged += OnLocationChanged;
     }
 
+    private DotNetObjectReference<MainLayout>? _linkRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _linkRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("window.nmuWireInternalLinks", _linkRef);
+        }
+    }
+
+    [JSInvokable]
+    public void HandleInternalLink(string url)
+    {
+        if (string.IsNullOrEmpty(url)) return;
+        LayoutState.CloseSidebar();
+        var target = url.TrimStart('/');
+        if (Navigation.Uri.TrimEnd('/') == Navigation.BaseUri.TrimEnd('/') + "/" + target.TrimEnd('/'))
+            return; // already on this page
+        Navigation.NavigateTo(target, replace: true);
+    }
+
     protected override async Task OnInitializedAsync()
     {
         if (Platform.IsDesktop)
@@ -207,6 +229,10 @@
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
         LayoutState.CloseSidebar();
+        // Keep a guard history entry below the app at all times so the mobile
+        // browser back button can never step off the site.
+        if (Platform.IsWeb)
+            _ = JS.InvokeVoidAsync("window.nmuEnsureWebBackTrap");
         StateHasChanged();
     }
 
@@ -277,6 +303,7 @@
     public void Dispose()
     {
         _toastCts?.Cancel();
+        _linkRef?.Dispose();
         if (Platform.IsDesktop)
             Platform.FullScreenChanged -= OnFullScreenChanged;
         LayoutState.StateChanged -= OnLayoutStateChanged;
