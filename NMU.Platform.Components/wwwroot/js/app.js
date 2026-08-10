@@ -701,6 +701,171 @@ window.nmuFunctions = {
         });
     },
 
+    // Write to BOTH localStorage (fast reads) and IndexedDB (survives localStorage
+    // being cleared / full). Reads via safeGetItem hit localStorage first, then
+    // fall back to IndexedDB, so the data survives either way.
+    safeSetItemBoth: function (key, value) {
+        if (this._lsAvail) {
+            try { localStorage.setItem(key, value); } catch (e) {}
+        }
+        return this.setCacheItem(key, value);
+    },
+
+    // Raw text fetch (avoids JSON.parse + JSON.stringify round trip for big payloads)
+    fetchText: function (url) {
+        return fetch(url).then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.text();
+        });
+    },
+
+    // The full archive.org metadata is ~2.3 MB. It is downloaded ONCE and kept in
+    // IndexedDB (high quota) so every feature page (materials / quizzes / recorded)
+    // shares the same copy instead of re-downloading it.
+    getRawMetadata: function () {
+        return this.getCacheItem('raw_meta_nmu.ce');
+    },
+
+    setRawMetadata: function (json) {
+        return this.setCacheItem('raw_meta_nmu.ce', json);
+    },
+
+    // Returns the raw metadata, fetching it (and caching it) only when missing.
+    // Concurrent callers share the same in-flight fetch.
+    ensureRawMetadata: function () {
+        var self = this;
+        if (this._rawMetaPromise) return this._rawMetaPromise;
+        this._rawMetaPromise = this.getRawMetadata().then(function (cached) {
+            if (cached) return cached;
+            return self.fetchText('https://archive.org/metadata/nmu.ce').then(function (json) {
+                if (json) self.setRawMetadata(json);
+                return json;
+            });
+        });
+        // If the fetch fails, reset the promise so a later call retries instead of
+        // reusing a rejected (poisoned) promise for the rest of the session.
+        this._rawMetaPromise.catch(function () {
+            self._rawMetaPromise = null;
+        });
+        return this._rawMetaPromise;
+    },
+
+    // Parse the 2.3 MB metadata ENTIRELY in JS (native JSON.parse) and return only
+    // the small {name,size} list for a semester (~150 KB). The big payload never
+    // crosses the JS/.NET boundary, so the page doesn't freeze. Result is cached in
+    // IndexedDB, so the parse happens only once.
+    getSemesterFiles: function (level, semester) {
+        var self = this;
+        var semCacheKey = 'sem_files_v2_' + level + '_' + semester;
+        return this.getCacheItem(semCacheKey).then(function (cached) {
+            if (cached) return cached;
+            return self.ensureRawMetadata().then(function (json) {
+                if (!json) return '';
+                var data;
+                try { data = JSON.parse(json); } catch (e) { return ''; }
+                var prefix = 'NMU/' + level + '/' + semester + '/';
+                var out = [];
+                var files = data.files || [];
+                for (var i = 0; i < files.length; i++) {
+                    var f = files[i];
+                    if (f.name && f.name.indexOf(prefix) === 0) {
+                        var sz = f.size;
+                        var n = (sz === undefined || sz === null || sz === '') ? null : Number(sz);
+                        // PascalCase keys match the ArchiveFile model exactly (STJ is
+                        // case-sensitive by default), so no silent empty objects.
+                        out.push({ Name: f.name, Size: (n === null || isNaN(n)) ? null : n });
+                    }
+                }
+                var result = JSON.stringify(out);
+                self.setCacheItem(semCacheKey, result);
+                return result;
+            });
+        }).catch(function () {
+            return '';
+        });
+    },
+
+    // Same idea for the QUIZE folder list used by the quiz pages.
+    getQuizFiles: function (level, semester) {
+        return this.getSemesterFiles(level, semester).then(function (json) {
+            if (!json) return '';
+            var data;
+            try { data = JSON.parse(json); } catch (e) { return ''; }
+            var out = [];
+            for (var i = 0; i < data.length; i++) {
+                if (data[i].Name.indexOf('/QUIZE/') !== -1) out.push(data[i].Name);
+            }
+            return JSON.stringify(out);
+        });
+    },
+
+    // Same idea for the RECORDED_LECTURER folders used by the recorded lectures
+    // pages. Parses the big metadata entirely in JS, resolves the thumbnail name
+    // for each video (same logic as the old .NET path), and returns a compact
+    // PascalCase list matching the RecordedFile model exactly.
+    getRecordedFiles: function (level, semester) {
+        var self = this;
+        var recCacheKey = 'rec_files_v2_' + level + '_' + semester;
+        return this.getCacheItem(recCacheKey).then(function (cached) {
+            if (cached) return cached;
+            return self.ensureRawMetadata().then(function (json) {
+                if (!json) return '';
+                var data;
+                try { data = JSON.parse(json); } catch (e) { return ''; }
+                var files = data.files || [];
+                var prefix1 = 'NMU/' + level + '/' + semester + '/RECORDED_LECTURER/';
+                var prefix2 = 'NMU/' + level + '/' + semester + '/RECORDED LECTURER/';
+                var thumbPrefix1 = 'nmu.ce.thumbs/' + prefix1;
+                var thumbPrefix2 = 'nmu.ce.thumbs/' + prefix2;
+
+                // Collect thumb names (video frame previews) for thumbnail matching.
+                var thumbs = [];
+                for (var i = 0; i < files.length; i++) {
+                    var nm = files[i].name || '';
+                    if (nm.indexOf(thumbPrefix1) !== 0 && nm.indexOf(thumbPrefix2) !== 0) continue;
+                    if (nm.slice(-4).toLowerCase() !== '.jpg') continue;
+                    thumbs.push(nm);
+                }
+
+                var out = [];
+                for (var i = 0; i < files.length; i++) {
+                    var f = files[i];
+                    var nm = f.name || '';
+                    if (nm.indexOf(prefix1) !== 0 && nm.indexOf(prefix2) !== 0) continue;
+                    var lower = nm.toLowerCase();
+                    var fileNoExt = nm.slice(nm.lastIndexOf('/') + 1);
+                    var dot = fileNoExt.lastIndexOf('.');
+                    if (dot > 0) fileNoExt = fileNoExt.slice(0, dot);
+                    var thumb = '';
+                    for (var j = 0; j < thumbs.length; j++) {
+                        if (thumbs[j].indexOf(fileNoExt) !== -1) { thumb = thumbs[j]; break; }
+                    }
+                    var sz = f.size;
+                    var n = (sz === undefined || sz === null || sz === '') ? null : Number(sz);
+                    out.push({
+                        Name: nm,
+                        Size: (n === null || isNaN(n)) ? null : n,
+                        ThumbName: thumb || null,
+                        IsAudio: lower.endsWith('.mp3') || lower.endsWith('.wav') || lower.endsWith('.m4a')
+                    });
+                }
+                var result = JSON.stringify(out);
+                self.setCacheItem(recCacheKey, result);
+                return result;
+            });
+        }).catch(function () {
+            return '';
+        });
+    },
+
+    // Pre-fetch + pre-parse the metadata for a semester during app startup, so the
+    // first open of Materials/Quizzes is instant. No-op (fast) once cached.
+    prefetchSemesterFiles: function (level, semester) {
+        return this.getSemesterFiles(level, semester).then(function () {
+            return true;
+        });
+    },
+
     // Try local /api/proxy first, then direct fetch / external proxies
     _fetchPdfBytes: function (url) {
         var self = this;

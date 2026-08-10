@@ -209,7 +209,10 @@
             {
                 var student = await StudentService.GetStudentAsync();
                 if (student != null)
+                {
                     _ = QuizService.EnsureQuizSyncedAsync(student.AcademicLevel, student.Semester);
+                    _ = PrefetchMaterialsAsync(student);
+                }
                 else
                     showSetup = true;
             }
@@ -246,6 +249,7 @@
             {
                 showLoading = false;
                 _ = QuizService.EnsureQuizSyncedAsync(student.AcademicLevel, student.Semester);
+                _ = PrefetchMaterialsAsync(student);
             }
             else
             {
@@ -259,6 +263,21 @@
             showSetup = true;
         }
         StateHasChanged();
+    }
+
+    private async Task PrefetchMaterialsAsync(NMU.Platform.Components.Models.StudentProfile student)
+    {
+        try
+        {
+            var level = student.AcademicLevel.Replace(" ", "_");
+            var semester = student.Semester.Replace(" ", "_");
+            // Download + parse the archive metadata ONCE in the background so opening
+            // Materials/Quizzes/Recorded is instant (this is a fast no-op once cached).
+            await JS.InvokeVoidAsync("nmuFunctions.prefetchSemesterFiles", level, semester);
+            // Also pre-parse + cache the recorded lectures list in the background.
+            await JS.InvokeVoidAsync("nmuFunctions.getRecordedFiles", level, semester);
+        }
+        catch { }
     }
 
     private async Task OnSetupSaved()

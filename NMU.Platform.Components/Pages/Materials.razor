@@ -33,11 +33,11 @@ else
             @for (int i = 0; i < _subjects.Count; i++)
             {
                 var sub = _subjects[i];
-                var style = MaterialsService.GetMaterialStyle(sub);
-                var subjectName = sub.Replace("_", " ");
-                var fileCount = GetSubjectFiles(sub);
-                var offlineAvailable = HasCachedSubjectFile(sub);
-                <div class="dev-card" @onclick="() => OpenSubject(sub)">
+                var style = MaterialsService.GetMaterialStyle(sub.Name);
+                var subjectName = sub.Name.Replace("_", " ");
+                var fileCount = sub.FileCount;
+                var offlineAvailable = _offlineSubjects.Contains(sub.Name);
+                <div class="dev-card" @onclick="() => OpenSubject(sub.Name)">
                     <div class="dev-card-top">
                         <span class="dev-card-icon @style.colorClass"><i class="@style.icon"></i></span>
                         @if (offlineAvailable)
@@ -51,13 +51,18 @@ else
                     </div>
                     <div class="dev-card-title">@subjectName</div>
                     <div class="dev-card-desc">@fileCount PDF files available for viewing and download.</div>
-                    <button class="btn-outlined" style="width: 100%;" @onclick="() => OpenSubject(sub)" @onclick:stopPropagation>Open Files ➔</button>
+                    <button class="btn-outlined" style="width: 100%;" @onclick="() => OpenSubject(sub.Name)" @onclick:stopPropagation>Open Files ➔</button>
                 </div>
             }
             @if (_noData)
             {
                 <div style="color:var(--text-secondary); text-align:center; grid-column:1/-1; padding-top:50px;">
                     No study materials available yet.
+                    <br /><br />
+                    <small style="opacity:.6;">
+                        Searching in: NMU/@_studentLevel/@_studentSemester — files found: @_allFiles.Count
+                        @(_semesterHint)
+                    </small>
                 </div>
             }
         </div>
@@ -70,15 +75,33 @@ else
     private bool _loading = true;
     private bool _error;
     private bool _noData;
+    private List<MaterialSubjectInfo> _subjects = new();
     private List<ArchiveFile> _allFiles = new();
-    private List<string> _subjects = new();
     private HashSet<string> _cachedPdfKeys = new();
+    private HashSet<string> _offlineSubjects = new(StringComparer.OrdinalIgnoreCase);
     private string _studentLevel = "Level_1";
     private string _studentSemester = "First_Term";
+
+    private string _semesterHint
+    {
+        get
+        {
+            if (_studentSemester.Contains("First_Term"))
+                return "— Hint: the archive uses \"Semester_1\"/\"Semester_2\". Make sure you picked the semester in setup.";
+            return "";
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
         NavState.PageTitle = "MATERIALS";
+        // Return immediately so the router paints the page (loading state) without
+        // freezing the current page; all data loading happens in the background.
+        _ = LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
         try
         {
             var student = await StudentService.GetStudentAsync();
@@ -88,23 +111,79 @@ else
                 _studentSemester = student.Semester.Replace(" ", "_");
             }
 
-            var filesTask = MaterialsService.GetFilesAsync(_studentLevel, _studentSemester);
-            try
-            {
-                var keys = await JS.InvokeAsync<string[]>("nmuFunctions.getCachedPdfKeys");
-                _cachedPdfKeys = new HashSet<string>(keys ?? Array.Empty<string>());
-            }
-            catch { _cachedPdfKeys = new HashSet<string>(); }
+            // Fast path: render from the small cached subject list (same as the quiz page),
+            // so the page paints immediately instead of waiting on the full archive list.
+            _subjects = await MaterialsService.GetCachedSubjectsInfoAsync(_studentLevel, _studentSemester);
+            if (_subjects.Count == 0)
+                _subjects = await MaterialsService.GetSubjectsInfoAsync(_studentLevel, _studentSemester);
 
-            _allFiles = await filesTask;
-            _subjects = MaterialsService.GetSubjects(_allFiles, _studentLevel, _studentSemester);
             _noData = _subjects.Count == 0;
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+
+            // Background: load the full file list + cached PDF keys to refresh offline badges.
+            _ = RefreshDetailsAsync();
+
+            // Background revalidation (HEAD request), same as the quiz page.
+            _ = MaterialsService.CheckAndUpdateMaterialsAsync(_studentLevel, _studentSemester,
+                async subjects =>
+                {
+                    await InvokeAsync(() =>
+                    {
+                        _subjects = subjects;
+                        _noData = subjects.Count == 0;
+                        RefreshOfflineBadges();
+                    });
+                });
         }
         catch
         {
             _error = true;
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
-        _loading = false;
+    }
+
+    private async Task RefreshDetailsAsync()
+    {
+        try
+        {
+            var filesTask = MaterialsService.GetFilesAsync(_studentLevel, _studentSemester);
+            try
+            {
+                var keys = await JS.InvokeAsync<string[]>("nmuFunctions.getCachedPdfKeys");
+                _cachedPdfKeys = new HashSet<string>(keys ?? Array.Empty<string>(), StringComparer.Ordinal);
+            }
+            catch { _cachedPdfKeys = new HashSet<string>(); }
+
+            _allFiles = await filesTask;
+            await InvokeAsync(RefreshOfflineBadges);
+        }
+        catch { }
+    }
+
+    private void RefreshOfflineBadges()
+    {
+        var offline = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Single pass over the file list: compute the cache key once per file
+        // instead of once per file per subject (7 subjects -> ~7x fewer hashes).
+        foreach (var f in _allFiles)
+        {
+            if (f.Name.ToLowerInvariant().EndsWith("_text.pdf")) continue;
+            var url = $"https://archive.org/download/nmu.ce/{f.Name}";
+            if (_cachedPdfKeys.Contains(GetPdfCacheKey(url)))
+                offline.Add(SubjectOf(f.Name));
+        }
+        _offlineSubjects = offline;
+    }
+
+    private string SubjectOf(string fileName)
+    {
+        var prefix = SubjectPrefix("");
+        if (!fileName.StartsWith(prefix)) return "";
+        var rel = fileName[prefix.Length..];
+        var parts = rel.Split('/');
+        return parts.Length > 0 ? parts[0] : "";
     }
 
     private void Reload()
@@ -112,7 +191,7 @@ else
         _error = false;
         _loading = true;
         StateHasChanged();
-        _ = OnInitializedAsync();
+        _ = LoadDataAsync();
     }
 
     private void OpenSubject(string subject)
@@ -122,25 +201,6 @@ else
 
     private string SubjectPrefix(string subject)
         => $"{ArchiveBaseFolder}/{_studentLevel}/{_studentSemester}/PDF/{subject}/";
-
-    private int GetSubjectFiles(string subject)
-        => _allFiles.Count(f =>
-            f.Name.StartsWith(SubjectPrefix(subject)) &&
-            !f.Name.ToLower().EndsWith("_text.pdf"));
-
-    private bool HasCachedSubjectFile(string subject)
-    {
-        var prefix = SubjectPrefix(subject);
-        foreach (var f in _allFiles)
-        {
-            if (!f.Name.StartsWith(prefix)) continue;
-            if (f.Name.ToLowerInvariant().EndsWith("_text.pdf")) continue;
-            var url = $"https://archive.org/download/nmu.ce/{f.Name}";
-            if (_cachedPdfKeys.Contains(GetPdfCacheKey(url)))
-                return true;
-        }
-        return false;
-    }
 
     private static string GetPdfCacheKey(string fileUrl)
     {

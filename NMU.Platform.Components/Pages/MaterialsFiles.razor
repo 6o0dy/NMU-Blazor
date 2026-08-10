@@ -91,7 +91,6 @@ else
     private List<MaterialFile> _filteredFiles = new();
     private bool _isOnline = true; // optimistic default, verified in background
     private HashSet<string> _cachedPdfKeys = new();
-    private List<ArchiveFile> _allFiles = new();
     private string _studentLevel = "Level_1";
     private string _studentSemester = "First_Term";
     private bool _showFolderDropdown;
@@ -169,6 +168,13 @@ else
     protected override async Task OnInitializedAsync()
     {
         NavState.PageTitle = Subject.Replace("_", " ");
+        // Return immediately so the router paints the page (loading state) without
+        // freezing the current page; all data loading happens in the background.
+        _ = LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
         _errorMsg = null;
         try
         {
@@ -182,36 +188,59 @@ else
                 _studentSemester = student.Semester.Replace(" ", "_");
             }
 
-            _allFiles = await MaterialsService.GetFilesAsync(_studentLevel, _studentSemester);
+            // Fast path: per-subject file list from a small cache (same as the quiz page),
+            // instead of loading the full archive file list before showing anything.
+            _allSubjectFiles = await MaterialsService.GetCachedSubjectFilesAsync(_studentLevel, _studentSemester, Subject);
+            if (_allSubjectFiles.Count == 0)
+                _allSubjectFiles = await MaterialsService.GetSubjectFilesAsync(_studentLevel, _studentSemester, Subject);
 
-            try
-            {
-                var keys = await JS.InvokeAsync<string[]>("nmuFunctions.getCachedPdfKeys");
-                _cachedPdfKeys = new HashSet<string>(keys ?? Array.Empty<string>());
-            }
-            catch { _cachedPdfKeys = new HashSet<string>(); }
-
-            var (folders, files) = MaterialsService.GetFilesForSubject(
-                _allFiles, _studentLevel, _studentSemester, Subject);
-            _folders = folders;
-            _allSubjectFiles = files;
-            _currentFolder = folders.Count > 0 ? folders[0] : "ROOT";
+            _folders = MaterialsService.GetFolderOrder(_allSubjectFiles);
+            _currentFolder = _folders.Count > 0 ? _folders[0] : "ROOT";
             ApplyFileFilter();
 
-            if (_allFiles.Count == 0)
-                _errorMsg = "No data received from server.";
-            else if (_allSubjectFiles.Count == 0)
+            if (_allSubjectFiles.Count == 0)
                 _errorMsg = $"No files found for \"{Subject}\".";
 
             LayoutState.SearchBar = _searchBarFragment;
             LayoutState.BottomBar = _folders.Count > 1 ? _bottomNavFragment : null;
             LayoutState.NotifyStateChanged();
+
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+
+            // Background: cached PDF keys for offline badges (no longer blocks first paint).
+            _ = LoadCachedPdfKeysAsync();
+
+            // Background revalidation (HEAD request), same as the quiz page.
+            _ = MaterialsService.CheckAndUpdateSubjectFilesAsync(_studentLevel, _studentSemester, Subject,
+                async updated =>
+                {
+                    await InvokeAsync(() =>
+                    {
+                        _allSubjectFiles = updated;
+                        _folders = MaterialsService.GetFolderOrder(updated);
+                        _currentFolder = _folders.Count > 0 ? _folders[0] : "ROOT";
+                        ApplyFileFilter();
+                    });
+                });
         }
         catch (Exception ex)
         {
             _errorMsg = $"Error: {ex.Message}";
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
-        _loading = false;
+    }
+
+    private async Task LoadCachedPdfKeysAsync()
+    {
+        try
+        {
+            var keys = await JS.InvokeAsync<string[]>("nmuFunctions.getCachedPdfKeys");
+            _cachedPdfKeys = new HashSet<string>(keys ?? Array.Empty<string>());
+        }
+        catch { _cachedPdfKeys = new HashSet<string>(); }
+        await InvokeAsync(StateHasChanged);
     }
 
     private void OnSearchInput(ChangeEventArgs e)
@@ -226,7 +255,7 @@ else
         _loading = true;
         _errorMsg = null;
         StateHasChanged();
-        _ = OnInitializedAsync();
+        _ = LoadDataAsync();
     }
 
     private void ChangeFolder(string folder)

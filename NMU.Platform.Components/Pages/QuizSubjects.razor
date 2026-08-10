@@ -91,6 +91,8 @@ else
 
         QuizService.SyncProgressChanged += OnSyncProgress;
 
+        // Fast path: render from the small cached subject list instantly, then
+        // refresh in the background (same pattern as Materials/Recorded).
         try
         {
             var student = await StudentService.GetStudentAsync();
@@ -100,7 +102,10 @@ else
                 _studentSemester = student.Semester.Replace(" ", "_");
             }
 
-            _subjects = await QuizService.GetQuizListAsync(_studentLevel, _studentSemester);
+            _subjects = await QuizService.GetCachedQuizListAsync(_studentLevel, _studentSemester);
+            if (_subjects.Count == 0)
+                _subjects = await QuizService.GetQuizListAsync(_studentLevel, _studentSemester);
+
             QuizState.SubjectPathMap = _subjects.ToDictionary(s => s.Name, s => s.Path, StringComparer.OrdinalIgnoreCase);
             try { await JS.InvokeVoidAsync("localStorage.setItem", "nmu_quiz_path_map", System.Text.Json.JsonSerializer.Serialize(QuizState.SubjectPathMap)); } catch { }
             if (_subjects.Count == 0)

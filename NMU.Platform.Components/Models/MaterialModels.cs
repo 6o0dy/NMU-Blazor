@@ -31,6 +31,12 @@ public class MaterialFile
     public long? Size { get; set; }
 }
 
+public class MaterialSubjectInfo
+{
+    public string Name { get; set; } = "";
+    public int FileCount { get; set; }
+}
+
 public class OrderConfig
 {
     [JsonPropertyName("order")]
@@ -92,4 +98,10 @@ public class RecordedFile
     public string DisplayName { get; set; } = "";
     public string SubFolder { get; set; } = "";
     public bool IsAudio { get; set; }
+}
+
+public class RecordedGroupInfo
+{
+    public string Name { get; set; } = "";
+    public int Count { get; set; }
 }

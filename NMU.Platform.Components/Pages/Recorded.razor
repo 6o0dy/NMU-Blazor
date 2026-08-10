@@ -4,6 +4,7 @@
 @inject StudentService StudentService
 @inject NavigationManager Navigation
 @inject NavigationState NavState
+@inject IJSRuntime JS
 
 @if (_loading)
 {
@@ -29,22 +30,22 @@ else
         </div>
 
         <div class="cards-grid">
-            @for (int i = 0; i < _groups.Count; i++)
+            @for (int i = 0; i < _groupsInfo.Count; i++)
             {
-                var g = _groups[i];
-                var icon = RecordedService.GetIconClass(g);
-                var count = _groupCounts[g];
-                <div class="dev-card" @onclick="() => OpenGroup(g)">
+                var g = _groupsInfo[i];
+                var icon = RecordedService.GetIconClass(g.Name);
+                var count = g.Count;
+                <div class="dev-card" @onclick="() => OpenGroup(g.Name)">
                     <div class="dev-card-top">
                         <span class="dev-card-icon" style="color:var(--primary)"><i class="@icon"></i></span>
                         <span class="badge badge-sky">@count Recordings</span>
                     </div>
-                    <div class="dev-card-title">@g.Replace("_", " ")</div>
+                    <div class="dev-card-title">@g.Name.Replace("_", " ")</div>
                     <div class="dev-card-desc">@count recorded lectures available for viewing and playback.</div>
-                    <button class="btn-outlined" style="width: 100%;" @onclick="() => OpenGroup(g)" @onclick:stopPropagation>View Recordings ➔</button>
+                    <button class="btn-outlined" style="width: 100%;" @onclick="() => OpenGroup(g.Name)" @onclick:stopPropagation>View Recordings ➔</button>
                 </div>
             }
-            @if (_groups.Count == 0)
+            @if (_groupsInfo.Count == 0)
             {
                 <div style="color:var(--text-secondary); text-align:center; grid-column:1/-1; padding-top:50px;">
                     No recorded lectures available yet.
@@ -57,15 +58,20 @@ else
 @code {
     private bool _loading = true;
     private bool _error;
-    private List<RecordedFile> _allFiles = new();
-    private List<string> _groups = new();
-    private Dictionary<string, int> _groupCounts = new();
+    private List<RecordedGroupInfo> _groupsInfo = new();
     private string _studentLevel = "Level_1";
     private string _studentSemester = "First_Term";
 
     protected override async Task OnInitializedAsync()
     {
         NavState.PageTitle = "RECORDED LECTURER";
+        // Return immediately so the router paints the page (loading state); all data
+        // loading happens in the background, same as the materials page.
+        _ = LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
         try
         {
             var student = await StudentService.GetStudentAsync();
@@ -75,19 +81,28 @@ else
                 _studentSemester = student.Semester.Replace(" ", "_");
             }
 
-            _allFiles = await RecordedService.GetFilesAsync(_studentLevel, _studentSemester);
-            _groups = RecordedService.GetGroups(_allFiles, _studentLevel, _studentSemester);
-            _groupCounts = _groups.ToDictionary(g => g, g =>
+            // Fast path: render from the small cached group list (name + count), so
+            // the page paints immediately instead of waiting on the full archive list.
+            _groupsInfo = await RecordedService.GetCachedGroupsInfoAsync(_studentLevel, _studentSemester);
+            if (_groupsInfo.Count == 0)
+                _groupsInfo = await RecordedService.GetGroupsInfoAsync(_studentLevel, _studentSemester);
+
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+
+            // Background revalidation: pick up newly added lectures without a cache clear.
+            _ = RecordedService.CheckAndUpdateRecordedAsync(_studentLevel, _studentSemester, updated =>
             {
-                var files = RecordedService.GetFilesForGroup(_allFiles, _studentLevel, _studentSemester, g);
-                return files.Count;
+                _groupsInfo = updated;
+                _ = InvokeAsync(StateHasChanged);
             });
         }
         catch
         {
             _error = true;
+            _loading = false;
         }
-        _loading = false;
+        await InvokeAsync(StateHasChanged);
     }
 
     private void Reload()
@@ -95,7 +110,7 @@ else
         _error = false;
         _loading = true;
         StateHasChanged();
-        _ = OnInitializedAsync();
+        _ = LoadDataAsync();
     }
 
     private void OpenGroup(string group)

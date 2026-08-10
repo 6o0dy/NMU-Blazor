@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 using NMU.Platform.Components.Models;
 
@@ -7,34 +8,74 @@ namespace NMU.Platform.Components.Services;
 public class RecordedService
 {
     private readonly IJSRuntime _js;
+    private readonly HttpClient _http;
+    private readonly ILogger<RecordedService> _logger;
     private const string ArchiveId = "nmu.ce";
     private const string BaseFolder = "NMU";
     private const string CacheVersion = "v1_recorded_";
+    private const string GroupsCacheVersion = "v1_rec_groups_";
 
-    public RecordedService(IJSRuntime js)
+    public RecordedService(IJSRuntime js, HttpClient http, ILogger<RecordedService> logger)
     {
         _js = js;
+        _http = http;
+        _logger = logger;
     }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<RecordedFile>> _filesMemCache = new();
 
     public async Task<List<RecordedFile>> GetFilesAsync(string level, string semester)
     {
+        var memKey = $"{level}_{semester}";
+        if (_filesMemCache.TryGetValue(memKey, out var mem) && mem != null)
+            return mem;
+
         var cacheKey = $"{CacheVersion}{level}_{semester}";
         var cached = await _js.InvokeAsync<string>("nmuFunctions.safeGetItem", cacheKey);
         if (!string.IsNullOrEmpty(cached))
         {
             try
             {
-                var parsed = JsonSerializer.Deserialize<List<RecordedFile>>(cached);
+                var parsed = JsonSerializer.Deserialize<List<RecordedFile>>(cached, CaseInsensitive);
                 if (parsed != null && parsed.Count > 0)
+                {
+                    _filesMemCache[memKey] = parsed;
                     return parsed;
+                }
             }
             catch { }
         }
 
         try
         {
-            var json = await _js.InvokeAsync<string>("nmuFunctions.fetchJson", $"https://archive.org/metadata/{ArchiveId}");
-            var data = JsonSerializer.Deserialize<ArchiveMetadata>(json);
+            // Parse the big metadata in JS and receive only this semester's recorded
+            // list (with resolved thumbnails) as a compact PascalCase JSON string.
+            var json = await _js.InvokeAsync<string>("nmuFunctions.getRecordedFiles", level, semester);
+            _logger.LogDebug("GetFilesAsync: getRecordedFiles returned {Len} chars", json?.Length ?? 0);
+            if (!string.IsNullOrEmpty(json))
+            {
+                var files = JsonSerializer.Deserialize<List<RecordedFile>>(json, CaseInsensitive) ?? new List<RecordedFile>();
+                _logger.LogDebug("GetFilesAsync: deserialized {Count} files (path A)", files.Count);
+                if (files.Count > 0)
+                {
+                    _filesMemCache[memKey] = files;
+                    await _js.InvokeVoidAsync("nmuFunctions.safeSetItemBoth", cacheKey, json);
+                    return files;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetFilesAsync: path A failed: {Message}", ex.Message);
+        }
+
+        // Fallback: fetch the full metadata and filter in .NET (older cached app.js).
+        try
+        {
+            var fullJson = await GetRawMetadataAsync();
+            if (string.IsNullOrEmpty(fullJson))
+                return new List<RecordedFile>();
+            var data = JsonSerializer.Deserialize<ArchiveMetadata>(fullJson);
             var targetPrefix1 = $"{BaseFolder}/{level}/{semester}/RECORDED_LECTURER/";
             var targetPrefix2 = $"{BaseFolder}/{level}/{semester}/RECORDED LECTURER/";
             var thumbsPrefix1 = $"nmu.ce.thumbs/{targetPrefix1}";
@@ -61,14 +102,135 @@ public class RecordedService
                 })
                 .ToList() ?? new List<RecordedFile>();
 
+            _logger.LogInformation("GetFilesAsync: fallback found {Count} files", files.Count);
             if (files.Count > 0)
-                await _js.InvokeVoidAsync("nmuFunctions.safeSetItem", cacheKey, JsonSerializer.Serialize(files));
+            {
+                _filesMemCache[memKey] = files;
+                await _js.InvokeVoidAsync("nmuFunctions.safeSetItemBoth", cacheKey, JsonSerializer.Serialize(files));
+            }
 
             return files;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "GetFilesAsync: fallback failed: {Message}", ex.Message);
             return new List<RecordedFile>();
+        }
+    }
+
+    private static readonly JsonSerializerOptions CaseInsensitive = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    /// <summary>
+    /// Returns the small cached group list (name + count) instantly without touching
+    /// the full file list, mirroring the materials page's fast path.
+    /// </summary>
+    public async Task<List<RecordedGroupInfo>> GetCachedGroupsInfoAsync(string level, string semester)
+    {
+        try
+        {
+            var cached = await _js.InvokeAsync<string>("nmuFunctions.safeGetItem", GroupsCacheKey(level, semester));
+            if (!string.IsNullOrEmpty(cached))
+            {
+                var parsed = JsonSerializer.Deserialize<List<RecordedGroupInfo>>(cached, CaseInsensitive);
+                if (parsed != null && parsed.Count > 0)
+                    return parsed;
+            }
+        }
+        catch { }
+        return new List<RecordedGroupInfo>();
+    }
+
+    public async Task<List<RecordedGroupInfo>> GetGroupsInfoAsync(string level, string semester)
+    {
+        var cached = await GetCachedGroupsInfoAsync(level, semester);
+        if (cached.Count > 0)
+            return cached;
+
+        var files = await GetFilesAsync(level, semester);
+        var groups = GetGroups(files, level, semester);
+        var info = groups.Select(g => new RecordedGroupInfo
+        {
+            Name = g,
+            Count = GetFilesForGroup(files, level, semester, g).Count
+        }).ToList();
+
+        if (info.Count > 0)
+            await _js.InvokeVoidAsync("nmuFunctions.safeSetItemBoth", GroupsCacheKey(level, semester), JsonSerializer.Serialize(info, CaseInsensitive));
+        return info;
+    }
+
+    private static string GroupsCacheKey(string level, string semester)
+        => $"{GroupsCacheVersion}{level}_{semester}";
+
+    /// <summary>
+    /// Background revalidation for the recorded lectures groups: sends a HEAD request
+    /// to the archive metadata; only if it changed does it re-fetch the recorded list,
+    /// rebuild the group counts, refresh the caches, and notify the page.
+    /// </summary>
+    public async Task CheckAndUpdateRecordedAsync(string level, string semester, Action<List<RecordedGroupInfo>>? onGroupsUpdated = null)
+    {
+        if (string.IsNullOrEmpty(level) || string.IsNullOrEmpty(semester)) return;
+        try
+        {
+            var metaKey = $"{GroupsCacheVersion}meta_{level}_{semester}";
+
+            var online = await _js.InvokeAsync<bool>("nmuFunctions.isOnline");
+            if (!online) return;
+
+            // archive.org rejects HEAD on /metadata (405, no CORS). GET the item size
+            // from the search API instead; it changes whenever any file is added.
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"https://archive.org/advancedsearch.php?q=identifier:{ArchiveId}&fl[]=identifier&fl[]=item_size&rows=1&output=json");
+            using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            if (!response.IsSuccessStatusCode) return;
+
+            var serverLength = 0L;
+            try
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var data = JsonSerializer.Deserialize<SearchResponse>(json, CaseInsensitive);
+                serverLength = data?.Response?.Docs?.FirstOrDefault()?.ItemSize ?? 0;
+            }
+            catch { serverLength = 0; }
+            if (serverLength <= 0) return;
+
+            QuizMeta? cachedMeta = null;
+            try
+            {
+                var cachedMetaJson = await _js.InvokeAsync<string?>("nmuFunctions.safeGetItem", metaKey);
+                if (!string.IsNullOrEmpty(cachedMetaJson))
+                    cachedMeta = JsonSerializer.Deserialize<QuizMeta>(cachedMetaJson, CaseInsensitive);
+            }
+            catch { }
+
+            if (cachedMeta != null && cachedMeta.ContentLength > 0 && serverLength == cachedMeta.ContentLength)
+                return;
+
+            _filesMemCache.TryRemove($"{level}_{semester}", out _);
+            var files = await GetFilesAsync(level, semester);
+            var groups = GetGroups(files, level, semester);
+            var info = groups.Select(g => new RecordedGroupInfo
+            {
+                Name = g,
+                Count = GetFilesForGroup(files, level, semester, g).Count
+            }).ToList();
+
+            if (info.Count > 0)
+            {
+                await _js.InvokeVoidAsync("nmuFunctions.safeSetItemBoth", GroupsCacheKey(level, semester), JsonSerializer.Serialize(info, CaseInsensitive));
+                await _js.InvokeVoidAsync("nmuFunctions.safeSetItem", metaKey, JsonSerializer.Serialize(new QuizMeta
+                {
+                    ContentLength = serverLength > 0 ? serverLength : files.Count,
+                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                }));
+                onGroupsUpdated?.Invoke(info);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "CheckAndUpdateRecordedAsync error: {Message}", ex.Message);
         }
     }
 
@@ -137,6 +299,34 @@ public class RecordedService
     public static string GetDownloadUrl(string filePath)
     {
         return $"https://archive.org/download/{ArchiveId}/{filePath}";
+    }
+
+    /// <summary>
+    /// Returns the full archive metadata JSON. Downloaded ONCE (2.3 MB) and cached in
+    /// IndexedDB, shared across materials / quizzes / recorded pages so it is never
+    /// re-downloaded by each feature.
+    /// </summary>
+    public async Task<string?> GetRawMetadataAsync()
+    {
+        try
+        {
+            var cached = await _js.InvokeAsync<string>("nmuFunctions.getRawMetadata");
+            if (!string.IsNullOrEmpty(cached))
+                return cached;
+        }
+        catch { }
+
+        try
+        {
+            var json = await _js.InvokeAsync<string>("nmuFunctions.fetchText", $"https://archive.org/metadata/{ArchiveId}");
+            if (!string.IsNullOrEmpty(json))
+            {
+                try { await _js.InvokeVoidAsync("nmuFunctions.setRawMetadata", json); } catch { }
+                return json;
+            }
+        }
+        catch { }
+        return null;
     }
 
     public static string GetIconClass(string name)
