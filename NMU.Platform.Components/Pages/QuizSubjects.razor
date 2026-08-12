@@ -102,6 +102,17 @@ else
                 _studentSemester = student.Semester.Replace(" ", "_");
             }
 
+            if (student?.CustomSubjectsMode == true && student.CustomSubjects != null && student.CustomSubjects.Count > 0)
+            {
+                await BuildCustomQuizListAsync(student.CustomSubjects);
+                if (_subjects.Count == 0)
+                    _errorMsg = "No quizzes available for your selected subjects.";
+
+                _loading = false;
+                StateHasChanged();
+                return;
+            }
+
             _subjects = await QuizService.GetCachedQuizListAsync(_studentLevel, _studentSemester);
             if (_subjects.Count == 0)
                 _subjects = await QuizService.GetQuizListAsync(_studentLevel, _studentSemester);
@@ -138,6 +149,34 @@ else
             QuizService.SyncProgressChanged -= OnSyncProgress;
         }
         InvokeAsync(StateHasChanged);
+    }
+
+    private async Task BuildCustomQuizListAsync(List<CustomSubjectSelection> selections)
+    {
+        var result = new List<QuizSubject>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Group selections by level+semester so we fetch each semester's quiz list once.
+        foreach (var group in selections.GroupBy(s => (s.Level, s.Semester)))
+        {
+            var quizzes = await QuizService.GetCachedQuizListAsync(group.Key.Level, group.Key.Semester);
+            if (quizzes.Count == 0)
+                quizzes = await QuizService.GetQuizListAsync(group.Key.Level, group.Key.Semester);
+
+            var selectedNames = group.Select(g => g.Subject).ToList();
+            foreach (var quiz in quizzes)
+            {
+                // Keep only quizzes whose subject matches one of the student's selections.
+                var keep = selectedNames.Any(sName => SubjectMatcher.Matches(sName, quiz.Name));
+                if (!keep) continue;
+                if (seen.Add(quiz.Name))
+                    result.Add(quiz);
+            }
+        }
+
+        _subjects = result;
+        QuizState.SubjectPathMap = _subjects.ToDictionary(s => s.Name, s => s.Path, StringComparer.OrdinalIgnoreCase);
+        try { await JS.InvokeVoidAsync("localStorage.setItem", "nmu_quiz_path_map", System.Text.Json.JsonSerializer.Serialize(QuizState.SubjectPathMap)); } catch { }
     }
 
     public void Dispose()

@@ -799,6 +799,40 @@ window.nmuFunctions = {
         });
     },
 
+    // Build the catalog of every subject that exists in the archive (PDF folders)
+    // across ALL levels and semesters. Used by the custom-subjects picker so a
+    // credit-hours student can pin subjects from any level/semester. Parsed in JS
+    // from the shared cached metadata; result cached in IndexedDB.
+    getSubjectCatalog: function () {
+        var self = this;
+        var catCacheKey = 'subject_catalog_v1';
+        return this.getCacheItem(catCacheKey).then(function (cached) {
+            if (cached) return cached;
+            return self.ensureRawMetadata().then(function (json) {
+                if (!json) return '';
+                var data;
+                try { data = JSON.parse(json); } catch (e) { return ''; }
+                var files = data.files || [];
+                var out = [];
+                var seen = {};
+                for (var i = 0; i < files.length; i++) {
+                    var nm = files[i].name || '';
+                    var m = /^NMU\/([^/]+)\/([^/]+)\/PDF\/([^/]+)\//.exec(nm);
+                    if (!m) continue;
+                    var key = m[1] + '|' + m[2] + '|' + m[3];
+                    if (seen[key]) continue;
+                    seen[key] = true;
+                    out.push({ Level: m[1], Semester: m[2], Subject: m[3] });
+                }
+                var result = JSON.stringify(out);
+                self.setCacheItem(catCacheKey, result);
+                return result;
+            });
+        }).catch(function () {
+            return '';
+        });
+    },
+
     // Same idea for the RECORDED_LECTURER folders used by the recorded lectures
     // pages. Parses the big metadata entirely in JS, resolves the thumbnail name
     // for each video (same logic as the old .NET path), and returns a compact

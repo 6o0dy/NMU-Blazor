@@ -125,6 +125,19 @@ else
                 _studentSemester = student.Semester.Replace(" ", "_");
             }
 
+            // Custom subjects mode: the group may belong to a selected subject from a
+            // different level/semester. Resolve it so files are fetched from the right place.
+            if (student?.CustomSubjectsMode == true && student.CustomSubjects != null && student.CustomSubjects.Count > 0)
+            {
+                var match = student.CustomSubjects.FirstOrDefault(c =>
+                    SubjectMatcher.Matches(c.Subject, decodedGroup));
+                if (match != null)
+                {
+                    _studentLevel = match.Level;
+                    _studentSemester = match.Semester;
+                }
+            }
+
             _allFiles = await RecordedService.GetFilesAsync(_studentLevel, _studentSemester);
 
             if (_allFiles.Count == 0)

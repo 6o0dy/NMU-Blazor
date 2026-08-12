@@ -1,6 +1,8 @@
 @using NMU.Platform.Components.Services
+@using NMU.Platform.Components.Models
 @inject StudentService StudentService
 @inject QuizService QuizService
+@inject MaterialsService MaterialsService
 @inject IPlatformService Platform
 
 @if (IsVisible)
@@ -43,9 +45,106 @@
                     </label>
                 </div>
             </div>
+
+            <div class="custom-mode-group">
+                <label class="custom-mode-row" @onclick="ToggleCustomMode">
+                    <span>
+                        <strong>Custom Subjects</strong>
+                        <small>Register subjects from any level / semester</small>
+                    </span>
+                    <span class="custom-mode-switch @(customMode ? "on" : "")"></span>
+                </label>
+                @if (customMode)
+                {
+                    <div class="selected-subjects-bar">
+                        <button type="button" class="select-subjects-btn" @onclick="OpenPicker">
+                            <i class="fa-solid fa-list-check"></i> Select Subjects
+                            @if (_selectedSubjects.Count > 0)
+                            {
+                                <span class="selected-count-badge">@_selectedSubjects.Count</span>
+                            }
+                        </button>
+                        @if (_selectedSubjects.Count > 0)
+                        {
+                            <div class="selected-subjects-list">
+                                @foreach (var s in _selectedSubjects.OrderBy(s => s.Level).ThenBy(s => s.Semester).ThenBy(s => s.Subject))
+                                {
+                                    <span class="selected-subject-chip">@s.Subject.Replace("_", " ") <i class="fa-solid fa-xmark" @onclick="() => RemoveSubject(s)"></i></span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
             <button class="save-btn" @onclick="SaveData">Save Data</button>
         </div>
     </div>
+
+    @if (_showSubjectPicker)
+    {
+        <div class="subject-picker-overlay" dir="ltr" lang="en" @onclick="ClosePicker">
+            <div class="subject-picker-card" @onclick:stopPropagation>
+                <div class="subject-picker-header">
+                    <button class="btn-small-icon" @onclick="ClosePicker">&times;</button>
+                    <h3>Select Your Subjects</h3>
+                    <div class="search-wrapper">
+                        <i class="fa-solid fa-magnifying-glass search-icon-inside"></i>
+                        <input type="text" class="search-input" placeholder="Search subjects..."
+                               @bind="_searchQuery" @bind:event="oninput" />
+                    </div>
+                    <button type="button" class="btn-link" @onclick="ClearAllSubjects">Clear all</button>
+                </div>
+
+                <div class="subject-picker-body">
+                    @if (_catalogLoading)
+                    {
+                        <div class="loading-state">
+                            <i class="fas fa-circle-notch fa-spin fa-2x" style="color:var(--primary)"></i>
+                            <br /><br />Loading subjects...
+                        </div>
+                    }
+                    else if (_catalog.Count == 0)
+                    {
+                        <div style="color:#94a3b8;text-align:center;padding:30px;">No subjects found. Please try again later.</div>
+                    }
+                    else
+                    {
+                        @foreach (var group in _groups)
+                        {
+                            var visible = group.Entries.Where(e => MatchesQuery(e.Subject)).ToList();
+                            if (visible.Count == 0) continue;
+                            var groupAllSel = visible.All(e => _selectedSubjects.Any(s => s.Matches(e.Level, e.Semester, e.Subject)));
+                            <div class="subject-group">
+                                <div class="subject-group-title">
+                                    @group.DisplayLevel • @group.DisplaySemester
+                                    <button type="button" class="btn-link" @onclick="() => ToggleGroup(visible, groupAllSel)">
+                                        @(groupAllSel ? "clear" : "check all")
+                                    </button>
+                                </div>
+                                <div class="subject-group-grid">
+                                    @foreach (var entry in visible)
+                                    {
+                                        var isSel = _selectedSubjects.Any(s => s.Matches(entry.Level, entry.Semester, entry.Subject));
+                                        <label class="subject-check-card @(isSel ? "selected" : "")" @onclick="() => ToggleSubject(entry)">
+                                            <span class="subject-check-circle"></span>
+                                            <span class="subject-check-name">@entry.Subject.Replace("_", " ")</span>
+                                            <span class="subject-check-check">✓</span>
+                                        </label>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+
+                <div class="subject-picker-footer">
+                    <button class="ctrl-btn" style="flex:1;border-color:var(--text-secondary);color:#fff;" @onclick="ClosePicker">Cancel</button>
+                    <button class="ctrl-btn" style="flex:1;background:var(--primary);color:#000;border:none;font-weight:700;" @onclick="ClosePicker">Done (@_selectedSubjects.Count)</button>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @code {
@@ -59,6 +158,119 @@
     const string Sem1 = "Semester 1";
     const string Sem2 = "Semester 2";
 
+    private bool customMode;
+    private List<CustomSubjectSelection> _selectedSubjects = new();
+    private bool _showSubjectPicker;
+    private bool _catalogLoading;
+    private string _searchQuery = "";
+    private List<SubjectCatalogEntry> _catalog = new();
+
+    private List<SubjectGroup> _groups = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Restore a previously saved profile (e.g. re-open after deleting data), so
+        // the student always finds their earlier subject selection ready.
+        try
+        {
+            var student = await StudentService.GetStudentAsync();
+            if (student != null)
+            {
+                studentName = student.Name;
+                academicLevel = student.AcademicLevel;
+                semester = student.Semester;
+                customMode = student.CustomSubjectsMode;
+                _selectedSubjects = student.CustomSubjects ?? new List<CustomSubjectSelection>();
+            }
+        }
+        catch { }
+    }
+
+    private void ToggleCustomMode() => customMode = !customMode;
+
+    private async Task OpenPicker()
+    {
+        _searchQuery = "";
+        _showSubjectPicker = true;
+        if (_catalog.Count == 0)
+        {
+            _catalogLoading = true;
+            _catalog = await MaterialsService.GetSubjectCatalogAsync();
+            _catalogLoading = false;
+        }
+        BuildGroups();
+        StateHasChanged();
+    }
+
+    private void BuildGroups()
+    {
+        _groups = _catalog
+            .GroupBy(e => (e.Level, e.Semester))
+            .Select(g => new SubjectGroup
+            {
+                Level = g.Key.Level,
+                Semester = g.Key.Semester,
+                DisplayLevel = g.Key.Level.Replace("_", " "),
+                DisplaySemester = g.Key.Semester.Replace("_", " "),
+                Entries = g.AsEnumerable().ToList()
+            })
+            .ToList();
+    }
+
+    private bool MatchesQuery(string subject)
+    {
+        if (string.IsNullOrWhiteSpace(_searchQuery)) return true;
+        return subject.Replace("_", " ").Contains(_searchQuery, StringComparison.OrdinalIgnoreCase)
+               || SubjectMatcher.Normalize(subject).Contains(SubjectMatcher.Normalize(_searchQuery));
+    }
+
+    private void ToggleSubject(SubjectCatalogEntry entry)
+    {
+        var existing = _selectedSubjects.FirstOrDefault(s => s.Matches(entry.Level, entry.Semester, entry.Subject));
+        if (existing != null)
+            _selectedSubjects.Remove(existing);
+        else
+            _selectedSubjects.Add(new CustomSubjectSelection
+            {
+                Level = entry.Level,
+                Semester = entry.Semester,
+                Subject = entry.Subject
+            });
+        StateHasChanged();
+    }
+
+    private void ToggleGroup(List<SubjectCatalogEntry> visible, bool allSelected)
+    {
+        if (allSelected)
+        {
+            foreach (var e in visible)
+                _selectedSubjects.RemoveAll(s => s.Matches(e.Level, e.Semester, e.Subject));
+        }
+        else
+        {
+            foreach (var e in visible)
+            {
+                if (!_selectedSubjects.Any(s => s.Matches(e.Level, e.Semester, e.Subject)))
+                    _selectedSubjects.Add(new CustomSubjectSelection { Level = e.Level, Semester = e.Semester, Subject = e.Subject });
+            }
+        }
+        StateHasChanged();
+    }
+
+    private void ClearAllSubjects()
+    {
+        _selectedSubjects.Clear();
+        StateHasChanged();
+    }
+
+    private void RemoveSubject(CustomSubjectSelection s)
+    {
+        _selectedSubjects.Remove(s);
+        StateHasChanged();
+    }
+
+    private void ClosePicker() => _showSubjectPicker = false;
+
     private async Task CloseApp()
     {
         await Platform.CloseAsync();
@@ -71,12 +283,23 @@
         {
             Name = studentName,
             AcademicLevel = academicLevel,
-            Semester = semester
+            Semester = semester,
+            CustomSubjectsMode = customMode,
+            CustomSubjects = customMode ? _selectedSubjects : new List<CustomSubjectSelection>()
         });
 
         // Trigger background pre-cache of all quizzes for student's level & semester
         _ = QuizService.EnsureQuizSyncedAsync(academicLevel, semester);
 
         await OnSave.InvokeAsync();
+    }
+
+    private class SubjectGroup
+    {
+        public string Level { get; set; } = "";
+        public string Semester { get; set; } = "";
+        public string DisplayLevel { get; set; } = "";
+        public string DisplaySemester { get; set; } = "";
+        public List<SubjectCatalogEntry> Entries { get; set; } = new();
     }
 }

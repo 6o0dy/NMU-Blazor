@@ -188,6 +188,20 @@ else
                 _studentSemester = student.Semester.Replace(" ", "_");
             }
 
+            // Custom subjects mode: this subject may live in another level/semester.
+            // Resolve it from the student's selected subjects, falling back to the
+            // student's default level/semester if it isn't in the list.
+            if (student?.CustomSubjectsMode == true && student.CustomSubjects != null && student.CustomSubjects.Count > 0)
+            {
+                var match = student.CustomSubjects.FirstOrDefault(c =>
+                    string.Equals(c.Subject, Subject, StringComparison.OrdinalIgnoreCase));
+                if (match != null)
+                {
+                    _studentLevel = match.Level;
+                    _studentSemester = match.Semester;
+                }
+            }
+
             // Fast path: per-subject file list from a small cache (same as the quiz page),
             // instead of loading the full archive file list before showing anything.
             _allSubjectFiles = await MaterialsService.GetCachedSubjectFilesAsync(_studentLevel, _studentSemester, Subject);

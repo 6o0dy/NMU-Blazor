@@ -26,7 +26,14 @@ else
     <div class="materials-container">
 <div class="page-heading">
             <h2>📚 Study Materials</h2>
-            <span class="code-tag">@_studentLevel.Replace("_", " ") • @_studentSemester.Replace("_", " ")</span>
+            @if (_customMode)
+            {
+                <span class="code-tag">Custom • @_subjects.Count subjects</span>
+            }
+            else
+            {
+                <span class="code-tag">@_studentLevel.Replace("_", " ") • @_studentSemester.Replace("_", " ")</span>
+            }
         </div>
 
         <div class="cards-grid">
@@ -40,7 +47,12 @@ else
                 <div class="dev-card" @onclick="() => OpenSubject(sub.Name)">
                     <div class="dev-card-top">
                         <span class="dev-card-icon @style.colorClass"><i class="@style.icon"></i></span>
-                        @if (offlineAvailable)
+                        @if (_customMode)
+                        {
+                            var src = _subjectSources[sub.Name];
+                            <span class="badge badge-sky">@src.Replace("_", " ")</span>
+                        }
+                        else if (offlineAvailable)
                         {
                             <span class="badge badge-green">✓ Available Offline</span>
                         }
@@ -76,11 +88,13 @@ else
     private bool _error;
     private bool _noData;
     private List<MaterialSubjectInfo> _subjects = new();
+    private Dictionary<string, string> _subjectSources = new();
     private List<ArchiveFile> _allFiles = new();
     private HashSet<string> _cachedPdfKeys = new();
     private HashSet<string> _offlineSubjects = new(StringComparer.OrdinalIgnoreCase);
     private string _studentLevel = "Level_1";
     private string _studentSemester = "First_Term";
+    private bool _customMode;
 
     private string _semesterHint
     {
@@ -109,6 +123,27 @@ else
             {
                 _studentLevel = student.AcademicLevel.Replace(" ", "_");
                 _studentSemester = student.Semester.Replace(" ", "_");
+            }
+
+            // Custom subjects mode: only show the subjects the student registered in,
+            // each pinned to its own level/semester (credit-hours system).
+            if (student?.CustomSubjectsMode == true && student.CustomSubjects != null && student.CustomSubjects.Count > 0)
+            {
+                _customMode = true;
+                _subjects = student.CustomSubjects
+                    .Select(s => new MaterialSubjectInfo { Name = s.Subject, FileCount = 0 })
+                    .GroupBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .ToList();
+                _subjectSources = student.CustomSubjects
+                    .GroupBy(s => s.Subject, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.First().Subject,
+                                  g => $"{g.First().Level.Replace("_", " ")} • {g.First().Semester.Replace("_", " ")}",
+                                  StringComparer.OrdinalIgnoreCase);
+                _noData = _subjects.Count == 0;
+                _loading = false;
+                await InvokeAsync(StateHasChanged);
+                return;
             }
 
             // Fast path: render from the small cached subject list (same as the quiz page),

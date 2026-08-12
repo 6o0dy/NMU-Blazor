@@ -26,7 +26,14 @@ else
     <div class="recorded-container">
         <div class="page-heading">
             <h2>🎥 Recorded Lectures</h2>
-            <span class="code-tag">@_studentLevel.Replace("_", " ") • @_studentSemester.Replace("_", " ")</span>
+            @if (_customMode)
+            {
+                <span class="code-tag">Custom • @_groupsInfo.Count groups</span>
+            }
+            else
+            {
+                <span class="code-tag">@_studentLevel.Replace("_", " ") • @_studentSemester.Replace("_", " ")</span>
+            }
         </div>
 
         <div class="cards-grid">
@@ -61,6 +68,7 @@ else
     private List<RecordedGroupInfo> _groupsInfo = new();
     private string _studentLevel = "Level_1";
     private string _studentSemester = "First_Term";
+    private bool _customMode;
 
     protected override async Task OnInitializedAsync()
     {
@@ -79,6 +87,17 @@ else
             {
                 _studentLevel = student.AcademicLevel.Replace(" ", "_");
                 _studentSemester = student.Semester.Replace(" ", "_");
+            }
+
+            // Custom subjects mode: only show groups that belong to selected subjects,
+            // collecting from every level/semester the student registered in.
+            if (student?.CustomSubjectsMode == true && student.CustomSubjects != null && student.CustomSubjects.Count > 0)
+            {
+                _customMode = true;
+                _groupsInfo = await BuildCustomGroupsAsync(student.CustomSubjects);
+                _loading = false;
+                await InvokeAsync(StateHasChanged);
+                return;
             }
 
             // Fast path: render from the small cached group list (name + count), so
@@ -103,6 +122,35 @@ else
             _loading = false;
         }
         await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task<List<RecordedGroupInfo>> BuildCustomGroupsAsync(List<CustomSubjectSelection> selections)
+    {
+        var result = new List<RecordedGroupInfo>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in selections.GroupBy(s => (s.Level, s.Semester)))
+        {
+            var files = await RecordedService.GetFilesAsync(group.Key.Level, group.Key.Semester);
+            var groups = RecordedService.GetGroups(files, group.Key.Level, group.Key.Semester);
+            var selectedNames = group.Select(s => s.Subject).ToList();
+
+            foreach (var g in groups)
+            {
+                var keep = selectedNames.Any(sName => SubjectMatcher.Matches(sName, g));
+                if (!keep) continue;
+                if (seen.Add(g))
+                {
+                    result.Add(new RecordedGroupInfo
+                    {
+                        Name = g,
+                        Count = RecordedService.GetFilesForGroup(files, group.Key.Level, group.Key.Semester, g).Count
+                    });
+                }
+            }
+        }
+
+        return result;
     }
 
     private void Reload()

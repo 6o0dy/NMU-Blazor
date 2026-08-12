@@ -55,6 +55,27 @@ public class MaterialsService
         return info;
     }
 
+    /// <summary>
+    /// Returns every subject that exists in the archive across all levels and
+    /// semesters (PDF folder catalog). Used to populate the custom-subjects picker
+    /// so a credit-hours student can pin subjects from any level/semester.
+    /// </summary>
+    public async Task<List<SubjectCatalogEntry>> GetSubjectCatalogAsync()
+    {
+        try
+        {
+            var json = await _js.InvokeAsync<string>("nmuFunctions.getSubjectCatalog");
+            if (!string.IsNullOrEmpty(json))
+            {
+                var parsed = JsonSerializer.Deserialize<List<SubjectCatalogEntry>>(json, CaseInsensitive);
+                if (parsed != null && parsed.Count > 0)
+                    return parsed;
+            }
+        }
+        catch { }
+        return new List<SubjectCatalogEntry>();
+    }
+
     public async Task<List<MaterialSubjectInfo>> GetCachedSubjectsInfoAsync(string level, string semester)
     {
         try
