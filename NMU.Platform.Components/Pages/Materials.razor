@@ -1,9 +1,11 @@
 @page "/materials"
 @using NMU.Platform.Components.Models
+@implements IDisposable
 @inject MaterialsService MaterialsService
 @inject StudentService StudentService
 @inject NavigationManager Navigation
 @inject NavigationState NavState
+@inject LayoutState LayoutState
 @inject IJSRuntime JS
 
 @if (_loading)
@@ -40,30 +42,27 @@ else
             @for (int i = 0; i < _subjects.Count; i++)
             {
                 var sub = _subjects[i];
-                var style = MaterialsService.GetMaterialStyle(sub.Name);
-                var subjectName = sub.Name.Replace("_", " ");
-                var fileCount = sub.FileCount;
-                var offlineAvailable = _offlineSubjects.Contains(sub.Name);
-                <div class="dev-card" @onclick="() => OpenSubject(sub.Name)">
+                var style = MaterialsService.GetMaterialStyle(sub.DisplayName + " " + sub.Code);
+                var subjectName = string.IsNullOrEmpty(sub.DisplayName) ? sub.Name.Replace("_", " ") : sub.DisplayName;
+                var offlineCount = _offlineCounts.TryGetValue(sub.Name, out var oc) ? oc : 0;
+                var subLine = GetSubjectLine(sub.Name);
+                <div class="dev-card mat-card" @onclick="() => OpenSubject(sub.Name)">
                     <div class="dev-card-top">
                         <span class="dev-card-icon @style.colorClass"><i class="@style.icon"></i></span>
-                        @if (_customMode)
+                        @if (!string.IsNullOrEmpty(sub.Code))
                         {
-                            var src = _subjectSources[sub.Name];
-                            <span class="badge badge-sky">@src.Replace("_", " ")</span>
-                        }
-                        else if (offlineAvailable)
-                        {
-                            <span class="badge badge-green">✓ Available Offline</span>
-                        }
-                        else
-                        {
-                            <span class="badge badge-sky">@fileCount Files</span>
+                            <span class="badge badge-sky mat-code">@sub.Code</span>
                         }
                     </div>
-                    <div class="dev-card-title">@subjectName</div>
-                    <div class="dev-card-desc">@fileCount PDF files available for viewing and download.</div>
-                    <button class="btn-outlined" style="width: 100%;" @onclick="() => OpenSubject(sub.Name)" @onclick:stopPropagation>Open Files ➔</button>
+                    <div class="dev-card-title mat-title" title="@subjectName">@subjectName</div>
+                    <div class="dev-card-desc mat-sub" title="@subLine">
+                        @subLine
+                        @if (offlineCount > 0)
+                        {
+                            <span class="mat-offline"> • ✓ @offlineCount Offline</span>
+                        }
+                    </div>
+                    <button class="btn-outlined mat-open" @onclick="() => OpenSubject(sub.Name)" @onclick:stopPropagation>Open Files ➔</button>
                 </div>
             }
             @if (_noData)
@@ -72,7 +71,7 @@ else
                     No study materials available yet.
                     <br /><br />
                     <small style="opacity:.6;">
-                        Searching in: NMU/@_studentLevel/@_studentSemester — files found: @_allFiles.Count
+                        Searching in: @(_archiveId ?? "—") — files found: @_allFiles.Count
                         @(_semesterHint)
                     </small>
                 </div>
@@ -82,7 +81,7 @@ else
 }
 
 @code {
-    private const string ArchiveBaseFolder = "NMU";
+    private string? _archiveId;
 
     private bool _loading = true;
     private bool _error;
@@ -91,9 +90,10 @@ else
     private Dictionary<string, string> _subjectSources = new();
     private List<ArchiveFile> _allFiles = new();
     private HashSet<string> _cachedPdfKeys = new();
-    private HashSet<string> _offlineSubjects = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, int> _offlineCounts = new(StringComparer.OrdinalIgnoreCase);
     private string _studentLevel = "Level_1";
     private string _studentSemester = "First_Term";
+    private string _studentDept = "ALL";
     private bool _customMode;
 
     private string _semesterHint
@@ -109,6 +109,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         NavState.PageTitle = "MATERIALS";
+        LayoutState.RefreshRequested += OnRefreshRequested;
         // Return immediately so the router paints the page (loading state) without
         // freezing the current page; all data loading happens in the background.
         _ = LoadDataAsync();
@@ -123,7 +124,9 @@ else
             {
                 _studentLevel = student.AcademicLevel.Replace(" ", "_");
                 _studentSemester = student.Semester.Replace(" ", "_");
+                _studentDept = NMU.Platform.Components.Services.ArchiveCatalog.NormalizeDepartment(student.Department);
             }
+            _archiveId = NMU.Platform.Components.Services.ArchiveCatalog.GetArchiveId(_studentLevel, _studentSemester);
 
             // Custom subjects mode: only show the subjects the student registered in,
             // each pinned to its own level/semester (credit-hours system).
@@ -152,6 +155,7 @@ else
             if (_subjects.Count == 0)
                 _subjects = await MaterialsService.GetSubjectsInfoAsync(_studentLevel, _studentSemester);
 
+            _subjects = FilterByDepartment(_subjects);
             _noData = _subjects.Count == 0;
             _loading = false;
             await InvokeAsync(StateHasChanged);
@@ -165,8 +169,8 @@ else
                 {
                     await InvokeAsync(() =>
                     {
-                        _subjects = subjects;
-                        _noData = subjects.Count == 0;
+                        _subjects = FilterByDepartment(subjects);
+                        _noData = _subjects.Count == 0;
                         RefreshOfflineBadges();
                     });
                 });
@@ -192,33 +196,81 @@ else
             catch { _cachedPdfKeys = new HashSet<string>(); }
 
             _allFiles = await filesTask;
-            await InvokeAsync(RefreshOfflineBadges);
+            RebuildLecturerMap();
+            await InvokeAsync(() =>
+            {
+                RefreshOfflineBadges();
+                StateHasChanged();
+            });
         }
         catch { }
     }
 
     private void RefreshOfflineBadges()
     {
-        var offline = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         // Single pass over the file list: compute the cache key once per file
-        // instead of once per file per subject (7 subjects -> ~7x fewer hashes).
+        // and count how many files per subject are available offline.
         foreach (var f in _allFiles)
         {
             if (f.Name.ToLowerInvariant().EndsWith("_text.pdf")) continue;
-            var url = $"https://archive.org/download/nmu.ce/{f.Name}";
+            var url = NMU.Platform.Components.Services.ArchiveCatalog.GetArchiveId(_studentLevel, _studentSemester) is string aid
+                ? NMU.Platform.Components.Services.ArchiveCatalog.GetDownloadUrl(aid, f.Name)
+                : f.Name;
             if (_cachedPdfKeys.Contains(GetPdfCacheKey(url)))
-                offline.Add(SubjectOf(f.Name));
+            {
+                var subj = SubjectOf(f.Name);
+                counts.TryGetValue(subj, out var c);
+                counts[subj] = c + 1;
+            }
         }
-        _offlineSubjects = offline;
+        _offlineCounts = counts;
+    }
+
+    private Dictionary<string, string> _subjectLecturers = new(StringComparer.OrdinalIgnoreCase);
+
+    private string GetSubjectLine(string subjectFull)
+    {
+        if (_customMode && _subjectSources.TryGetValue(subjectFull, out var src))
+            return src.Replace("_", " ");
+        if (_subjectLecturers.TryGetValue(subjectFull, out var lec) && !string.IsNullOrEmpty(lec))
+            return lec;
+        return "PDF study materials";
+    }
+
+    private void RebuildLecturerMap()
+    {
+        var map = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var f in _allFiles)
+        {
+            if (!f.Name.StartsWith("Data/", StringComparison.Ordinal)) continue;
+            var segs = f.Name.Split('/');
+            if (segs.Length < 2) continue;
+            var subject = segs[1];
+            string? lec = null;
+            var pdfIdx = Array.FindIndex(segs, s => s.Equals("PDFs", StringComparison.OrdinalIgnoreCase));
+            if (pdfIdx >= 0 && pdfIdx + 1 < segs.Length) lec = segs[pdfIdx + 1];
+            if (string.IsNullOrWhiteSpace(lec)) continue;
+            if (!map.TryGetValue(subject, out var list)) { list = new List<string>(); map[subject] = list; }
+            if (!list.Contains(lec, StringComparer.Ordinal)) list.Add(lec);
+        }
+        _subjectLecturers = map.ToDictionary(
+            kv => kv.Key,
+            kv => kv.Value.Count == 1 ? kv.Value[0] : $"{kv.Value[0]} +{kv.Value.Count - 1}",
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    private List<MaterialSubjectInfo> FilterByDepartment(List<MaterialSubjectInfo> list)
+    {
+        return list.Where(s => NMU.Platform.Components.Services.ArchiveCatalog.IsVisibleForDepartment(s.Branch, _studentDept)).ToList();
     }
 
     private string SubjectOf(string fileName)
     {
-        var prefix = SubjectPrefix("");
-        if (!fileName.StartsWith(prefix)) return "";
-        var rel = fileName[prefix.Length..];
-        var parts = rel.Split('/');
-        return parts.Length > 0 ? parts[0] : "";
+        // New layout: Data/{Subject}/PDFs/...
+        if (!fileName.StartsWith("Data/", StringComparison.Ordinal)) return "";
+        var segs = fileName.Split('/');
+        return segs.Length >= 2 ? segs[1] : "";
     }
 
     private void Reload()
@@ -234,13 +286,17 @@ else
         Navigation.NavigateTo($"materials/{Uri.EscapeDataString(subject)}", replace: true);
     }
 
-    private string SubjectPrefix(string subject)
-        => $"{ArchiveBaseFolder}/{_studentLevel}/{_studentSemester}/PDF/{subject}/";
-
     private static string GetPdfCacheKey(string fileUrl)
     {
         if (string.IsNullOrEmpty(fileUrl)) return "";
         var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(fileUrl)))[..16];
         return $"pdf_{hash}";
+    }
+
+    private void OnRefreshRequested() => Reload();
+
+    public void Dispose()
+    {
+        LayoutState.RefreshRequested -= OnRefreshRequested;
     }
 }

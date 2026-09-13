@@ -6,6 +6,10 @@ public class QuizStateService
 {
     public string SubjectName { get; set; } = "";
     public string SubjectPath { get; set; } = "";
+    public string SubjectArchiveId { get; set; } = "";
+    public string SubjectLevel { get; set; } = "";
+    public string SubjectSemester { get; set; } = "";
+    public QuizSubject? CurrentQuiz { get; set; }
     public Dictionary<string, string> SubjectPathMap { get; set; } = new();
     public List<QuizChapter> Chapters { get; set; } = new();
     public List<QuizQuestion> CurrentQuestions { get; set; } = new();

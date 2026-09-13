@@ -1,10 +1,14 @@
 @page "/recorded"
 @using NMU.Platform.Components.Models
+@implements IDisposable
 @inject RecordedService RecordedService
 @inject StudentService StudentService
 @inject NavigationManager Navigation
 @inject NavigationState NavState
+@inject LayoutState LayoutState
 @inject IJSRuntime JS
+@inject MediaCacheService MediaCache
+@inject IPlatformService Platform
 
 @if (_loading)
 {
@@ -40,16 +44,27 @@ else
             @for (int i = 0; i < _groupsInfo.Count; i++)
             {
                 var g = _groupsInfo[i];
-                var icon = RecordedService.GetIconClass(g.Name);
-                var count = g.Count;
-                <div class="dev-card" @onclick="() => OpenGroup(g.Name)">
+                var icon = RecordedService.GetIconClass((g.DisplayName ?? g.Name) + " " + g.Code);
+                var title = string.IsNullOrEmpty(g.DisplayName) ? g.Name.Replace("_", " ") : g.DisplayName;
+                var line = GetGroupLine(g.Name);
+                var offlineCount = _offlineCounts.TryGetValue(g.Name, out var oc) ? oc : 0;
+                <div class="dev-card mat-card" @onclick="() => OpenGroup(g.Name)">
                     <div class="dev-card-top">
                         <span class="dev-card-icon" style="color:var(--primary)"><i class="@icon"></i></span>
-                        <span class="badge badge-sky">@count Recordings</span>
+                        @if (!string.IsNullOrEmpty(g.Code))
+                        {
+                            <span class="badge badge-sky mat-code">@g.Code</span>
+                        }
                     </div>
-                    <div class="dev-card-title">@g.Name.Replace("_", " ")</div>
-                    <div class="dev-card-desc">@count recorded lectures available for viewing and playback.</div>
-                    <button class="btn-outlined" style="width: 100%;" @onclick="() => OpenGroup(g.Name)" @onclick:stopPropagation>View Recordings ➔</button>
+                    <div class="dev-card-title mat-title" title="@title">@title</div>
+                    <div class="dev-card-desc mat-sub" title="@line">
+                        @line
+                        @if (offlineCount > 0)
+                        {
+                            <span class="mat-offline"> • ✓ @offlineCount Offline</span>
+                        }
+                    </div>
+                    <button class="btn-outlined mat-open" @onclick="() => OpenGroup(g.Name)" @onclick:stopPropagation>View Recordings ➔</button>
                 </div>
             }
             @if (_groupsInfo.Count == 0)
@@ -68,11 +83,15 @@ else
     private List<RecordedGroupInfo> _groupsInfo = new();
     private string _studentLevel = "Level_1";
     private string _studentSemester = "First_Term";
+    private string _studentDept = "ALL";
     private bool _customMode;
+    private Dictionary<string, string> _groupLecturers = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, int> _offlineCounts = new(StringComparer.OrdinalIgnoreCase);
 
     protected override async Task OnInitializedAsync()
     {
         NavState.PageTitle = "RECORDED LECTURER";
+        LayoutState.RefreshRequested += OnRefreshRequested;
         // Return immediately so the router paints the page (loading state); all data
         // loading happens in the background, same as the materials page.
         _ = LoadDataAsync();
@@ -87,6 +106,7 @@ else
             {
                 _studentLevel = student.AcademicLevel.Replace(" ", "_");
                 _studentSemester = student.Semester.Replace(" ", "_");
+                _studentDept = NMU.Platform.Components.Services.ArchiveCatalog.NormalizeDepartment(student.Department);
             }
 
             // Custom subjects mode: only show groups that belong to selected subjects,
@@ -106,13 +126,17 @@ else
             if (_groupsInfo.Count == 0)
                 _groupsInfo = await RecordedService.GetGroupsInfoAsync(_studentLevel, _studentSemester);
 
+            _groupsInfo = _groupsInfo.Where(g => NMU.Platform.Components.Services.ArchiveCatalog.IsVisibleForDepartment(g.Branch, _studentDept)).ToList();
             _loading = false;
             await InvokeAsync(StateHasChanged);
+
+            // Background: lecturer names + offline counts per subject.
+            _ = RefreshDetailsAsync();
 
             // Background revalidation: pick up newly added lectures without a cache clear.
             _ = RecordedService.CheckAndUpdateRecordedAsync(_studentLevel, _studentSemester, updated =>
             {
-                _groupsInfo = updated;
+                _groupsInfo = updated.Where(g => NMU.Platform.Components.Services.ArchiveCatalog.IsVisibleForDepartment(g.Branch, _studentDept)).ToList();
                 _ = InvokeAsync(StateHasChanged);
             });
         }
@@ -128,6 +152,7 @@ else
     {
         var result = new List<RecordedGroupInfo>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var lecMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var group in selections.GroupBy(s => (s.Level, s.Semester)))
         {
@@ -141,6 +166,9 @@ else
                 if (!keep) continue;
                 if (seen.Add(g))
                 {
+                    var lecs = RecordedService.GetLecturersForGroup(files, group.Key.Level, group.Key.Semester, g);
+                    if (lecs.Count > 0)
+                        lecMap[g] = lecs.Count == 1 ? lecs[0] : $"{lecs[0]} +{lecs.Count - 1}";
                     result.Add(new RecordedGroupInfo
                     {
                         Name = g,
@@ -150,7 +178,72 @@ else
             }
         }
 
+        _groupLecturers = lecMap;
         return result;
+    }
+
+    private string GetGroupLine(string groupFull)
+    {
+        if (_groupLecturers.TryGetValue(groupFull, out var lec) && !string.IsNullOrEmpty(lec))
+            return lec;
+        return "Recorded lectures";
+    }
+
+    private void RebuildLecturerMap(List<RecordedFile> files)
+    {
+        var map = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var f in files)
+        {
+            RecordedService.ParseRecordedPath(f.Name, out var subj, out var lec);
+            if (string.IsNullOrEmpty(subj)) subj = f.SubjectFullName;
+            if (string.IsNullOrEmpty(subj)) continue;
+            var lecturer = !string.IsNullOrEmpty(lec) ? lec : f.Lecturer;
+            if (string.IsNullOrWhiteSpace(lecturer)) continue;
+            if (!map.TryGetValue(subj, out var list)) { list = new List<string>(); map[subj] = list; }
+            if (!list.Contains(lecturer, StringComparer.Ordinal)) list.Add(lecturer);
+        }
+        _groupLecturers = map.ToDictionary(
+            kv => kv.Key,
+            kv => kv.Value.Count == 1 ? kv.Value[0] : $"{kv.Value[0]} +{kv.Value.Count - 1}",
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    private string ResolveUrl(RecordedFile file)
+    {
+        if (!string.IsNullOrEmpty(file.ArchiveId))
+            return NMU.Platform.Components.Services.ArchiveCatalog.GetDownloadUrl(file.ArchiveId, file.Name);
+        return RecordedService.GetDownloadUrl(file.Name, _studentLevel, _studentSemester);
+    }
+
+    private async Task RefreshDetailsAsync()
+    {
+        try
+        {
+            var files = await RecordedService.GetFilesAsync(_studentLevel, _studentSemester);
+            RebuildLecturerMap(files);
+
+            // Offline video counts (native only; web streams without a media cache).
+            if (!Platform.IsWeb)
+            {
+                var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                foreach (var f in files)
+                {
+                    RecordedService.ParseRecordedPath(f.Name, out var subj, out _);
+                    if (string.IsNullOrEmpty(subj)) subj = f.SubjectFullName;
+                    if (string.IsNullOrEmpty(subj)) continue;
+                    var key = MediaCache.GetCacheKey(ResolveUrl(f));
+                    if (await MediaCache.IsCompleteAsync(key))
+                    {
+                        counts.TryGetValue(subj, out var c);
+                        counts[subj] = c + 1;
+                    }
+                }
+                _offlineCounts = counts;
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch { }
     }
 
     private void Reload()
@@ -164,5 +257,12 @@ else
     private void OpenGroup(string group)
     {
         Navigation.NavigateTo($"recorded/{Uri.EscapeDataString(group)}", replace: true);
+    }
+
+    private void OnRefreshRequested() => Reload();
+
+    public void Dispose()
+    {
+        LayoutState.RefreshRequested -= OnRefreshRequested;
     }
 }

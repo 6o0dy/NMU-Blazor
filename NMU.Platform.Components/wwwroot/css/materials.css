@@ -59,6 +59,78 @@
     line-height: 1;
 }
 
+/* ---------- Redesigned subject cards: fixed slots, button pinned bottom ----------
+   Shared by Study Materials and Recorded Lectures (same card system). */
+.materials-container .dev-card.mat-card,
+.recorded-container .dev-card.mat-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.materials-container .dev-card-top,
+.recorded-container .dev-card-top {
+    flex: 0 0 auto;
+    min-height: 2.25rem;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.materials-container .dev-card-icon,
+.recorded-container .dev-card-icon {
+    font-size: 2rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.materials-container .mat-code,
+.recorded-container .mat-code {
+    font-size: 0.62rem;
+    padding: 2px 7px;
+}
+
+.materials-container .dev-card-title.mat-title,
+.recorded-container .dev-card-title.mat-title {
+    display: -webkit-box;
+    min-height: 2.7em;
+    max-height: 2.7em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.35;
+    font-size: 1.02rem;
+    margin-bottom: 8px;
+}
+
+.materials-container .dev-card-desc.mat-sub,
+.recorded-container .dev-card-desc.mat-sub {
+    display: -webkit-box;
+    min-height: 2.6em;
+    max-height: 2.6em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.3;
+    font-size: 0.82rem;
+    margin-bottom: 14px;
+}
+
+.materials-container .mat-offline,
+.recorded-container .mat-offline {
+    color: var(--correct);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.materials-container .btn-outlined.mat-open,
+.recorded-container .btn-outlined.mat-open {
+    width: 100%;
+    margin-top: auto;
+}
+
 .materials-container .dev-card-title {
     margin-bottom: 12px;
 }
@@ -67,14 +139,18 @@
     margin-bottom: 16px;
 }
 
-/* ---------- Legacy subject grid (still used by Recorded / Quizzes) ---------- */
+/* ---------- Legacy subject grid (still used by Recorded / Quizzes) ----------
+   Fluid columns: the count per row shrinks automatically as the screen
+   narrows (4 -> 3 -> 2 -> 1) so cards never get squeezed or cut off. */
 .grid-view {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+    gap: 16px;
 }
 
-@media (min-width: 600px) { .grid-view { grid-template-columns: repeat(4, 1fr); } }
+.grid-view > * {
+    min-width: 0;
+}
 
 .subject-card {
     background: var(--bg-card);

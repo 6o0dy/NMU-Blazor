@@ -7,6 +7,12 @@ public class StudentProfile
     public string Semester { get; set; } = "Semester 1";
 
     /// <summary>
+    /// Department tag: "CE", "AIE" or "ALL" (general / show everything).
+    /// Used to filter subjects by their ".(CE) / .(AIE) / .(ALL)" branch suffix.
+    /// </summary>
+    public string Department { get; set; } = "ALL";
+
+    /// <summary>
     /// When true, the app only shows the subjects the student explicitly selected
     /// (credit-hour system: the student can be registered in subjects from any
     /// level + semester, not just their own).

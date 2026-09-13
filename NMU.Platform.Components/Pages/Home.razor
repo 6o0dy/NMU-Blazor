@@ -81,6 +81,15 @@
                 </div>
 
                 <div class="field-group">
+                    <label>Department</label>
+                    <select id="edit-dept" @bind="editDept" disabled="@(!isEditing)">
+                        <option value="ALL">General / All</option>
+                        <option value="CE">CE - Computer Engineering</option>
+                        <option value="AIE">AIE - AI Engineering</option>
+                    </select>
+                </div>
+
+                <div class="field-group">
                     <label>The Semester</label>
                     <div class="edit-term-container">
                         <div class="term-radio @(editTerm == "Semester 1" ? "selected" : "")"
@@ -175,7 +184,7 @@
                     {
                         @foreach (var group in groups)
                         {
-                            var visible = group.Entries.Where(e => MatchesQuery(e.Subject)).ToList();
+                            var visible = group.Entries.Where(e => MatchesQuery(e)).ToList();
                             if (visible.Count == 0) continue;
                             var groupAllSel = visible.All(e => editSelectedSubjects.Any(s => s.Matches(e.Level, e.Semester, e.Subject)));
                             <div class="subject-group">
@@ -192,9 +201,10 @@
                                     @foreach (var entry in visible)
                                     {
                                         var isSel = editSelectedSubjects.Any(s => s.Matches(entry.Level, entry.Semester, entry.Subject));
+                                        var label = string.IsNullOrEmpty(entry.DisplayName) ? entry.Subject.Replace("_", " ") : entry.DisplayName;
                                         <label class="subject-check-card @(isSel ? "selected" : "")" @onclick="() => ToggleSubject(entry)">
                                             <span class="subject-check-circle"></span>
-                                            <span class="subject-check-name">@entry.Subject.Replace("_", " ")</span>
+                                            <span class="subject-check-name">@label @if (!string.IsNullOrEmpty(entry.Code)) { <small style="opacity:.6;">(@entry.Code)</small> }</span>
                                             <span class="subject-check-check">✓</span>
                                         </label>
                                     }
@@ -247,6 +257,7 @@
 
     private string editName = "";
     private string editYear = "Level 1";
+    private string editDept = "ALL";
     private string editTerm = "Semester 1";
 
     private bool editCustomMode;
@@ -309,6 +320,7 @@
         {
             editName = currentStudent.Name;
             editYear = currentStudent.AcademicLevel;
+            editDept = string.IsNullOrEmpty(currentStudent.Department) ? "ALL" : currentStudent.Department;
             editTerm = currentStudent.Semester;
             editCustomMode = currentStudent.CustomSubjectsMode;
             editSelectedSubjects = currentStudent.CustomSubjects != null
@@ -350,6 +362,17 @@
                 Entries = g.AsEnumerable().ToList()
             })
             .ToList();
+    }
+
+    private bool MatchesQuery(SubjectCatalogEntry entry)
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery)) return true;
+        var q = searchQuery;
+        return entry.Subject.Replace("_", " ").Contains(q, StringComparison.OrdinalIgnoreCase)
+               || entry.DisplayName.Contains(q, StringComparison.OrdinalIgnoreCase)
+               || entry.Code.Contains(q, StringComparison.OrdinalIgnoreCase)
+               || SubjectMatcher.Normalize(entry.Subject).Contains(SubjectMatcher.Normalize(q))
+               || SubjectMatcher.Normalize(entry.DisplayName).Contains(SubjectMatcher.Normalize(q));
     }
 
     private bool MatchesQuery(string subject)
@@ -505,6 +528,7 @@
             Name = editName,
             AcademicLevel = editYear,
             Semester = editTerm,
+            Department = string.IsNullOrEmpty(editDept) ? "ALL" : editDept,
             CustomSubjectsMode = editCustomMode,
             CustomSubjects = editCustomMode ? editSelectedSubjects : new List<CustomSubjectSelection>()
         };

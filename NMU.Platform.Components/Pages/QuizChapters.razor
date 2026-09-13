@@ -1,5 +1,6 @@
 @page "/quizzes/{Subject}"
 @using NMU.Platform.Components.Models
+@implements IDisposable
 @inject QuizService QuizService
 @inject NavigationManager Navigation
 @inject NavigationState NavState
@@ -207,6 +208,17 @@ else
         _subjectName = decoded;
 
         var path = QuizState.SubjectPath;
+        var archiveId = QuizState.SubjectArchiveId;
+        var qLevel = QuizState.SubjectLevel;
+        var qSemester = QuizState.SubjectSemester;
+        // Prefer the in-memory selected quiz (handles duplicate display names across lecturers).
+        if (QuizState.CurrentQuiz != null && string.Equals(QuizState.CurrentQuiz.Name, decoded, StringComparison.OrdinalIgnoreCase))
+        {
+            path = QuizState.CurrentQuiz.Path;
+            archiveId = QuizState.CurrentQuiz.ArchiveId;
+            qLevel = QuizState.CurrentQuiz.Level;
+            qSemester = QuizState.CurrentQuiz.Semester;
+        }
         if (string.IsNullOrEmpty(path))
         {
             if (QuizState.SubjectPathMap.Count == 0)
@@ -234,7 +246,7 @@ else
 
         try
         {
-            _chapters = await QuizService.GetQuizDataAsync(path);
+            _chapters = await QuizService.GetQuizDataAsync(path, qLevel, qSemester, archiveId);
             _totalQuestions = _chapters.Sum(c => c.Questions.Count);
             if (_chapters.Count == 0)
                 _errorMsg = "No quiz content available for this subject.";
@@ -378,6 +390,18 @@ else
         _errorMsg = null;
         StateHasChanged();
         _ = OnInitializedAsync();
+    }
+
+    protected override void OnInitialized()
+    {
+        LayoutState.RefreshRequested += OnRefreshRequested;
+    }
+
+    private void OnRefreshRequested() => Reload();
+
+    public void Dispose()
+    {
+        LayoutState.RefreshRequested -= OnRefreshRequested;
     }
 
 }

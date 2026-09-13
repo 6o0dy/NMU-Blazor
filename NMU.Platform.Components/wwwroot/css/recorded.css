@@ -11,15 +11,26 @@
     box-sizing: border-box;
 }
 
-/* ---------- Video/Audio Cards Grid ---------- */
+/* ---------- Video/Audio Cards Grid ----------
+   Fluid columns: the count per row shrinks automatically as the screen
+   narrows so cards never get squeezed or cut off at the edge. */
+.page-container:has(> .recorded-files) {
+    max-width: 1200px;
+}
+
 .recorded-files {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
     gap: 18px;
-    max-width: 1200px;
+    width: 100%;
+    max-width: 100%;
     margin: 15px auto;
     padding: 5px;
     box-sizing: border-box;
+}
+
+.recorded-files > * {
+    min-width: 0;
 }
 
 .recorded-card {
@@ -56,6 +67,7 @@
 
 .recorded-info {
     padding: 14px;
+    padding-right: 56px;
 }
 
 .recorded-title {
@@ -72,6 +84,7 @@
     align-items: center;
     gap: 8px;
     margin-top: 8px;
+    min-width: 0;
 }
 
 /* ---------- Badges ---------- */
@@ -103,12 +116,32 @@
     color: var(--text-secondary);
     font-size: 11px;
     font-family: 'Fira Code', monospace;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-/* ---------- Download Button (top-right of thumb) ---------- */
+/* ---------- Lecturer picker dialog rows ---------- */
+.lec-pick {
+    margin-bottom: 8px;
+}
+
+.lec-pick .subject-check-name {
+    font-size: 14px;
+}
+
+.lec-tag {
+    font-size: 0.62rem;
+    padding: 1px 7px;
+    white-space: nowrap;
+}
+
+/* ---------- Download Button (bottom-right of card) ---------- */
 .recorded-dl {
     position: absolute;
-    top: 10px;
+    bottom: 10px;
     right: 10px;
     width: 34px;
     height: 34px;
@@ -131,10 +164,10 @@
     color: #fff;
 }
 
-/* ---------- Cache Status Pills ---------- */
+/* ---------- Cache Status Pills (top-right over thumb) ---------- */
 .recorded-cache-badge {
     position: absolute;
-    bottom: 10px;
+    top: 10px;
     right: 10px;
     font-size: 0.72rem;
     padding: 3px 9px;

@@ -120,6 +120,59 @@
     flex-shrink: 0;
 }
 
+/* ---------- Redesigned PDF rows: fixed slots + badges (project identity) ---------- */
+.file-item.pdf-card {
+    gap: 12px;
+}
+
+.file-item.pdf-card .file-icon.pdf-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 22px;
+    margin-right: 0;
+}
+
+.file-item.pdf-card .file-text {
+    gap: 6px;
+    min-width: 0;
+}
+
+.file-item.pdf-card .file-name {
+    line-height: 1.4;
+}
+
+.file-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.pdf-folder {
+    font-size: 0.62rem;
+    padding: 1px 7px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.file-lecturer {
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.file-item.pdf-card .mat-offline {
+    color: var(--correct);
+    font-weight: 700;
+    font-size: 0.72rem;
+    white-space: nowrap;
+}
+
 .file-text {
     display: flex;
     flex-direction: column;
@@ -260,6 +313,15 @@
     transition: 0.15s;
     white-space: nowrap;
     box-sizing: border-box;
+    max-width: 44vw;
+    min-width: 0;
+}
+
+.folder-dropdown-current {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
 }
 
 .folder-dropdown-toggle:hover {
@@ -332,6 +394,17 @@
 @media (max-width: 1023px) {
     .files-folder-dropdown { display: block; }
     .bottom-nav { display: none; }
+}
+
+@media (max-width: 600px) {
+    .files-search-fixed {
+        flex-wrap: wrap;
+        height: auto;
+        min-height: 50px;
+        row-gap: 8px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
 }
 
 @keyframes slideIn {

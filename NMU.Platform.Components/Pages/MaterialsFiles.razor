@@ -42,18 +42,34 @@ else
                 var f = file;
                 var displayName = f.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
                     ? f.Name[..^4] : f.Name;
-                var downloadUrl = $"https://archive.org/download/nmu.ce/{f.Path}";
+                var downloadUrl = NMU.Platform.Components.Services.ArchiveCatalog.GetArchiveId(_studentLevel, _studentSemester) is string aid
+                    ? NMU.Platform.Components.Services.ArchiveCatalog.GetDownloadUrl(aid, f.Path)
+                    : f.Path;
                 var cacheKey = GetPdfCacheKey(downloadUrl);
                 var isCached = _cachedPdfKeys.Contains(cacheKey);
                 var isAvailable = isCached || _isOnline;
-                <div class="file-item @(isAvailable ? "" : "file-unavailable")" @onclick="() => OpenFile(downloadUrl, f.Name)"
+                <div class="file-item pdf-card @(isAvailable ? "" : "file-unavailable")" @onclick="() => OpenFile(downloadUrl, f.Name)"
                      style="animation: slideIn 0.3s ease;">
-                    <div class="file-icon">
+                    <div class="file-icon pdf-icon">
                         <i class="@(isAvailable ? "fa-regular fa-file-pdf" : "fa-solid fa-lock")"></i>
                     </div>
                     <div class="file-text">
-                        <span class="file-name">@displayName</span>
-                        <span class="file-size">@(f.Size.HasValue ? $"{(f.Size.Value / 1024.0 / 1024.0):F1} MB" : "? MB")</span>
+                        <span class="file-name" title="@displayName">@displayName</span>
+                        <span class="file-meta-row">
+                            @if (!string.IsNullOrEmpty(f.Folder) && f.Folder != "ROOT")
+                            {
+                                <span class="badge badge-sky pdf-folder">@f.Folder.ToUpper()</span>
+                            }
+                            <span class="file-size">@(f.Size.HasValue ? $"{(f.Size.Value / 1024.0 / 1024.0):F1} MB" : "? MB")</span>
+                            @if (_lecturers.Count > 1 && !string.IsNullOrEmpty(f.Lecturer))
+                            {
+                                <span class="file-lecturer" title="@f.Lecturer">@f.Lecturer</span>
+                            }
+                            @if (isCached)
+                            {
+                                <span class="mat-offline">✓ Offline</span>
+                            }
+                        </span>
                     </div>
                     @if (!Platform.IsWeb)
                     {
@@ -87,6 +103,8 @@ else
     private List<MaterialFile> _allSubjectFiles = new();
     private List<string> _folders = new();
     private string _currentFolder = "";
+    private List<string> _lecturers = new();
+    private string _currentLecturer = "";
     private string _searchQuery = "";
     private List<MaterialFile> _filteredFiles = new();
     private bool _isOnline = true; // optimistic default, verified in background
@@ -94,6 +112,7 @@ else
     private string _studentLevel = "Level_1";
     private string _studentSemester = "First_Term";
     private bool _showFolderDropdown;
+    private bool _showLecturerDropdown;
 
     private static string GetPdfCacheKey(string fileUrl)
     {
@@ -109,6 +128,31 @@ else
                    value="@_searchQuery"
                    @oninput="OnSearchInput" />
         </div>
+        @if (_lecturers.Count > 1)
+        {
+            <div class="files-folder-dropdown">
+                <button type="button" class="folder-dropdown-toggle @(_showLecturerDropdown ? "open" : "")"
+                        @onclick="ToggleLecturerDropdown">
+                    <i class="fa-solid fa-user-tie"></i>
+                    <span class="folder-dropdown-current">@_currentLecturer</span>
+                    <i class="fa-solid fa-chevron-down"></i>
+                </button>
+                @if (_showLecturerDropdown)
+                {
+                    <div class="folder-dropdown-menu" @onclick:stopPropagation>
+                        @foreach (var lec in _lecturers)
+                        {
+                            var l = lec;
+                            <button class="folder-dropdown-item @(l == _currentLecturer ? "active" : "")"
+                                    @onclick="() => SelectLecturerFromDropdown(l)">
+                                <i class="fa-solid fa-user-tie"></i>
+                                @l
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        }
         @if (_folders.Count > 1)
         {
             <div class="files-folder-dropdown">
@@ -160,6 +204,7 @@ else
 
     protected override void OnInitialized()
     {
+        LayoutState.RefreshRequested += OnRefreshRequested;
         LayoutState.SearchBar = _searchBarFragment;
         LayoutState.BottomBar = _bottomNavFragment;
         LayoutState.NotifyStateChanged();
@@ -167,7 +212,9 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        NavState.PageTitle = Subject.Replace("_", " ");
+        var decoded = Uri.UnescapeDataString(Subject);
+        NMU.Platform.Components.Services.ArchiveCatalog.ParseSubjectFolder(decoded, out _, out var clean, out _);
+        NavState.PageTitle = string.IsNullOrEmpty(clean) ? decoded.Replace("_", " ") : clean;
         // Return immediately so the router paints the page (loading state) without
         // freezing the current page; all data loading happens in the background.
         _ = LoadDataAsync();
@@ -208,9 +255,7 @@ else
             if (_allSubjectFiles.Count == 0)
                 _allSubjectFiles = await MaterialsService.GetSubjectFilesAsync(_studentLevel, _studentSemester, Subject);
 
-            _folders = MaterialsService.GetFolderOrder(_allSubjectFiles);
-            _currentFolder = _folders.Count > 0 ? _folders[0] : "ROOT";
-            ApplyFileFilter();
+            RebuildLecturerFolderState();
 
             if (_allSubjectFiles.Count == 0)
                 _errorMsg = $"No files found for \"{Subject}\".";
@@ -232,9 +277,7 @@ else
                     await InvokeAsync(() =>
                     {
                         _allSubjectFiles = updated;
-                        _folders = MaterialsService.GetFolderOrder(updated);
-                        _currentFolder = _folders.Count > 0 ? _folders[0] : "ROOT";
-                        ApplyFileFilter();
+                        RebuildLecturerFolderState();
                     });
                 });
         }
@@ -279,6 +322,49 @@ else
         LayoutState.NotifyStateChanged();
     }
 
+    private void ChangeLecturer(string lecturer)
+    {
+        _currentLecturer = lecturer;
+        var subset = _allSubjectFiles.Where(f => string.Equals(f.Lecturer, lecturer, StringComparison.Ordinal)).ToList();
+        _folders = MaterialsService.GetFolderOrder(subset);
+        _currentFolder = _folders.Count > 0 ? _folders[0] : "ROOT";
+        ApplyFileFilter();
+        LayoutState.SearchBar = _searchBarFragment;
+        LayoutState.BottomBar = _folders.Count > 1 ? _bottomNavFragment : null;
+        LayoutState.NotifyStateChanged();
+    }
+
+    private void RebuildLecturerFolderState()
+    {
+        _lecturers = _allSubjectFiles.Select(f => f.Lecturer)
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(l => l, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (_lecturers.Count == 0 && _allSubjectFiles.Count > 0)
+            _lecturers = new List<string> { "" };
+        if (string.IsNullOrEmpty(_currentLecturer) || !_lecturers.Contains(_currentLecturer, StringComparer.Ordinal))
+            _currentLecturer = _lecturers.Count > 0 ? _lecturers[0] : "";
+        var subset = string.IsNullOrEmpty(_currentLecturer)
+            ? _allSubjectFiles
+            : _allSubjectFiles.Where(f => string.Equals(f.Lecturer, _currentLecturer, StringComparison.Ordinal)).ToList();
+        _folders = MaterialsService.GetFolderOrder(subset.Count > 0 ? subset : _allSubjectFiles);
+        _currentFolder = _folders.Count > 0 ? _folders[0] : "ROOT";
+        ApplyFileFilter();
+    }
+
+    private void ToggleLecturerDropdown()
+    {
+        _showLecturerDropdown = !_showLecturerDropdown;
+        LayoutState.NotifyStateChanged();
+    }
+
+    private void SelectLecturerFromDropdown(string lecturer)
+    {
+        _showLecturerDropdown = false;
+        ChangeLecturer(lecturer);
+    }
+
     private void ToggleFolderDropdown()
     {
         _showFolderDropdown = !_showFolderDropdown;
@@ -294,6 +380,7 @@ else
     private void ApplyFileFilter()
     {
         var filtered = _allSubjectFiles.Where(f =>
+            (string.IsNullOrEmpty(_currentLecturer) || string.Equals(f.Lecturer, _currentLecturer, StringComparison.Ordinal)) &&
             f.Folder == _currentFolder &&
             f.Name.ToLower().EndsWith(".pdf") &&
             !f.Name.ToLower().EndsWith("_text.pdf")).ToList();
@@ -329,6 +416,9 @@ else
 
     public void Dispose()
     {
+        LayoutState.RefreshRequested -= OnRefreshRequested;
         LayoutState.Clear();
     }
+
+    private void OnRefreshRequested() => Reload();
 }

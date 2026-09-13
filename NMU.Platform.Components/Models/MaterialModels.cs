@@ -29,12 +29,21 @@ public class MaterialFile
     public string Path { get; set; } = "";
     public string Folder { get; set; } = "";
     public long? Size { get; set; }
+    /// <summary>Lecturer folder under Data/{Subject}/PDFs/{Lecturer}/... (new archive layout).</summary>
+    public string Lecturer { get; set; } = "";
 }
 
 public class MaterialSubjectInfo
 {
+    /// <summary>Full archive subject folder, e.g. "CSE014 - Structured Programming.(ALL)". Used for routing/lookups.</summary>
     public string Name { get; set; } = "";
     public int FileCount { get; set; }
+    /// <summary>Subject code, e.g. "CSE014".</summary>
+    public string Code { get; set; } = "";
+    /// <summary>Clean display name without code/branch, e.g. "Structured Programming".</summary>
+    public string DisplayName { get; set; } = "";
+    /// <summary>Department branch tag: ALL / CE / AIE.</summary>
+    public string Branch { get; set; } = "ALL";
 }
 
 /// <summary>
@@ -60,12 +69,17 @@ public class CustomSubjectSelection
 /// <summary>
 /// A subject available in the archive (built from the PDF folder list), used to
 /// populate the subject picker in custom mode across all levels and semesters.
+/// Subject is the FULL archive folder (e.g. "CSE014 - Structured Programming.(ALL)");
+/// Code/DisplayName/Branch are parsed helpers for display + search + dept filter.
 /// </summary>
 public class SubjectCatalogEntry
 {
     public string Level { get; set; } = "";
     public string Semester { get; set; } = "";
     public string Subject { get; set; } = "";
+    public string Code { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public string Branch { get; set; } = "ALL";
 
     public string LevelFolder => Level.Replace(" ", "_");
     public string SemesterFolder => Semester.Replace(" ", "_");
@@ -191,10 +205,20 @@ public class RecordedFile
     public string DisplayName { get; set; } = "";
     public string SubFolder { get; set; } = "";
     public bool IsAudio { get; set; }
+    /// <summary>Lecturer folder under Data/{Subject}/Records/{Lecturer}/... (new layout).</summary>
+    public string Lecturer { get; set; } = "";
+    /// <summary>Full subject folder, e.g. "CSE014 - Structured Programming.(ALL)".</summary>
+    public string SubjectFullName { get; set; } = "";
+    /// <summary>Archive id that owns this file, e.g. "NMU.CE_1.1".</summary>
+    public string ArchiveId { get; set; } = "";
 }
 
 public class RecordedGroupInfo
 {
+    /// <summary>Full subject folder (routing key).</summary>
     public string Name { get; set; } = "";
     public int Count { get; set; }
+    public string Code { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public string Branch { get; set; } = "ALL";
 }

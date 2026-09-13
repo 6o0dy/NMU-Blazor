@@ -1392,8 +1392,29 @@
         </div>
     </div>
     <script>
+      // NOTE: legacy standalone player. Per-semester archives: NMU.CE_1.1 ... NMU.CE_5.2
+      // New layout: Data/{Subject}/Quizzes/{Lecturer}/*.json
+      function nmuGetArchiveId(level, semester) {
+        function normLevel(l) {
+          if (!l) return null;
+          var m = String(l).trim().replace(/\s+/g, '_').match(/^Level_([1-5])$/i);
+          return m ? ('Level_' + m[1]) : null;
+        }
+        function normSem(s) {
+          if (!s) return null;
+          var t = String(s).trim().replace(/\s+/g, '_').toLowerCase();
+          if (t === 'semester_1' || t === 'first_term' || t === 'term_1') return 'Semester_1';
+          if (t === 'semester_2' || t === 'second_term' || t === 'term_2') return 'Semester_2';
+          var m = t.match(/^semester_([12])$/);
+          return m ? ('Semester_' + m[1]) : null;
+        }
+        var lvl = normLevel(level);
+        var sem = normSem(semester);
+        if (!lvl || !sem) return 'NMU.CE_1.1';
+        return 'NMU.CE_' + lvl.split('_')[1] + '.' + sem.split('_')[1];
+      }
       const CONFIG = {
-        archiveId: 'nmu.ce',
+        archiveId: 'NMU.CE_1.1',
         baseMeta: 'https://archive.org/metadata/',
         baseDownload: 'https://archive.org/download/'
       };
@@ -1417,9 +1438,11 @@
         }
       }
 
-      let QUIZ_PATH = `NMU/${context.level}/${context.semester}/QUIZE/`;
-      let CACHE_KEY_LIST = `nmu_quiz_list_${context.level}_${context.semester}_v4`;
-      let CACHE_KEY_ORDER = `nmu_quiz_order_${context.level}_${context.semester}`;
+      let QUIZ_PATH = `Data/`;
+      let CACHE_KEY_LIST = `nmu_quiz_list_${context.level}_${context.semester}_v5_newarch`;
+      let CACHE_KEY_ORDER = `nmu_quiz_order_${context.level}_${context.semester}_v5`;
+      // Resolve the owning per-semester archive for the current context.
+      CONFIG.archiveId = nmuGetArchiveId(context.level, context.semester);
 
       let appState = {
         quizList: [],

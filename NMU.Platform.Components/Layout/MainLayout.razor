@@ -183,7 +183,14 @@
         if (firstRender)
         {
             _linkRef = DotNetObjectReference.Create(this);
-            await JS.InvokeVoidAsync("window.nmuWireInternalLinks", _linkRef);
+            try { await JS.InvokeVoidAsync("window.nmuWireInternalLinks", _linkRef); } catch { }
+            try { await JS.InvokeVoidAsync("nmuFunctions.nmuEnableMarquee"); } catch { }
+            // Desktop/mobile (Blazor Hybrid) origin is virtual: turn hard-reload
+            // keys into an in-place data refresh instead of a dead network request.
+            if (!Platform.IsWeb)
+            {
+                try { await JS.InvokeVoidAsync("nmuFunctions.enableHybridReloadGuard", _linkRef); } catch { }
+            }
         }
     }
 
@@ -196,6 +203,14 @@
         if (Navigation.Uri.TrimEnd('/') == Navigation.BaseUri.TrimEnd('/') + "/" + target.TrimEnd('/'))
             return; // already on this page
         Navigation.NavigateTo(target, replace: true);
+    }
+
+    [JSInvokable]
+    public void HandleReloadKey()
+    {
+        // Hybrid only (see enableHybridReloadGuard): refresh current page data
+        // in place instead of reloading the document (which is not served).
+        try { LayoutState.RequestRefresh(); } catch { }
     }
 
     protected override async Task OnInitializedAsync()

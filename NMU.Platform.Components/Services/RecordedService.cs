@@ -10,10 +10,8 @@ public class RecordedService
     private readonly IJSRuntime _js;
     private readonly HttpClient _http;
     private readonly ILogger<RecordedService> _logger;
-    private const string ArchiveId = "nmu.ce";
-    private const string BaseFolder = "NMU";
-    private const string CacheVersion = "v1_recorded_";
-    private const string GroupsCacheVersion = "v1_rec_groups_";
+    private const string CacheVersion = "v70_newarch_recorded_";
+    private const string GroupsCacheVersion = "v70_newarch_recgroups_";
 
     public RecordedService(IJSRuntime js, HttpClient http, ILogger<RecordedService> logger)
     {
@@ -72,32 +70,39 @@ public class RecordedService
         // Fallback: fetch the full metadata and filter in .NET (older cached app.js).
         try
         {
-            var fullJson = await GetRawMetadataAsync();
+            var fullJson = await GetRawMetadataAsync(level, semester);
             if (string.IsNullOrEmpty(fullJson))
                 return new List<RecordedFile>();
+            var archiveId = ArchiveCatalog.GetArchiveId(level, semester);
+            if (archiveId == null) return new List<RecordedFile>();
             var data = JsonSerializer.Deserialize<ArchiveMetadata>(fullJson);
-            var targetPrefix1 = $"{BaseFolder}/{level}/{semester}/RECORDED_LECTURER/";
-            var targetPrefix2 = $"{BaseFolder}/{level}/{semester}/RECORDED LECTURER/";
-            var thumbsPrefix1 = $"nmu.ce.thumbs/{targetPrefix1}";
-            var thumbsPrefix2 = $"nmu.ce.thumbs/{targetPrefix2}";
+            var thumbsPrefix = $"{archiveId}.thumbs/Data/";
 
             var thumbNames = data?.Files?
-                .Where(f => (f.Name.StartsWith(thumbsPrefix1) || f.Name.StartsWith(thumbsPrefix2)) && f.Name.EndsWith(".jpg"))
+                .Where(f => f.Name.StartsWith(thumbsPrefix, StringComparison.Ordinal) && f.Name.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
                 .Select(f => f.Name)
                 .ToHashSet() ?? new HashSet<string>();
 
             var files = data?.Files?
-                .Where(f => f.Name.StartsWith(targetPrefix1) || f.Name.StartsWith(targetPrefix2))
+                .Where(f => f.Name.StartsWith("Data/", StringComparison.Ordinal)
+                    && f.Name.Contains("/Records/", StringComparison.OrdinalIgnoreCase)
+                    && ArchiveCatalog.IsRecordedMedia(f.Name))
                 .Select(f =>
                 {
                     var lower = f.Name.ToLower();
                     var fileNoExt = System.IO.Path.GetFileNameWithoutExtension(f.Name);
+                    ParseRecordedPath(f.Name, out var subjectFull, out var lecturer);
                     return new RecordedFile
                     {
                         Name = f.Name,
                         Size = long.TryParse(f.Size, out var s) ? s : null,
                         ThumbName = thumbNames.FirstOrDefault(t => t.Contains(fileNoExt)),
-                        IsAudio = lower.EndsWith(".mp3") || lower.EndsWith(".wav") || lower.EndsWith(".m4a")
+                        IsAudio = ArchiveCatalog.IsAudioFile(f.Name),
+                        Lecturer = lecturer,
+                        SubjectFullName = subjectFull,
+                        ArchiveId = archiveId,
+                        DisplayName = fileNoExt.Replace("_", " "),
+                        SubFolder = string.IsNullOrEmpty(lecturer) ? "General" : lecturer
                     };
                 })
                 .ToList() ?? new List<RecordedFile>();
@@ -151,11 +156,7 @@ public class RecordedService
 
         var files = await GetFilesAsync(level, semester);
         var groups = GetGroups(files, level, semester);
-        var info = groups.Select(g => new RecordedGroupInfo
-        {
-            Name = g,
-            Count = GetFilesForGroup(files, level, semester, g).Count
-        }).ToList();
+        var info = BuildGroupsInfo(files, level, semester, groups);
 
         if (info.Count > 0)
             await _js.InvokeVoidAsync("nmuFunctions.safeSetItemBoth", GroupsCacheKey(level, semester), JsonSerializer.Serialize(info, CaseInsensitive));
@@ -182,7 +183,9 @@ public class RecordedService
 
             // archive.org rejects HEAD on /metadata (405, no CORS). GET the item size
             // from the search API instead; it changes whenever any file is added.
-            using var request = new HttpRequestMessage(HttpMethod.Get, $"https://archive.org/advancedsearch.php?q=identifier:{ArchiveId}&fl[]=identifier&fl[]=item_size&rows=1&output=json");
+            var archiveId = ArchiveCatalog.GetArchiveId(level, semester);
+            if (archiveId == null) return;
+            using var request = new HttpRequestMessage(HttpMethod.Get, ArchiveCatalog.GetAdvancedSearchUrl(archiveId));
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
             if (!response.IsSuccessStatusCode) return;
 
@@ -211,11 +214,7 @@ public class RecordedService
             _filesMemCache.TryRemove($"{level}_{semester}", out _);
             var files = await GetFilesAsync(level, semester);
             var groups = GetGroups(files, level, semester);
-            var info = groups.Select(g => new RecordedGroupInfo
-            {
-                Name = g,
-                Count = GetFilesForGroup(files, level, semester, g).Count
-            }).ToList();
+            var info = BuildGroupsInfo(files, level, semester, groups);
 
             if (info.Count > 0)
             {
@@ -234,83 +233,140 @@ public class RecordedService
         }
     }
 
-    public static List<string> GetGroups(List<RecordedFile> files, string level, string semester)
+    /// <summary>
+    /// Parses "Data/{Subject}/Records/{Lecturer}/{file}" into subject + lecturer.
+    /// Returns empty strings when the path does not match the new layout.
+    /// </summary>
+    public static void ParseRecordedPath(string fullPath, out string subjectFull, out string lecturer)
     {
-        var prefix1 = $"{BaseFolder}/{level}/{semester}/RECORDED_LECTURER/";
-        var prefix2 = $"{BaseFolder}/{level}/{semester}/RECORDED LECTURER/";
-        var groups = new HashSet<string>();
-        foreach (var f in files)
-        {
-            string rel;
-            if (f.Name.StartsWith(prefix1))
-                rel = f.Name[prefix1.Length..];
-            else if (f.Name.StartsWith(prefix2))
-                rel = f.Name[prefix2.Length..];
-            else
-                continue;
-            var parts = rel.Split('/');
-            if (parts.Length > 0 && !string.IsNullOrEmpty(parts[0]))
-                groups.Add(parts[0]);
-        }
-        return groups.OrderBy(g => g).ToList();
+        subjectFull = "";
+        lecturer = "";
+        if (string.IsNullOrEmpty(fullPath)) return;
+        var segs = fullPath.Split('/');
+        // Expect at least Data/{Subject}/Records/{Lecturer}/...
+        if (segs.Length < 4) return;
+        if (!segs[0].Equals("Data", StringComparison.Ordinal)) return;
+        subjectFull = segs[1];
+        var recIdx = Array.FindIndex(segs, s => s.Equals("Records", StringComparison.OrdinalIgnoreCase));
+        if (recIdx < 0 || recIdx + 1 >= segs.Length) return;
+        lecturer = segs[recIdx + 1];
     }
 
-    public static List<RecordedFile> GetFilesForGroup(List<RecordedFile> allFiles, string level, string semester, string group)
+    public static List<RecordedGroupInfo> BuildGroupsInfo(List<RecordedFile> files, string level, string semester, List<string> groups)
     {
-        var prefix1 = $"{BaseFolder}/{level}/{semester}/RECORDED_LECTURER/{group}/";
-        var prefix2 = $"{BaseFolder}/{level}/{semester}/RECORDED LECTURER/{group}/";
+        return groups.Select(g =>
+        {
+            ArchiveCatalog.ParseSubjectFolder(g, out var code, out var clean, out var branch);
+            return new RecordedGroupInfo
+            {
+                Name = g,
+                Count = GetFilesForGroup(files, level, semester, g).Count,
+                Code = code,
+                DisplayName = string.IsNullOrEmpty(clean) ? g : clean,
+                Branch = branch
+            };
+        }).ToList();
+    }
+
+    /// <summary>Distinct lecturers inside one subject group (Recorded &gt; Doctor level).</summary>
+    public static List<string> GetLecturersForGroup(List<RecordedFile> allFiles, string level, string semester, string group)
+    {
+        var files = GetFilesForGroup(allFiles, level, semester, group);
+        return files.Select(f => f.Lecturer)
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(l => l, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    public static List<string> GetGroups(List<RecordedFile> files, string level, string semester)
+    {
+        // New layout: groups are subjects -> Data/{Subject}/Records/...
+        var groups = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var f in files)
+        {
+            ParseRecordedPath(f.Name, out var subjectFull, out _);
+            if (!string.IsNullOrEmpty(subjectFull))
+                groups.Add(subjectFull);
+        }
+        // Order by clean display name for a stable UI.
+        return groups.OrderBy(g =>
+        {
+            ArchiveCatalog.ParseSubjectFolder(g, out _, out var clean, out _);
+            return string.IsNullOrEmpty(clean) ? g : clean;
+        }, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    public static List<RecordedFile> GetFilesForGroup(List<RecordedFile> allFiles, string level, string semester, string group, string? lecturer = null)
+    {
+        var prefix = $"Data/{group}/Records/";
         var result = new List<RecordedFile>();
 
         foreach (var f in allFiles)
         {
-            if (!f.Name.StartsWith(prefix1) && !f.Name.StartsWith(prefix2))
+            if (!f.Name.StartsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            ParseRecordedPath(f.Name, out _, out var fileLecturer);
+            if (!string.IsNullOrEmpty(lecturer)
+                && !string.Equals(fileLecturer, lecturer, StringComparison.Ordinal))
                 continue;
 
             var lower = f.Name.ToLower();
             if (lower.EndsWith(".ia.mp4")) continue;
-            if (!lower.EndsWith(".mp4") && !lower.EndsWith(".mkv") && !lower.EndsWith(".webm") &&
-                !lower.EndsWith(".mp3") && !lower.EndsWith(".wav") && !lower.EndsWith(".m4a"))
+            if (!ArchiveCatalog.IsRecordedMedia(f.Name))
                 continue;
 
-            string rel;
-            if (f.Name.StartsWith(prefix1))
-                rel = f.Name[prefix1.Length..];
-            else
-                rel = f.Name[prefix2.Length..];
-
-            var parts = rel.Split('/');
-            var displayName = System.IO.Path.GetFileNameWithoutExtension(parts[^1]).Replace("_", " ");
-            var subFolder = parts.Length > 1 ? parts[^2].Replace("_", " ") : "General";
+            var fileNoExt = System.IO.Path.GetFileNameWithoutExtension(f.Name);
+            var displayName = fileNoExt.Replace("_", " ");
 
             result.Add(new RecordedFile
             {
                 Name = f.Name,
                 Size = f.Size,
                 DisplayName = displayName,
-                SubFolder = subFolder,
+                SubFolder = string.IsNullOrEmpty(fileLecturer) ? "General" : fileLecturer.Replace("_", " "),
                 IsAudio = f.IsAudio,
-                ThumbName = f.ThumbName
+                ThumbName = f.ThumbName,
+                Lecturer = fileLecturer,
+                SubjectFullName = group,
+                ArchiveId = f.ArchiveId
             });
         }
 
         return result.OrderBy(f => f.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    public static string GetDownloadUrl(string filePath)
+    public static string GetDownloadUrl(string filePath, string? level = null, string? semester = null, string? archiveId = null)
     {
-        return $"https://archive.org/download/{ArchiveId}/{filePath}";
+        if (!string.IsNullOrEmpty(archiveId))
+            return ArchiveCatalog.GetDownloadUrl(archiveId, filePath);
+        archiveId = (level != null && semester != null) ? ArchiveCatalog.GetArchiveId(level, semester) : null;
+        if (archiveId == null) return filePath;
+        return ArchiveCatalog.GetDownloadUrl(archiveId, filePath);
+    }
+
+    public static string GetDownloadUrl(RecordedFile file)
+    {
+        var archiveId = !string.IsNullOrEmpty(file.ArchiveId)
+            ? file.ArchiveId
+            : null;
+        if (archiveId != null)
+            return ArchiveCatalog.GetDownloadUrl(archiveId, file.Name);
+        return file.Name;
     }
 
     /// <summary>
-    /// Returns the full archive metadata JSON. Downloaded ONCE (2.3 MB) and cached in
-    /// IndexedDB, shared across materials / quizzes / recorded pages so it is never
-    /// re-downloaded by each feature.
+    /// Returns the full archive metadata JSON for one semester archive.
+    /// Cached per-archive in IndexedDB so each feature shares the same copy.
     /// </summary>
-    public async Task<string?> GetRawMetadataAsync()
+    public async Task<string?> GetRawMetadataAsync(string? level = null, string? semester = null, string? archiveId = null)
     {
+        archiveId ??= (level != null && semester != null) ? ArchiveCatalog.GetArchiveId(level, semester) : null;
+        if (archiveId == null) return null;
         try
         {
-            var cached = await _js.InvokeAsync<string>("nmuFunctions.getRawMetadata");
+            var cached = await _js.InvokeAsync<string>("nmuFunctions.getRawMetadata", archiveId);
             if (!string.IsNullOrEmpty(cached))
                 return cached;
         }
@@ -318,10 +374,10 @@ public class RecordedService
 
         try
         {
-            var json = await _js.InvokeAsync<string>("nmuFunctions.fetchText", $"https://archive.org/metadata/{ArchiveId}");
+            var json = await _js.InvokeAsync<string>("nmuFunctions.fetchText", ArchiveCatalog.GetMetadataUrl(archiveId));
             if (!string.IsNullOrEmpty(json))
             {
-                try { await _js.InvokeVoidAsync("nmuFunctions.setRawMetadata", json); } catch { }
+                try { await _js.InvokeVoidAsync("nmuFunctions.setRawMetadata", archiveId, json); } catch { }
                 return json;
             }
         }

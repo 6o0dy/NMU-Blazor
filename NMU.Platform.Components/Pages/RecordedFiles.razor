@@ -31,7 +31,20 @@ else
         @if (_filteredFiles.Count == 0)
         {
             <div style="text-align:center; color:#94a3b8; padding:20px;">
-                @(_searchQuery != "" ? "No matching files." : "No files found.")
+                @if (!string.IsNullOrEmpty(_searchQuery))
+                {
+                    <span>No matching files.</span>
+                }
+                else if (_lecturers.Count > 1 && string.IsNullOrEmpty(_currentLecturer))
+                {
+                    <div>Please select a lecturer to view recordings.</div>
+                    <br />
+                    <button class="placeholder-btn" @onclick="OpenLecturerDialog">Choose Lecturer</button>
+                }
+                else
+                {
+                    <span>No files found.</span>
+                }
             </div>
         }
         else
@@ -48,7 +61,8 @@ else
                     }
                     else if (!string.IsNullOrEmpty(f.ThumbName))
                     {
-                        var thumbUrl = $"https://archive.org/download/nmu.ce/{f.ThumbName}";
+                        var thumbArchive = !string.IsNullOrEmpty(f.ArchiveId) ? f.ArchiveId : NMU.Platform.Components.Services.ArchiveCatalog.GetArchiveId(_studentLevel, _studentSemester);
+                        var thumbUrl = thumbArchive != null ? NMU.Platform.Components.Services.ArchiveCatalog.GetDownloadUrl(thumbArchive, f.ThumbName) : f.ThumbName;
                         <img src="@thumbUrl" class="recorded-thumb" loading="lazy" />
                     }
                     else
@@ -58,7 +72,7 @@ else
                         </div>
                     }
                     <div class="recorded-info">
-                        <div class="recorded-title">@f.DisplayName</div>
+                        <div class="recorded-title" title="@f.DisplayName">@f.DisplayName</div>
                         <div class="recorded-meta">
                             <span class="badge @(f.IsAudio ? "badge-aud" : "badge-vid")">@(f.IsAudio ? "AUDIO" : "VIDEO")</span>
                             <span class="recorded-sub">@f.SubFolder</span>
@@ -84,6 +98,34 @@ else
     </div>
 }
 
+@if (_showLecturerDialog && !_loading && _errorMsg == null)
+{
+    <div class="subject-picker-overlay" @onclick="CloseLecturerDialog">
+        <div class="subject-picker-card" @onclick:stopPropagation>
+            <div class="subject-picker-header">
+                <button class="btn-small-icon" @onclick="CloseLecturerDialog">&times;</button>
+                <h3>Select Lecturer</h3>
+            </div>
+            <div class="subject-picker-body">
+                @foreach (var lec in _lecturers)
+                {
+                    var l = lec;
+                    var clean = LecturerDisplayName(l);
+                    var tag = LecturerTag(l);
+                    <div class="subject-check-card lec-pick" @onclick="() => PickLecturer(l)">
+                        <span class="subject-check-name" title="@l">@clean</span>
+                        @if (!string.IsNullOrEmpty(tag))
+                        {
+                            <span class="badge badge-sky lec-tag">@tag</span>
+                        }
+                        <i class="fa-solid fa-chevron-right" style="color:var(--text-secondary);font-size:12px;"></i>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public string Group { get; set; } = "";
 
@@ -96,6 +138,11 @@ else
     private string _studentLevel = "Level_1";
     private string _studentSemester = "First_Term";
     private Dictionary<string, string> _cacheStatus = new();
+    private List<string> _lecturers = new();
+    private string _currentLecturer = "";
+    private bool _showLecturerDropdown;
+    private bool _showLecturerDialog;
+    private static readonly Dictionary<string, string> _lastLecturer = new();
 
     private RenderFragment _searchBarFragment => @<div class="files-search-fixed">
         <div class="search-wrapper">
@@ -104,17 +151,52 @@ else
                    value="@_searchQuery"
                    @oninput="OnSearchInput" />
         </div>
+        @if (_lecturers.Count > 1)
+        {
+            <div class="files-folder-dropdown">
+                <button type="button" class="folder-dropdown-toggle @(_showLecturerDropdown ? "open" : "")"
+                        @onclick="ToggleLecturerDropdown">
+                    <i class="fa-solid fa-user-tie"></i>
+                    <span class="folder-dropdown-current">@_currentLecturer</span>
+                    <i class="fa-solid fa-chevron-down"></i>
+                </button>
+                @if (_showLecturerDropdown)
+                {
+                    <div class="folder-dropdown-menu" @onclick:stopPropagation>
+                        @if (_lecturers.Count <= 1)
+                        {
+                            <button class="folder-dropdown-item @(string.IsNullOrEmpty(_currentLecturer) ? "active" : "")"
+                                    @onclick='() => SelectLecturer("")'>
+                                <i class="fa-solid fa-users"></i>
+                                ALL
+                            </button>
+                        }
+                        @foreach (var lec in _lecturers)
+                        {
+                            var l = lec;
+                            <button class="folder-dropdown-item @(l == _currentLecturer ? "active" : "")"
+                                    @onclick="() => SelectLecturer(l)">
+                                <i class="fa-solid fa-user-tie"></i>
+                                @l
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        }
     </div>;
 
     protected override void OnInitialized()
     {
         LayoutState.StateChanged += OnLayoutStateChanged;
+        LayoutState.RefreshRequested += OnRefreshRequested;
     }
 
     protected override async Task OnInitializedAsync()
     {
         var decodedGroup = Uri.UnescapeDataString(Group);
-        NavState.PageTitle = decodedGroup.Replace("_", " ");
+        NMU.Platform.Components.Services.ArchiveCatalog.ParseSubjectFolder(decodedGroup, out _, out var cleanTitle, out _);
+        NavState.PageTitle = string.IsNullOrEmpty(cleanTitle) ? decodedGroup.Replace("_", " ") : cleanTitle;
         _errorMsg = null;
         try
         {
@@ -148,7 +230,32 @@ else
                 if (_allGroupFiles.Count == 0)
                     _errorMsg = $"No files found for \"{decodedGroup}\".";
                 else
-                    ApplyFilter();
+                {
+                    _lecturers = _allGroupFiles.Select(f => f.Lecturer)
+                        .Where(l => !string.IsNullOrWhiteSpace(l))
+                        .Distinct(StringComparer.Ordinal)
+                        .OrderBy(l => l, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    var memKey = LecturerMemoryKey(_studentLevel, _studentSemester, decodedGroup);
+                    _lastLecturer.TryGetValue(memKey, out var remembered);
+                    var hasRemembered = !string.IsNullOrEmpty(remembered)
+                        && _lecturers.Contains(remembered, StringComparer.Ordinal);
+                    if (_lecturers.Count > 1 && !hasRemembered)
+                    {
+                        // Multiple lecturers: ask first instead of mixing all files together.
+                        _currentLecturer = "";
+                        _filteredFiles = new List<RecordedFile>();
+                        _showLecturerDialog = true;
+                    }
+                    else
+                    {
+                        _currentLecturer = _lecturers.Count == 1
+                            ? _lecturers[0]
+                            : remembered ?? "";
+                        ApplyFilter();
+                    }
+                }
             }
 
             LayoutState.SearchBar = _searchBarFragment;
@@ -173,7 +280,7 @@ else
         {
             foreach (var f in _allGroupFiles)
             {
-                var url = RecordedService.GetDownloadUrl(f.Name);
+                var url = ResolveDownloadUrl(f);
                 var key = MediaCache.GetCacheKey(url);
                 var complete = await MediaCache.IsCompleteAsync(key);
                 var partial = !complete && await MediaCache.HasAnyCacheAsync(key);
@@ -195,15 +302,98 @@ else
 
     private void ApplyFilter()
     {
+        IEnumerable<RecordedFile> query = _allGroupFiles;
+        if (!string.IsNullOrEmpty(_currentLecturer))
+            query = query.Where(f => string.Equals(f.Lecturer, _currentLecturer, StringComparison.Ordinal));
+        else if (_lecturers.Count > 1)
+        {
+            // Multi-lecturer subject with no selection yet: never mix files together.
+            _filteredFiles = new List<RecordedFile>();
+            return;
+        }
         if (string.IsNullOrWhiteSpace(_searchQuery))
         {
-            _filteredFiles = _allGroupFiles;
+            _filteredFiles = query.ToList();
         }
         else
         {
             var q = _searchQuery.ToLower();
-            _filteredFiles = _allGroupFiles.Where(f => f.DisplayName.ToLower().Contains(q)).ToList();
+            _filteredFiles = query.Where(f => f.DisplayName.ToLower().Contains(q)).ToList();
         }
+    }
+
+    private void ToggleLecturerDropdown()
+    {
+        _showLecturerDropdown = !_showLecturerDropdown;
+        LayoutState.NotifyStateChanged();
+    }
+
+    private void SelectLecturer(string lecturer)
+    {
+        _showLecturerDropdown = false;
+        _currentLecturer = lecturer;
+        RememberLecturer(lecturer);
+        ApplyFilter();
+        LayoutState.SearchBar = _searchBarFragment;
+        LayoutState.NotifyStateChanged();
+    }
+
+    private void OpenLecturerDialog()
+    {
+        _showLecturerDialog = true;
+    }
+
+    private void CloseLecturerDialog()
+    {
+        _showLecturerDialog = false;
+    }
+
+    private void PickLecturer(string lecturer)
+    {
+        _showLecturerDialog = false;
+        _currentLecturer = lecturer;
+        RememberLecturer(lecturer);
+        ApplyFilter();
+        LayoutState.SearchBar = _searchBarFragment;
+        LayoutState.NotifyStateChanged();
+    }
+
+    private void RememberLecturer(string lecturer)
+    {
+        var key = LecturerMemoryKey(_studentLevel, _studentSemester, Uri.UnescapeDataString(Group));
+        if (string.IsNullOrEmpty(lecturer))
+            _lastLecturer.Remove(key);
+        else
+            _lastLecturer[key] = lecturer;
+    }
+
+    private static string LecturerMemoryKey(string level, string semester, string group)
+        => $"{level}|{semester}|{group}";
+
+    /// <summary>Lecturer name without any parenthetical tag, e.g. "Dr. Nourhan (LAB)" -> "Dr. Nourhan".</summary>
+    private static string LecturerDisplayName(string lecturer)
+    {
+        if (string.IsNullOrEmpty(lecturer)) return "";
+        var idx = lecturer.IndexOf('(');
+        if (idx > 0) return lecturer.Substring(0, idx).Trim();
+        return lecturer;
+    }
+
+    /// <summary>Parenthetical tag of a lecturer folder, e.g. "Dr. Nourhan (LAB)" -> "LAB".</summary>
+    private static string LecturerTag(string lecturer)
+    {
+        if (string.IsNullOrEmpty(lecturer)) return "";
+        var s = lecturer.IndexOf('(');
+        var e = s >= 0 ? lecturer.IndexOf(')', s + 1) : -1;
+        if (s >= 0 && e > s + 1) return lecturer.Substring(s + 1, e - s - 1).Trim();
+        return "";
+    }
+
+    private string ResolveDownloadUrl(RecordedFile file)
+    {
+        if (!string.IsNullOrEmpty(file.ArchiveId))
+            return NMU.Platform.Components.Services.ArchiveCatalog.GetDownloadUrl(file.ArchiveId, file.Name);
+        return RecordedService.GetDownloadUrl(file.Name, _studentLevel, _studentSemester);
     }
 
     private void Reload()
@@ -216,7 +406,7 @@ else
 
     private void PlayFile(RecordedFile file)
     {
-        var url = RecordedService.GetDownloadUrl(file.Name);
+        var url = ResolveDownloadUrl(file);
         var name = file.DisplayName + (file.IsAudio ? ".mp3" : ".mp4");
         if (!Platform.IsWeb && !file.IsAudio)
             _ = MediaCache.PrefetchCriticalAsync(url);
@@ -229,7 +419,7 @@ else
 
     private async Task DownloadFile(RecordedFile file)
     {
-        var url = RecordedService.GetDownloadUrl(file.Name);
+        var url = ResolveDownloadUrl(file);
         var name = file.DisplayName + (file.IsAudio ? ".mp3" : ".mp4");
         if (Platform.IsWeb)
             await JS.InvokeVoidAsync("window.open", url, "_blank");
@@ -240,6 +430,9 @@ else
     public void Dispose()
     {
         LayoutState.StateChanged -= OnLayoutStateChanged;
+        LayoutState.RefreshRequested -= OnRefreshRequested;
         LayoutState.Clear();
     }
+
+    private void OnRefreshRequested() => Reload();
 }

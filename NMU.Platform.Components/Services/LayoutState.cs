@@ -9,6 +9,7 @@ public class LayoutState
     public event Action? StateChanged;
     public event Action? SettingsRequested;
     public event Action? CacheRequested;
+    public event Action? RefreshRequested;
     public bool PendingSettings { get; set; }
     public bool PendingCache { get; set; }
     public bool SidebarOpen { get; set; }
@@ -42,6 +43,7 @@ public class LayoutState
 
     public void RequestSettings() => SettingsRequested?.Invoke();
     public void RequestClearCache() => CacheRequested?.Invoke();
+    public void RequestRefresh() => RefreshRequested?.Invoke();
 
     public void NotifyStateChanged() => StateChanged?.Invoke();
 }

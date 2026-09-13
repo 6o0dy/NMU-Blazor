@@ -29,6 +29,14 @@
                 </select>
             </div>
             <div class="field-group">
+                <label>Department</label>
+                <select @bind="department">
+                    <option value="ALL">General / All</option>
+                    <option value="CE">CE - Computer Engineering</option>
+                    <option value="AIE">AIE - AI Engineering</option>
+                </select>
+            </div>
+            <div class="field-group">
                 <label>Select The Semester</label>
                 <div class="term-tiles">
                     <label class="tile-item">
@@ -112,7 +120,7 @@
                     {
                         @foreach (var group in _groups)
                         {
-                            var visible = group.Entries.Where(e => MatchesQuery(e.Subject)).ToList();
+                            var visible = group.Entries.Where(e => MatchesQuery(e)).ToList();
                             if (visible.Count == 0) continue;
                             var groupAllSel = visible.All(e => _selectedSubjects.Any(s => s.Matches(e.Level, e.Semester, e.Subject)));
                             <div class="subject-group">
@@ -126,9 +134,10 @@
                                     @foreach (var entry in visible)
                                     {
                                         var isSel = _selectedSubjects.Any(s => s.Matches(entry.Level, entry.Semester, entry.Subject));
+                                        var label = string.IsNullOrEmpty(entry.DisplayName) ? entry.Subject.Replace("_", " ") : entry.DisplayName;
                                         <label class="subject-check-card @(isSel ? "selected" : "")" @onclick="() => ToggleSubject(entry)">
                                             <span class="subject-check-circle"></span>
-                                            <span class="subject-check-name">@entry.Subject.Replace("_", " ")</span>
+                                            <span class="subject-check-name">@label @if (!string.IsNullOrEmpty(entry.Code)) { <small style="opacity:.6;">(@entry.Code)</small> }</span>
                                             <span class="subject-check-check">✓</span>
                                         </label>
                                     }
@@ -153,6 +162,7 @@
 
     private string studentName = string.Empty;
     private string academicLevel = "Level 1";
+    private string department = "ALL";
     private string semester = string.Empty;
 
     const string Sem1 = "Semester 1";
@@ -178,6 +188,7 @@
             {
                 studentName = student.Name;
                 academicLevel = student.AcademicLevel;
+                department = string.IsNullOrEmpty(student.Department) ? "ALL" : student.Department;
                 semester = student.Semester;
                 customMode = student.CustomSubjectsMode;
                 _selectedSubjects = student.CustomSubjects ?? new List<CustomSubjectSelection>();
@@ -215,6 +226,18 @@
                 Entries = g.AsEnumerable().ToList()
             })
             .ToList();
+    }
+
+    private bool MatchesQuery(SubjectCatalogEntry entry)
+    {
+        if (string.IsNullOrWhiteSpace(_searchQuery)) return true;
+        var q = _searchQuery;
+        // Search matches clean name, code, or full folder (code search works).
+        return entry.Subject.Replace("_", " ").Contains(q, StringComparison.OrdinalIgnoreCase)
+               || entry.DisplayName.Contains(q, StringComparison.OrdinalIgnoreCase)
+               || entry.Code.Contains(q, StringComparison.OrdinalIgnoreCase)
+               || SubjectMatcher.Normalize(entry.Subject).Contains(SubjectMatcher.Normalize(q))
+               || SubjectMatcher.Normalize(entry.DisplayName).Contains(SubjectMatcher.Normalize(q));
     }
 
     private bool MatchesQuery(string subject)
@@ -284,6 +307,7 @@
             Name = studentName,
             AcademicLevel = academicLevel,
             Semester = semester,
+            Department = string.IsNullOrEmpty(department) ? "ALL" : department,
             CustomSubjectsMode = customMode,
             CustomSubjects = customMode ? _selectedSubjects : new List<CustomSubjectSelection>()
         });

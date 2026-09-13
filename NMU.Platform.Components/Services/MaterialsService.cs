@@ -10,11 +10,11 @@ public class MaterialsService
     private readonly IJSRuntime _js;
     private readonly HttpClient _http;
     private readonly ILogger<MaterialsService> _logger;
-    private const string ArchiveId = "nmu.ce";
-    private const string BaseFolder = "NMU";
-    private const string CacheVersion = "v68_restore_original_logic_";
-    private const string SubjectsCacheVersion = "v1_subjects_";
-    private const string SubjectFilesCacheVersion = "v1_subject_files_";
+    // Per-semester archives: Level_1/Semester_1 -> NMU.CE_1.1 ... Level_5/Semester_2 -> NMU.CE_5.2
+    // Resolved via ArchiveCatalog.GetArchiveId(level, semester). No single ArchiveId anymore.
+    private const string CacheVersion = "v70_newarch_semfiles_";
+    private const string SubjectsCacheVersion = "v70_newarch_subjects_";
+    private const string SubjectFilesCacheVersion = "v70_newarch_subjectfiles_";
 
     public MaterialsService(IJSRuntime js, HttpClient http, ILogger<MaterialsService> logger)
     {
@@ -187,14 +187,18 @@ public class MaterialsService
 
     private async Task<(bool changed, long length, string etag, string lastMod)?> MetadataChangedAsync(string metaKey)
     {
+        // metaKey format: nmu_mat_meta_{level}_{semester} -> resolve the owning archive.
         var online = await _js.InvokeAsync<bool>("nmuFunctions.isOnline");
         if (!online) return null;
 
         // archive.org rejects HEAD on /metadata (405, no CORS). Instead GET the item
         // size from the search API (CORS-enabled); item_size changes whenever any
         // file is added/removed, which is exactly what revalidation needs to detect.
+        // NOTE: metaKey embeds level/semester; parse them to find the archive.
+        var archiveId = ArchiveIdFromMetaKey(metaKey);
+        if (archiveId == null) return null;
         var serverLength = 0L;
-        using (var request = new HttpRequestMessage(HttpMethod.Get, $"https://archive.org/advancedsearch.php?q=identifier:{ArchiveId}&fl[]=identifier&fl[]=item_size&rows=1&output=json"))
+        using (var request = new HttpRequestMessage(HttpMethod.Get, ArchiveCatalog.GetAdvancedSearchUrl(archiveId)))
         using (var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead))
         {
             if (!response.IsSuccessStatusCode) return null;
@@ -224,6 +228,23 @@ public class MaterialsService
         return (true, serverLength, "", "");
     }
 
+    private static string? ArchiveIdFromMetaKey(string metaKey)
+    {
+        // metaKey = "nmu_mat_meta_{level}_{semester}"
+        const string prefix = "nmu_mat_meta_";
+        if (!metaKey.StartsWith(prefix, StringComparison.Ordinal)) return null;
+        var rest = metaKey[prefix.Length..];
+        // level itself contains an underscore (Level_1), so split from the right.
+        var idx = rest.LastIndexOf('_');
+        // find "Level_X_Semester_Y": level = Level_X, semester = Semester_Y
+        // rest looks like "Level_1_Semester_1"
+        var parts = rest.Split('_');
+        if (parts.Length < 4) return null;
+        var level = $"{parts[0]}_{parts[1]}";
+        var semester = string.Join("_", parts.Skip(2));
+        return ArchiveCatalog.GetArchiveId(level, semester);
+    }
+
     private async Task SaveMetaAsync(string metaKey, (bool changed, long length, string etag, string lastMod) check)
     {
         var meta = new QuizMeta
@@ -238,23 +259,36 @@ public class MaterialsService
 
     private static List<MaterialSubjectInfo> BuildSubjectsInfo(List<ArchiveFile> files, string level, string semester)
     {
-        var prefix = $"{BaseFolder}/{level}/{semester}/PDF/";
+        // New layout: Data/{SubjectFolder}/PDFs/{Lecturer}/{Folder}/*.pdf
         var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var f in files)
         {
-            if (!f.Name.StartsWith(prefix)) continue;
+            if (!f.Name.StartsWith("Data/", StringComparison.Ordinal)) continue;
+            if (!f.Name.Contains("/PDFs/", StringComparison.OrdinalIgnoreCase)) continue;
+            if (!f.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
             if (f.Name.ToLowerInvariant().EndsWith("_text.pdf")) continue;
-            var rel = f.Name[prefix.Length..];
-            var parts = rel.Split('/');
-            if (parts.Length > 0 && !string.IsNullOrEmpty(parts[0]))
-            {
-                map.TryGetValue(parts[0], out var c);
-                map[parts[0]] = c + 1;
-            }
+            if (f.Name.EndsWith("order_config.json", StringComparison.OrdinalIgnoreCase)) continue;
+            var segs = f.Name.Split('/');
+            if (segs.Length < 2) continue;
+            var subjectFull = segs[1];
+            if (string.IsNullOrWhiteSpace(subjectFull) || subjectFull.Equals("order_config.json", StringComparison.OrdinalIgnoreCase)) continue;
+            map.TryGetValue(subjectFull, out var c);
+            map[subjectFull] = c + 1;
         }
         return map
-            .Select(kv => new MaterialSubjectInfo { Name = kv.Key, FileCount = kv.Value })
-            .OrderBy(s => s.Name, StringComparer.Ordinal)
+            .Select(kv =>
+            {
+                ArchiveCatalog.ParseSubjectFolder(kv.Key, out var code, out var clean, out var branch);
+                return new MaterialSubjectInfo
+                {
+                    Name = kv.Key,
+                    FileCount = kv.Value,
+                    Code = code,
+                    DisplayName = string.IsNullOrEmpty(clean) ? kv.Key : clean,
+                    Branch = branch
+                };
+            })
+            .OrderBy(s => s.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
@@ -337,13 +371,17 @@ public class MaterialsService
         // JSON and filter it in .NET. Slower, but guarantees the page isn't empty.
         try
         {
-            var fullJson = await _js.InvokeAsync<string>("nmuFunctions.fetchJson", $"https://archive.org/metadata/{ArchiveId}");
+            var archiveId = ArchiveCatalog.GetArchiveId(level, semester);
+            if (archiveId == null) return new List<ArchiveFile>();
+            var fullJson = await _js.InvokeAsync<string>("nmuFunctions.fetchJson", ArchiveCatalog.GetMetadataUrl(archiveId));
             _logger.LogInformation("GetFilesAsync: fetchJson returned {Len} chars", fullJson?.Length ?? 0);
             if (!string.IsNullOrEmpty(fullJson))
             {
                 var data = JsonSerializer.Deserialize<ArchiveMetadata>(fullJson);
                 var files = data?.Files?
-                    .Where(f => f.Name.StartsWith($"{BaseFolder}/{level}/{semester}/", StringComparison.Ordinal))
+                    .Where(f => f.Name.StartsWith("Data/", StringComparison.Ordinal)
+                        && !ArchiveCatalog.IsDerivativeFile(f.Name)
+                        && !f.Name.StartsWith($"{archiveId}.thumbs/", StringComparison.Ordinal))
                     .Select(f => new ArchiveFile { Name = f.Name, Size = long.TryParse(f.Size, out var s) ? s : null })
                     .ToList() ?? new List<ArchiveFile>();
                 _logger.LogInformation("GetFilesAsync: fallback found {Count} files", files.Count);
@@ -363,36 +401,48 @@ public class MaterialsService
         return new List<ArchiveFile>();
     }
 
+    /// <summary>
+    /// New layout: Data/{subject}/PDFs/{lecturer}/{folder}/*.pdf
+    /// subject is the FULL folder name (e.g. "CSE014 - Structured Programming.(ALL)").
+    /// Returns (folders across all lecturers, files with Lecturer populated).
+    /// </summary>
     public static (List<string> folders, List<MaterialFile> files) GetFilesForSubject(
         List<ArchiveFile> allFiles, string level, string semester, string subject)
     {
-        var prefix = $"{BaseFolder}/{level}/{semester}/PDF/{subject}/";
+        var prefix = $"Data/{subject}/PDFs/";
         var folderSet = new HashSet<string>();
         var result = new List<MaterialFile>();
 
         foreach (var f in allFiles)
         {
-            if (!f.Name.StartsWith(prefix)) continue;
+            if (!f.Name.StartsWith(prefix, StringComparison.Ordinal)) continue;
+            if (!f.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
+            if (f.Name.ToLowerInvariant().EndsWith("_text.pdf")) continue;
             var rel = f.Name[prefix.Length..];
             var parts = rel.Split('/');
-            if (parts.Length > 1)
+            if (parts.Length >= 3)
             {
-                folderSet.Add(parts[0]);
+                var lecturer = parts[0];
+                var folder = parts[1];
+                folderSet.Add(folder);
                 result.Add(new MaterialFile
                 {
                     Name = parts[^1],
                     Path = f.Name,
-                    Folder = parts[0],
+                    Folder = folder,
+                    Lecturer = lecturer,
                     Size = f.Size
                 });
             }
-            else
+            else if (parts.Length == 2)
             {
+                var lecturer = parts[0];
                 result.Add(new MaterialFile
                 {
-                    Name = parts[0],
+                    Name = parts[1],
                     Path = f.Name,
                     Folder = "ROOT",
+                    Lecturer = lecturer,
                     Size = f.Size
                 });
             }
@@ -415,10 +465,37 @@ public class MaterialsService
         return (foldersList, result);
     }
 
-    public async Task<List<string>> GetFolderOrderAsync(string dirPath)
+    /// <summary>Distinct lecturers for a subject (Material &gt; Doctor level).</summary>
+    public static List<string> GetLecturersForSubject(List<ArchiveFile> allFiles, string subject)
     {
+        var prefix = $"Data/{subject}/PDFs/";
+        var set = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var f in allFiles)
+        {
+            if (!f.Name.StartsWith(prefix, StringComparison.Ordinal)) continue;
+            if (!f.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
+            if (f.Name.ToLowerInvariant().EndsWith("_text.pdf")) continue;
+            var rel = f.Name[prefix.Length..];
+            var parts = rel.Split('/');
+            if (parts.Length >= 2 && !string.IsNullOrWhiteSpace(parts[0]))
+                set.Add(parts[0]);
+        }
+        return set.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>Folders for a specific subject+lecturer.</summary>
+    public static List<string> GetFoldersForLecturer(List<MaterialFile> subjectFiles, string lecturer)
+    {
+        var subset = subjectFiles.Where(f => string.Equals(f.Lecturer, lecturer, StringComparison.Ordinal)).ToList();
+        return GetFolderOrder(subset);
+    }
+
+    public async Task<List<string>> GetFolderOrderAsync(string dirPath, string? level = null, string? semester = null, string? archiveId = null)
+    {
+        archiveId ??= (level != null && semester != null) ? ArchiveCatalog.GetArchiveId(level, semester) : null;
+        if (archiveId == null) return new List<string>();
         var encoded = string.Join("/", dirPath.Split('/').Select(Uri.EscapeDataString));
-        var url = $"https://archive.org/download/{ArchiveId}/{encoded}order_config.json?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+        var url = $"{ArchiveCatalog.GetDownloadUrl(archiveId, encoded)}order_config.json?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
         try
         {
             var json = await _js.InvokeAsync<string>("nmuFunctions.fetchJson", url);
@@ -431,9 +508,11 @@ public class MaterialsService
         }
     }
 
-    public static string GetDownloadUrl(string filePath)
+    public static string GetDownloadUrl(string filePath, string? level = null, string? semester = null, string? archiveId = null)
     {
-        return $"https://archive.org/download/{ArchiveId}/{filePath}";
+        archiveId ??= (level != null && semester != null) ? ArchiveCatalog.GetArchiveId(level, semester) : null;
+        if (archiveId == null) return filePath;
+        return ArchiveCatalog.GetDownloadUrl(archiveId, filePath);
     }
 
     public static (string icon, string colorClass) GetMaterialStyle(string name)

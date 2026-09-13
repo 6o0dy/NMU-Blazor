@@ -7,6 +7,7 @@
 @inject NavigationManager Navigation
 @inject NavigationState NavState
 @inject QuizStateService QuizState
+@inject LayoutState LayoutState
 @inject IJSRuntime JS
  
 @if (_loading)
@@ -65,10 +66,20 @@ else
             {
                 var s = subject;
                 <div class="subject-card" @onclick="() => OpenSubject(s)">
+                    @if (!string.IsNullOrEmpty(s.Code))
+                    {
+                        <span class="badge badge-sky code-badge-corner">@s.Code</span>
+                    }
                     <div class="card-icon" style="color:var(--primary)">
-                        <i class="@GetIconCSharp(s.Name)"></i>
+                        <i class="@GetIconCSharp(s.Name + " " + s.Code)"></i>
                     </div>
-                    <div class="card-label">@s.Name</div>
+                    <div class="card-label-wrap">
+                        <div class="card-label" title="@s.Name @s.Code">@s.Name</div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(s.Lecturer))
+                    {
+                        <div class="card-sub" title="@s.Lecturer">@s.Lecturer</div>
+                    }
                 </div>
             }
         </div>
@@ -82,6 +93,7 @@ else
     private List<QuizSubject> _subjects = new();
     private string _studentLevel = "Level_1";
     private string _studentSemester = "First_Term";
+    private string _studentDept = "ALL";
     private SyncProgress? _syncProgress;
 
     protected override async Task OnInitializedAsync()
@@ -89,7 +101,9 @@ else
         NavState.PageTitle = "QUIZZES";
         QuizState.Reset();
 
+        QuizService.SyncProgressChanged -= OnSyncProgress;
         QuizService.SyncProgressChanged += OnSyncProgress;
+        LayoutState.RefreshRequested += OnRefreshRequested;
 
         // Fast path: render from the small cached subject list instantly, then
         // refresh in the background (same pattern as Materials/Recorded).
@@ -100,6 +114,7 @@ else
             {
                 _studentLevel = student.AcademicLevel.Replace(" ", "_");
                 _studentSemester = student.Semester.Replace(" ", "_");
+                _studentDept = NMU.Platform.Components.Services.ArchiveCatalog.NormalizeDepartment(student.Department);
             }
 
             if (student?.CustomSubjectsMode == true && student.CustomSubjects != null && student.CustomSubjects.Count > 0)
@@ -117,7 +132,10 @@ else
             if (_subjects.Count == 0)
                 _subjects = await QuizService.GetQuizListAsync(_studentLevel, _studentSemester);
 
-            QuizState.SubjectPathMap = _subjects.ToDictionary(s => s.Name, s => s.Path, StringComparer.OrdinalIgnoreCase);
+            _subjects = _subjects.Where(s => NMU.Platform.Components.Services.ArchiveCatalog.IsVisibleForDepartment(s.Branch, _studentDept)).ToList();
+            // SubjectPathMap keyed by display name; duplicates (same subject, multiple
+            // lecturers) keep the first path — full navigation uses QuizState.CurrentQuiz.
+            QuizState.SubjectPathMap = _subjects.GroupBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First().Path, StringComparer.OrdinalIgnoreCase);
             try { await JS.InvokeVoidAsync("localStorage.setItem", "nmu_quiz_path_map", System.Text.Json.JsonSerializer.Serialize(QuizState.SubjectPathMap)); } catch { }
             if (_subjects.Count == 0)
                 _errorMsg = "No quizzes available.";
@@ -128,8 +146,8 @@ else
             // Background revalidation for quiz list
             _ = QuizService.CheckAndUpdateQuizListAsync(_studentLevel, _studentSemester, async updatedList =>
             {
-                _subjects = updatedList;
-                QuizState.SubjectPathMap = _subjects.ToDictionary(s => s.Name, s => s.Path, StringComparer.OrdinalIgnoreCase);
+                _subjects = updatedList.Where(s => NMU.Platform.Components.Services.ArchiveCatalog.IsVisibleForDepartment(s.Branch, _studentDept)).ToList();
+                QuizState.SubjectPathMap = _subjects.GroupBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First().Path, StringComparer.OrdinalIgnoreCase);
                 await InvokeAsync(StateHasChanged);
             });
         }
@@ -175,19 +193,26 @@ else
         }
 
         _subjects = result;
-        QuizState.SubjectPathMap = _subjects.ToDictionary(s => s.Name, s => s.Path, StringComparer.OrdinalIgnoreCase);
+        QuizState.SubjectPathMap = _subjects.GroupBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First().Path, StringComparer.OrdinalIgnoreCase);
         try { await JS.InvokeVoidAsync("localStorage.setItem", "nmu_quiz_path_map", System.Text.Json.JsonSerializer.Serialize(QuizState.SubjectPathMap)); } catch { }
     }
 
     public void Dispose()
     {
         QuizService.SyncProgressChanged -= OnSyncProgress;
+        LayoutState.RefreshRequested -= OnRefreshRequested;
     }
+
+    private void OnRefreshRequested() => Reload();
 
     private void OpenSubject(QuizSubject subject)
     {
         QuizState.SubjectName = subject.Name;
         QuizState.SubjectPath = subject.Path;
+        QuizState.SubjectArchiveId = subject.ArchiveId;
+        QuizState.SubjectLevel = subject.Level;
+        QuizState.SubjectSemester = subject.Semester;
+        QuizState.CurrentQuiz = subject;
         Navigation.NavigateTo($"quizzes/{Uri.EscapeDataString(subject.Name)}", replace: true);
     }
 

@@ -46,7 +46,6 @@ public class QuizService
     private readonly HttpClient _http;
     private readonly ILogger<QuizService> _logger;
     private readonly ToastService _toast;
-    private const string ArchiveId = "nmu.ce";
 
     public event Action<SyncProgress>? SyncProgressChanged;
 
@@ -60,11 +59,16 @@ public class QuizService
 
     private static string MapSemester(string sem)
     {
-        var s = sem.Replace(" ", "_").ToLower();
-        if (s is "semester_1" or "first_term" or "term_1") return "Semester_1";
-        if (s is "semester_2" or "second_term" or "term_2") return "Semester_2";
-        return sem.Replace(" ", "_");
+        return ArchiveCatalog.NormalizeSemester(sem) ?? sem.Replace(" ", "_");
     }
+
+    private static string MapLevel(string level)
+    {
+        return ArchiveCatalog.NormalizeLevel(level) ?? level.Replace(" ", "_");
+    }
+
+    private static string QuizListCacheKey(string level, string semester)
+        => $"nmu_quiz_list_{level}_{semester}_v5_newarch";
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<QuizSubject>> _listMemCache = new();
 
@@ -80,6 +84,7 @@ public class QuizService
     /// </summary>
     public async Task<List<QuizSubject>> GetCachedQuizListAsync(string level, string semester)
     {
+        level = MapLevel(level);
         semester = MapSemester(semester);
         var memKey = $"{level}_{semester}";
         if (_listMemCache.TryGetValue(memKey, out var mem) && mem != null)
@@ -87,7 +92,7 @@ public class QuizService
 
         try
         {
-            var cacheKey = $"nmu_quiz_list_{level}_{semester}_v4";
+            var cacheKey = QuizListCacheKey(level, semester);
             var cached = await _js.InvokeAsync<string>("nmuFunctions.safeGetItem", cacheKey);
             if (!string.IsNullOrEmpty(cached))
             {
@@ -105,12 +110,16 @@ public class QuizService
 
     public async Task<List<QuizSubject>> GetQuizListAsync(string level, string semester)
     {
+        level = MapLevel(level);
         semester = MapSemester(semester);
         var memKey = $"{level}_{semester}";
         if (_listMemCache.TryGetValue(memKey, out var mem) && mem != null)
             return mem;
 
-        var cacheKey = $"nmu_quiz_list_{level}_{semester}_v4";
+        var archiveId = ArchiveCatalog.GetArchiveId(level, semester);
+        if (archiveId == null) return new List<QuizSubject>();
+
+        var cacheKey = QuizListCacheKey(level, semester);
         try
         {
             var cached = await _js.InvokeAsync<string>("nmuFunctions.safeGetItem", cacheKey);
@@ -127,53 +136,13 @@ public class QuizService
         catch { }
         try
         {
-            var quizPath = $"NMU/{level}/{semester}/QUIZE/";
             var names = await GetQuizFileNamesAsync(level, semester);
-
-            if (names.Count == 0)
-            {
-                var altSemester = semester == "Semester_1" ? "Semester_2" : "Semester_1";
-                names = await GetQuizFileNamesAsync(level, altSemester);
-                if (names.Count > 0)
-                    quizPath = $"NMU/{level}/{altSemester}/QUIZE/";
-            }
 
             var matchedFiles = names
                 .Where(n => n.EndsWith(".json") && !n.EndsWith("order_config.json"))
                 .ToList();
 
-            var orderList = new List<string>();
-            try
-            {
-                var orderUrl = $"https://archive.org/download/{ArchiveId}/{quizPath}order_config.json?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-                var orderJson = await _http.GetStringAsync(orderUrl);
-                var orderConfig = JsonSerializer.Deserialize<OrderConfig>(orderJson);
-                if (orderConfig?.Order != null)
-                    orderList = orderConfig.Order;
-            }
-            catch { }
-
-            var files = matchedFiles
-                .Select(f =>
-                {
-                    var rel = f.Substring(quizPath.Length);
-                    var name = rel.Split('/')[0].Replace(".json", "").Replace("_", " ");
-                    return new QuizSubject { Name = name, Path = f, Rel = rel };
-                })
-                .ToList();
-
-            if (orderList.Count > 0)
-            {
-                files = files.OrderBy(f =>
-                {
-                    var idx = orderList.FindIndex(k => f.Rel.Contains(k));
-                    return idx == -1 ? 999 : idx;
-                }).ThenBy(f => f.Name).ToList();
-            }
-            else
-            {
-                files = files.OrderBy(f => f.Name).ToList();
-            }
+            var files = BuildQuizSubjects(matchedFiles, level, semester, archiveId);
 
             if (files.Count > 0)
             {
@@ -196,9 +165,10 @@ public class QuizService
     public async Task CheckAndUpdateQuizListAsync(string level, string semester, Action<List<QuizSubject>>? onListUpdated = null)
     {
         if (string.IsNullOrEmpty(level) || string.IsNullOrEmpty(semester)) return;
+        level = MapLevel(level);
         var mappedSemester = MapSemester(semester);
-        var cacheKey = $"nmu_quiz_list_{level}_{mappedSemester}_v4";
-        var metaKey = $"nmu_quiz_list_meta_{level}_{mappedSemester}";
+        var cacheKey = QuizListCacheKey(level, mappedSemester);
+        var metaKey = $"nmu_quiz_list_meta_{level}_{mappedSemester}_v5";
 
         try
         {
@@ -214,7 +184,9 @@ public class QuizService
                 try { cachedMeta = JsonSerializer.Deserialize<QuizMeta>(cachedMetaJson); } catch { }
             }
 
-            var metaUrl = $"https://archive.org/advancedsearch.php?q=identifier:{ArchiveId}&fl[]=identifier&fl[]=item_size&rows=1&output=json";
+            var archiveId = ArchiveCatalog.GetArchiveId(level, mappedSemester);
+            if (archiveId == null) return;
+            var metaUrl = ArchiveCatalog.GetAdvancedSearchUrl(archiveId);
 
             using var request = new HttpRequestMessage(HttpMethod.Get, metaUrl);
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
@@ -236,45 +208,15 @@ public class QuizService
             var names = await GetQuizFileNamesAsync(level, mappedSemester);
             if (names.Count == 0) return;
 
-            var quizPath = $"NMU/{level}/{mappedSemester}/QUIZE/";
             var matchedFiles = names
                 .Where(n => n.EndsWith(".json") && !n.EndsWith("order_config.json"))
                 .ToList();
 
             if (matchedFiles.Count == 0) return;
 
-            var orderList = new List<string>();
-            try
-            {
-                var orderUrl = $"https://archive.org/download/{ArchiveId}/{quizPath}order_config.json?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-                var orderJson = await _http.GetStringAsync(orderUrl);
-                var orderConfig = JsonSerializer.Deserialize<OrderConfig>(orderJson);
-                if (orderConfig?.Order != null)
-                    orderList = orderConfig.Order;
-            }
-            catch { }
-
-            var files = matchedFiles
-                .Select(f =>
-                {
-                    var rel = f.Substring(quizPath.Length);
-                    var name = rel.Split('/')[0].Replace(".json", "").Replace("_", " ");
-                    return new QuizSubject { Name = name, Path = f, Rel = rel };
-                })
-                .ToList();
-
-            if (orderList.Count > 0)
-            {
-                files = files.OrderBy(f =>
-                {
-                    var idx = orderList.FindIndex(k => f.Rel.Contains(k));
-                    return idx == -1 ? 999 : idx;
-                }).ThenBy(f => f.Name).ToList();
-            }
-            else
-            {
-                files = files.OrderBy(f => f.Name).ToList();
-            }
+            var mappedArchiveId = ArchiveCatalog.GetArchiveId(level, mappedSemester);
+            if (mappedArchiveId == null) return;
+            var files = BuildQuizSubjects(matchedFiles, level, mappedSemester, mappedArchiveId);
 
             if (files.Count > 0)
             {
@@ -298,8 +240,84 @@ public class QuizService
         }
     }
 
-    public async Task<List<QuizChapter>> GetQuizDataAsync(string filePath)
+    /// <summary>
+    /// Builds QuizSubject entries from new-layout quiz paths:
+    /// Data/{SubjectFolder}/Quizzes/{Lecturer}/*.json (plus legacy duplicate paths).
+    /// Deduplicates identical quiz files that exist under both the legacy duplicate
+    /// folder and the canonical folder. Display name = subject clean name.
+    /// </summary>
+    public static List<QuizSubject> BuildQuizSubjects(List<string> paths, string level, string semester, string archiveId)
     {
+        var seenFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<QuizSubject>();
+
+        foreach (var f in paths)
+        {
+            if (string.IsNullOrWhiteSpace(f)) continue;
+            if (!f.StartsWith("Data/", StringComparison.Ordinal)) continue;
+            if (!f.Contains("/Quizzes/", StringComparison.OrdinalIgnoreCase)) continue;
+            var segs = f.Split('/');
+            if (segs.Length < 4) continue;
+            var subjectFull = segs[1];
+            if (string.IsNullOrWhiteSpace(subjectFull)) continue;
+            // Skip the legacy nested duplicate: Data/{S}/{S}/Quizzes/... (keep canonical one).
+            if (segs.Length >= 3 && string.Equals(segs[2], subjectFull, StringComparison.Ordinal))
+                continue;
+
+            var fileName = segs[^1];
+            var dedupeKey = $"{subjectFull}|{fileName}".ToLowerInvariant();
+            if (!seenFileNames.Add(dedupeKey)) continue;
+
+            var qIdx = Array.FindIndex(segs, s => s.Equals("Quizzes", StringComparison.OrdinalIgnoreCase));
+            var lecturer = (qIdx >= 0 && qIdx + 1 < segs.Length - 1) ? segs[qIdx + 1] : "";
+
+            ArchiveCatalog.ParseSubjectFolder(subjectFull, out var code, out var clean, out var branch);
+            var display = string.IsNullOrEmpty(clean) ? fileName.Replace(".json", "").Replace("_", " ") : clean;
+
+            result.Add(new QuizSubject
+            {
+                Name = display,
+                Path = f,
+                Rel = f,
+                SubjectFullName = subjectFull,
+                Code = code,
+                Branch = branch,
+                Lecturer = lecturer,
+                Level = level,
+                Semester = semester,
+                ArchiveId = archiveId
+            });
+        }
+
+        return result.OrderBy(q => q.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    public static string ResolveQuizArchiveId(QuizSubject subject, string? level = null, string? semester = null)
+    {
+        if (subject != null && !string.IsNullOrEmpty(subject.ArchiveId))
+            return subject.ArchiveId;
+        var lvl = subject != null && !string.IsNullOrEmpty(subject.Level) ? subject.Level : level;
+        var sem = subject != null && !string.IsNullOrEmpty(subject.Semester) ? subject.Semester : semester;
+        return ArchiveCatalog.GetArchiveId(lvl, sem) ?? "";
+    }
+
+    public async Task<List<QuizChapter>> GetQuizDataAsync(string filePath, string? level = null, string? semester = null, string? archiveId = null)
+    {
+        archiveId ??= ArchiveCatalog.GetArchiveId(level, semester) ?? "";
+        // Back-compat: old cached callers pass only filePath; try to infer archive from
+        // the quiz list memory cache when level/semester are not supplied.
+        if (string.IsNullOrEmpty(archiveId))
+        {
+            foreach (var kv in _listMemCache)
+            {
+                var hit = kv.Value.FirstOrDefault(q => string.Equals(q.Path, filePath, StringComparison.Ordinal));
+                if (hit != null && !string.IsNullOrEmpty(hit.ArchiveId))
+                {
+                    archiveId = hit.ArchiveId;
+                    break;
+                }
+            }
+        }
         var cacheKey = $"nmu_q_content_{filePath}";
 
         try
@@ -311,7 +329,7 @@ public class QuizService
                 if (parsed != null && parsed.Count > 0)
                 {
                     // Trigger smart background revalidation using HEAD request
-                    _ = CheckAndUpdateQuizContentAsync(filePath);
+                    _ = CheckAndUpdateQuizContentAsync(filePath, level, semester, archiveId);
                     return parsed;
                 }
             }
@@ -321,7 +339,8 @@ public class QuizService
         try
         {
             _logger.LogInformation("QuizService: fetching path: {FilePath}", filePath);
-            var url = $"https://archive.org/download/{ArchiveId}/{filePath}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+            if (string.IsNullOrEmpty(archiveId)) return new List<QuizChapter>();
+            var url = $"{ArchiveCatalog.GetDownloadUrl(archiveId, filePath)}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
             var json = await _http.GetStringAsync(url);
             _logger.LogInformation("QuizService: got json length: {Length}", json?.Length ?? 0);
 
@@ -358,9 +377,23 @@ public class QuizService
     /// Background revalidation: Sends HTTP HEAD request to check if quiz content changed on server.
     /// Updates cache and shows Toast if changes are detected.
     /// </summary>
-    public async Task CheckAndUpdateQuizContentAsync(string filePath)
+    public async Task CheckAndUpdateQuizContentAsync(string filePath, string? level = null, string? semester = null, string? archiveId = null)
     {
         if (string.IsNullOrEmpty(filePath)) return;
+        archiveId ??= ArchiveCatalog.GetArchiveId(level, semester);
+        if (string.IsNullOrEmpty(archiveId))
+        {
+            foreach (var kv in _listMemCache)
+            {
+                var hit = kv.Value.FirstOrDefault(q => string.Equals(q.Path, filePath, StringComparison.Ordinal));
+                if (hit != null && !string.IsNullOrEmpty(hit.ArchiveId))
+                {
+                    archiveId = hit.ArchiveId;
+                    break;
+                }
+            }
+        }
+        if (string.IsNullOrEmpty(archiveId)) return;
         try
         {
             var online = await _js.InvokeAsync<bool>("nmuFunctions.isOnline");
@@ -378,7 +411,7 @@ public class QuizService
                 try { cachedMeta = JsonSerializer.Deserialize<QuizMeta>(cachedMetaJson); } catch { }
             }
 
-            var url = $"https://archive.org/download/{ArchiveId}/{filePath}";
+            var url = ArchiveCatalog.GetDownloadUrl(archiveId, filePath);
             using var request = new HttpRequestMessage(HttpMethod.Head, url);
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
             if (!response.IsSuccessStatusCode) return;
@@ -430,9 +463,9 @@ public class QuizService
     public async Task EnsureQuizSyncedAsync(string level, string semester)
     {
         if (string.IsNullOrEmpty(level) || string.IsNullOrEmpty(semester)) return;
-        var mappedLevel = level.Replace(" ", "_");
+        var mappedLevel = MapLevel(level);
         var mappedSemester = MapSemester(semester);
-        var syncFlagKey = $"nmu_quiz_sync_done_{mappedLevel}_{mappedSemester}";
+        var syncFlagKey = $"nmu_quiz_sync_done_{mappedLevel}_{mappedSemester}_v5";
 
         try
         {
@@ -483,7 +516,11 @@ public class QuizService
                 {
                     SyncProgressChanged?.Invoke(new SyncProgress { Current = processedCount, Total = subjects.Count, SubjectName = subject.Name, IsDownloading = true });
                     _logger.LogInformation("EnsureQuizSyncedAsync: downloading {Path}", subject.Path);
-                    var url = $"https://archive.org/download/{ArchiveId}/{subject.Path}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+                    var subjectArchiveId = !string.IsNullOrEmpty(subject.ArchiveId)
+                        ? subject.ArchiveId
+                        : ArchiveCatalog.GetArchiveId(mappedLevel, mappedSemester);
+                    if (subjectArchiveId == null) { processedCount++; continue; }
+                    var url = $"{ArchiveCatalog.GetDownloadUrl(subjectArchiveId, subject.Path)}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
                     var json = await _http.GetStringAsync(url);
                     if (!string.IsNullOrEmpty(json))
                     {
@@ -536,17 +573,30 @@ public class QuizService
         }
     }
 
-    public static string GetDownloadUrl(string filePath)
+    public static string GetDownloadUrl(string filePath, string? level = null, string? semester = null, string? archiveId = null)
     {
-        return $"https://archive.org/download/{ArchiveId}/{filePath}";
+        archiveId ??= (level != null && semester != null) ? ArchiveCatalog.GetArchiveId(level, semester) : null;
+        if (archiveId == null) return filePath;
+        return ArchiveCatalog.GetDownloadUrl(archiveId, filePath);
+    }
+
+    public static string GetDownloadUrl(QuizSubject subject)
+    {
+        var archiveId = !string.IsNullOrEmpty(subject.ArchiveId)
+            ? subject.ArchiveId
+            : ArchiveCatalog.GetArchiveId(subject.Level, subject.Semester);
+        if (archiveId == null) return subject.Path;
+        return ArchiveCatalog.GetDownloadUrl(archiveId, subject.Path);
     }
 
     /// <summary>
-    /// Returns the QUIZE folder file names for a semester. The big archive metadata is
+    /// Returns the Quizzes folder file names for a semester. The big archive metadata is
     /// parsed in JS (native JSON.parse) so it never blocks the .NET thread.
     /// </summary>
     private async Task<List<string>> GetQuizFileNamesAsync(string level, string semester)
     {
+        level = MapLevel(level);
+        semester = MapSemester(semester);
         try
         {
             var json = await _js.InvokeAsync<string>("nmuFunctions.getQuizFiles", level, semester);
@@ -560,16 +610,19 @@ public class QuizService
         catch { }
 
         // Fallback (older cached app.js, or JS fetch failed): fetch the full metadata
-        // JSON and filter the QUIZE file names in .NET.
+        // JSON and filter the Quizzes file names in .NET.
         try
         {
-            var fullJson = await _js.InvokeAsync<string>("nmuFunctions.fetchJson", $"https://archive.org/metadata/{ArchiveId}");
+            var fallbackArchiveId = ArchiveCatalog.GetArchiveId(level, semester);
+            if (fallbackArchiveId == null) return new List<string>();
+            var fullJson = await _js.InvokeAsync<string>("nmuFunctions.fetchJson", ArchiveCatalog.GetMetadataUrl(fallbackArchiveId));
             if (!string.IsNullOrEmpty(fullJson))
             {
                 var data = JsonSerializer.Deserialize<ArchiveMetadata>(fullJson);
                 var names = data?.Files?
-                    .Where(f => f.Name.StartsWith($"NMU/{level}/{semester}/", StringComparison.Ordinal)
-                                && f.Name.Contains("/QUIZE/"))
+                    .Where(f => f.Name.StartsWith("Data/", StringComparison.Ordinal)
+                                && f.Name.Contains("/Quizzes/", StringComparison.OrdinalIgnoreCase)
+                                && f.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
                     .Select(f => f.Name)
                     .ToList() ?? new List<string>();
                 return names;

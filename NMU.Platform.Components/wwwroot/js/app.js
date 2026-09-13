@@ -143,6 +143,84 @@ window.nmuFunctions = {
         window.location.replace(url || window.location.href);
     },
 
+    // Auto marquee for file/video titles that overflow their slot (.file-name,
+    // .recorded-title). Only overflowing labels animate; short ones stay static.
+    // Safe with Blazor: the text node Blazor owns is moved (not replaced), so
+    // later re-renders keep updating it inside the wrapper.
+    nmuEnableMarquee: function () {
+        if (window.__nmuMarqueeWired) return;
+        window.__nmuMarqueeWired = true;
+        var SELECTOR = '.file-name, .recorded-title';
+        var scheduled = false;
+
+        function scan() {
+            scheduled = false;
+            var els;
+            try { els = document.querySelectorAll(SELECTOR); } catch (e) { return; }
+            for (var i = 0; i < els.length; i++) {
+                (function (el) {
+                    try {
+                        var overflow = el.scrollWidth - el.clientWidth;
+                        var inner = el.querySelector(':scope > .marquee-inner');
+                        if (overflow > 8) {
+                            if (!inner) {
+                                inner = document.createElement('span');
+                                inner.className = 'marquee-inner';
+                                while (el.firstChild) inner.appendChild(el.firstChild);
+                                el.appendChild(inner);
+                            }
+                            var dist = -(overflow + 16);
+                            el.style.setProperty('--marquee-dist', dist + 'px');
+                            var dur = Math.min(14, Math.max(5, Math.abs(dist) / 28));
+                            el.style.setProperty('--marquee-dur', dur + 's');
+                            el.classList.add('marquee-on');
+                        } else if (inner) {
+                            el.classList.remove('marquee-on');
+                        }
+                    } catch (e) {}
+                })(els[i]);
+            }
+        }
+
+        function schedule() {
+            if (scheduled) return;
+            scheduled = true;
+            if (window.requestAnimationFrame) requestAnimationFrame(scan);
+            else setTimeout(scan, 50);
+        }
+
+        try {
+            var obs = new MutationObserver(schedule);
+            obs.observe(document.body, { childList: true, subtree: true });
+        } catch (e) {}
+        window.addEventListener('resize', schedule);
+        schedule();
+    },
+
+    // Desktop/mobile (Blazor Hybrid) only: the app origin is a virtual host
+    // (https://0.0.0.1/) served from the app bundle, and deep-link document
+    // reloads are NOT served there (unreachable error page). So reload keys
+    // NEVER reload the document here; instead Blazor soft-refreshes the
+    // current page data in place via HandleReloadKey. Never call this on
+    // the web version (hard refresh is valid there).
+    enableHybridReloadGuard: function (dotNetRef) {
+        if (dotNetRef) window.__nmuReloadRef = dotNetRef;
+        if (window.__nmuReloadGuardWired) return;
+        window.__nmuReloadGuardWired = true;
+        document.addEventListener('keydown', function (e) {
+            // e.code is the PHYSICAL key, layout-independent: with an Arabic
+            // keyboard active, Ctrl+R reports key='ق' but code='KeyR'.
+            var isReloadKey = (e.code === 'F5' || e.key === 'F5') ||
+                ((e.ctrlKey || e.metaKey) && (e.code === 'KeyR' || e.key === 'r' || e.key === 'R'));
+            if (!isReloadKey) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            try {
+                if (window.__nmuReloadRef) window.__nmuReloadRef.invokeMethodAsync('HandleReloadKey');
+            } catch (err) {}
+        }, true);
+    },
+
     toggleFullScreen: function () {
         const btn = document.querySelector('#fullscreen-btn i');
         if (!document.fullscreenElement) {
@@ -163,9 +241,49 @@ window.nmuFunctions = {
         });
     },
 
-    fetchQuizContent: function (filePath) {
+    // Central per-semester archive mapping: Level_1/Semester_1 -> NMU.CE_1.1 ... Level_5/Semester_2 -> NMU.CE_5.2
+    nmuGetArchiveId: function (level, semester) {
+        function normLevel(l) {
+            if (!l) return null;
+            var m = String(l).trim().replace(/\s+/g, '_').match(/^Level_([1-5])$/i);
+            return m ? ('Level_' + m[1]) : null;
+        }
+        function normSem(s) {
+            if (!s) return null;
+            var t = String(s).trim().replace(/\s+/g, '_').toLowerCase();
+            if (t === 'semester_1' || t === 'first_term' || t === 'term_1' || t === 'semester1' || t === 'term1') return 'Semester_1';
+            if (t === 'semester_2' || t === 'second_term' || t === 'term_2' || t === 'semester2' || t === 'term2') return 'Semester_2';
+            var m = t.match(/^semester_([12])$/);
+            return m ? ('Semester_' + m[1]) : null;
+        }
+        var lvl = normLevel(level);
+        var sem = normSem(semester);
+        if (!lvl || !sem) return null;
+        return 'NMU.CE_' + lvl.split('_')[1] + '.' + sem.split('_')[1];
+    },
+
+    nmuParseSubjectFolder: function (folder) {
+        var code = '', clean = String(folder || '').trim(), branch = 'ALL';
+        if (!folder) return { code: code, clean: clean, branch: branch };
+        var bm = /\.\(([^)]+)\)\s*$/.exec(clean);
+        if (bm) {
+            branch = (bm[1] || 'ALL').trim().toUpperCase() || 'ALL';
+            clean = clean.substring(0, bm.index).trim();
+        }
+        var sep = clean.indexOf(' - ');
+        if (sep > 0) {
+            var left = clean.substring(0, sep).trim();
+            var right = clean.substring(sep + 3).trim();
+            if (left && right) { code = left; clean = right; }
+        }
+        return { code: code, clean: clean || String(folder), branch: branch };
+    },
+
+    fetchQuizContent: function (filePath, archiveId, level, semester) {
         var cacheKey = "nmu_q_content_" + filePath;
-        var url = "https://archive.org/download/nmu.ce/" + filePath + "?t=" + Date.now();
+        var arch = archiveId || (level && semester ? this.nmuGetArchiveId(level, semester) : null);
+        if (!arch) return Promise.reject(new Error('unknown archive'));
+        var url = "https://archive.org/download/" + arch + "/" + filePath + "?t=" + Date.now();
         return fetch(url, { cache: "no-store" }).then(function (r) {
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return r.json();
@@ -175,9 +293,11 @@ window.nmuFunctions = {
         });
     },
 
-    refreshQuizContent: function (filePath) {
+    refreshQuizContent: function (filePath, archiveId, level, semester) {
         var cacheKey = "nmu_q_content_" + filePath;
-        var url = "https://archive.org/download/nmu.ce/" + filePath + "?t=" + Date.now();
+        var arch = archiveId || (level && semester ? this.nmuGetArchiveId(level, semester) : null);
+        if (!arch) return;
+        var url = "https://archive.org/download/" + arch + "/" + filePath + "?t=" + Date.now();
         fetch(url, { cache: "no-store" }).then(function (r) {
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return r.json();
@@ -719,62 +839,106 @@ window.nmuFunctions = {
         });
     },
 
-    // The full archive.org metadata is ~2.3 MB. It is downloaded ONCE and kept in
-    // IndexedDB (high quota) so every feature page (materials / quizzes / recorded)
-    // shares the same copy instead of re-downloading it.
-    getRawMetadata: function () {
-        return this.getCacheItem('raw_meta_nmu.ce');
+    // Each semester lives in its own archive (NMU.CE_1.1 ... NMU.CE_5.2).
+    // Metadata is cached PER ARCHIVE in IndexedDB so features share one copy.
+    getRawMetadata: function (archiveId, level, semester) {
+        var arch = archiveId || (level && semester ? this.nmuGetArchiveId(level, semester) : null);
+        if (!arch) {
+            // Back-compat: old callers with no args -> miss (forces new per-archive path).
+            return Promise.resolve('');
+        }
+        return this.getCacheItem('raw_meta_' + arch);
     },
 
-    setRawMetadata: function (json) {
-        return this.setCacheItem('raw_meta_nmu.ce', json);
+    setRawMetadata: function (archiveId, json, level, semester) {
+        // Supports both setRawMetadata(archiveId, json) and legacy setRawMetadata(json).
+        if (json === undefined && typeof archiveId === 'string' && (archiveId.charAt(0) === '{' || archiveId.charAt(0) === '[')) {
+            return this.setCacheItem('raw_meta_legacy', archiveId);
+        }
+        var arch = archiveId;
+        if ((level && semester) && (!arch || arch.indexOf('NMU.CE_') !== 0)) {
+            arch = this.nmuGetArchiveId(level, semester) || arch;
+        }
+        if (!arch) return Promise.resolve();
+        // Legacy single-arg call setRawMetadata(json) -> ignore (no archive context).
+        if (json === undefined) return Promise.resolve();
+        return this.setCacheItem('raw_meta_' + arch, json);
     },
 
-    // Returns the raw metadata, fetching it (and caching it) only when missing.
-    // Concurrent callers share the same in-flight fetch.
-    ensureRawMetadata: function () {
+    // Returns the raw metadata for one semester archive, fetching + caching when missing.
+    // Concurrent callers for the SAME archive share the in-flight fetch.
+    ensureRawMetadata: function (archiveId, level, semester) {
         var self = this;
-        if (this._rawMetaPromise) return this._rawMetaPromise;
-        this._rawMetaPromise = this.getRawMetadata().then(function (cached) {
+        var arch = archiveId;
+        if ((!arch || arch.indexOf('NMU.CE_') !== 0) && level && semester) {
+            arch = self.nmuGetArchiveId(level, semester);
+        }
+        // Legacy no-arg call -> cannot resolve archive.
+        if (!arch || arch.indexOf('NMU.CE_') !== 0) return Promise.resolve('');
+        self._rawMetaPromises = self._rawMetaPromises || {};
+        if (self._rawMetaPromises[arch]) return self._rawMetaPromises[arch];
+        // Keep legacy single-promise field in sync for the first archive.
+        self._rawMetaPromises[arch] = self.getRawMetadata(arch).then(function (cached) {
             if (cached) return cached;
-            return self.fetchText('https://archive.org/metadata/nmu.ce').then(function (json) {
-                if (json) self.setRawMetadata(json);
+            return self.fetchText('https://archive.org/metadata/' + arch).then(function (json) {
+                if (json) self.setRawMetadata(arch, json);
                 return json;
             });
         });
-        // If the fetch fails, reset the promise so a later call retries instead of
-        // reusing a rejected (poisoned) promise for the rest of the session.
-        this._rawMetaPromise.catch(function () {
-            self._rawMetaPromise = null;
+        self._rawMetaPromises[arch].catch(function () {
+            self._rawMetaPromises[arch] = null;
         });
-        return this._rawMetaPromise;
+        return self._rawMetaPromises[arch];
     },
 
-    // Parse the 2.3 MB metadata ENTIRELY in JS (native JSON.parse) and return only
-    // the small {name,size} list for a semester (~150 KB). The big payload never
-    // crosses the JS/.NET boundary, so the page doesn't freeze. Result is cached in
-    // IndexedDB, so the parse happens only once.
+    _isDerivativeName: function (nm) {
+        if (!nm) return true;
+        var l = nm.toLowerCase();
+        if (l.endsWith('_djvu.txt') || l.endsWith('_djvu.xml')) return true;
+        if (l.indexOf('_chocr.html') !== -1 || l.indexOf('_hocr.html') !== -1) return true;
+        if (l.indexOf('_hocr_pageindex') !== -1 || l.indexOf('_hocr_searchtext') !== -1) return true;
+        if (l.endsWith('_jp2.zip') || l.endsWith('_scandata.xml') || l.endsWith('_page_numbers.json')) return true;
+        if (l.endsWith('.ia.mp4') || l.endsWith('_meta.xml') || l.endsWith('_files.xml')) return true;
+        if (l.endsWith('_meta.sqlite') || l.endsWith('__ia_thumb.jpg')) return true;
+        return false;
+    },
+
+    _isRecordedMediaName: function (nm) {
+        if (!nm) return false;
+        var l = nm.toLowerCase();
+        if (l.endsWith('.ia.mp4')) return false;
+        if (l.endsWith('.png') || l.endsWith('.jpg') || l.endsWith('.jpeg')) return false;
+        if (l.endsWith('.afpk') || l.endsWith('_spectrogram.png')) return false;
+        if (l.endsWith('order_config.json')) return false;
+        return l.endsWith('.mp4') || l.endsWith('.mkv') || l.endsWith('.webm') ||
+               l.endsWith('.mp3') || l.endsWith('.wav') || l.endsWith('.m4a');
+    },
+
+    // Parse the semester archive metadata ENTIRELY in JS and return only
+    // the small {Name,Size} list for Data/ files. Result cached per semester.
     getSemesterFiles: function (level, semester) {
         var self = this;
-        var semCacheKey = 'sem_files_v2_' + level + '_' + semester;
+        var arch = self.nmuGetArchiveId(level, semester);
+        if (!arch) return Promise.resolve('');
+        var semCacheKey = 'sem_files_v3_' + level + '_' + semester;
         return this.getCacheItem(semCacheKey).then(function (cached) {
             if (cached) return cached;
-            return self.ensureRawMetadata().then(function (json) {
+            return self.ensureRawMetadata(arch).then(function (json) {
                 if (!json) return '';
                 var data;
                 try { data = JSON.parse(json); } catch (e) { return ''; }
-                var prefix = 'NMU/' + level + '/' + semester + '/';
                 var out = [];
                 var files = data.files || [];
                 for (var i = 0; i < files.length; i++) {
                     var f = files[i];
-                    if (f.name && f.name.indexOf(prefix) === 0) {
-                        var sz = f.size;
-                        var n = (sz === undefined || sz === null || sz === '') ? null : Number(sz);
-                        // PascalCase keys match the ArchiveFile model exactly (STJ is
-                        // case-sensitive by default), so no silent empty objects.
-                        out.push({ Name: f.name, Size: (n === null || isNaN(n)) ? null : n });
-                    }
+                    var nm = f.name || '';
+                    if (nm.indexOf('Data/') !== 0) continue;
+                    if (nm.indexOf(arch + '.thumbs/') === 0) continue;
+                    if (self._isDerivativeName(nm)) continue;
+                    var sz = f.size;
+                    var n = (sz === undefined || sz === null || sz === '') ? null : Number(sz);
+                    // PascalCase keys match the ArchiveFile model exactly.
+                    out.push({ Name: nm, Size: (n === null || isNaN(n)) ? null : n });
                 }
                 var result = JSON.stringify(out);
                 self.setCacheItem(semCacheKey, result);
@@ -785,7 +949,8 @@ window.nmuFunctions = {
         });
     },
 
-    // Same idea for the QUIZE folder list used by the quiz pages.
+    // Same idea for the Quizzes folder list used by the quiz pages.
+    // New layout: Data/{Subject}/Quizzes/{Lecturer}/*.json
     getQuizFiles: function (level, semester) {
         return this.getSemesterFiles(level, semester).then(function (json) {
             if (!json) return '';
@@ -793,36 +958,66 @@ window.nmuFunctions = {
             try { data = JSON.parse(json); } catch (e) { return ''; }
             var out = [];
             for (var i = 0; i < data.length; i++) {
-                if (data[i].Name.indexOf('/QUIZE/') !== -1) out.push(data[i].Name);
+                var nm = data[i].Name || '';
+                if (nm.toLowerCase().indexOf('/quizzes/') !== -1 &&
+                    nm.toLowerCase().slice(-5) === '.json' &&
+                    nm.toLowerCase().slice(-17) !== 'order_config.json') out.push(nm);
             }
             return JSON.stringify(out);
         });
     },
 
-    // Build the catalog of every subject that exists in the archive (PDF folders)
-    // across ALL levels and semesters. Used by the custom-subjects picker so a
-    // credit-hours student can pin subjects from any level/semester. Parsed in JS
-    // from the shared cached metadata; result cached in IndexedDB.
+    // Build the catalog of every subject that exists across ALL semester archives
+    // (PDF folders). Used by the custom-subjects picker. Each archive is fetched
+    // once and cached; empty archives resolve instantly.
     getSubjectCatalog: function () {
         var self = this;
-        var catCacheKey = 'subject_catalog_v1';
+        var catCacheKey = 'subject_catalog_v2';
         return this.getCacheItem(catCacheKey).then(function (cached) {
             if (cached) return cached;
-            return self.ensureRawMetadata().then(function (json) {
-                if (!json) return '';
-                var data;
-                try { data = JSON.parse(json); } catch (e) { return ''; }
-                var files = data.files || [];
+            var archives = [
+                { id: 'NMU.CE_1.1', level: 'Level_1', semester: 'Semester_1' },
+                { id: 'NMU.CE_1.2', level: 'Level_1', semester: 'Semester_2' },
+                { id: 'NMU.CE_2.1', level: 'Level_2', semester: 'Semester_1' },
+                { id: 'NMU.CE_2.2', level: 'Level_2', semester: 'Semester_2' },
+                { id: 'NMU.CE_3.1', level: 'Level_3', semester: 'Semester_1' },
+                { id: 'NMU.CE_3.2', level: 'Level_3', semester: 'Semester_2' },
+                { id: 'NMU.CE_4.1', level: 'Level_4', semester: 'Semester_1' },
+                { id: 'NMU.CE_4.2', level: 'Level_4', semester: 'Semester_2' },
+                { id: 'NMU.CE_5.1', level: 'Level_5', semester: 'Semester_1' },
+                { id: 'NMU.CE_5.2', level: 'Level_5', semester: 'Semester_2' }
+            ];
+            var jobs = archives.map(function (a) {
+                return self.ensureRawMetadata(a.id).then(function (json) {
+                    return { arch: a, json: json };
+                }).catch(function () { return { arch: a, json: '' }; });
+            });
+            return Promise.all(jobs).then(function (results) {
                 var out = [];
                 var seen = {};
-                for (var i = 0; i < files.length; i++) {
-                    var nm = files[i].name || '';
-                    var m = /^NMU\/([^/]+)\/([^/]+)\/PDF\/([^/]+)\//.exec(nm);
-                    if (!m) continue;
-                    var key = m[1] + '|' + m[2] + '|' + m[3];
-                    if (seen[key]) continue;
-                    seen[key] = true;
-                    out.push({ Level: m[1], Semester: m[2], Subject: m[3] });
+                for (var r = 0; r < results.length; r++) {
+                    var arch = results[r].arch;
+                    var json = results[r].json;
+                    if (!json) continue;
+                    var data;
+                    try { data = JSON.parse(json); } catch (e) { continue; }
+                    var files = data.files || [];
+                    for (var i = 0; i < files.length; i++) {
+                        var nm = files[i].name || '';
+                        if (nm.indexOf('Data/') !== 0) continue;
+                        if (nm.toLowerCase().indexOf('/pdfs/') === -1) continue;
+                        if (nm.slice(-4).toLowerCase() !== '.pdf') continue;
+                        if (nm.toLowerCase().slice(-9) === '_text.pdf') continue;
+                        var segs = nm.split('/');
+                        if (segs.length < 2) continue;
+                        var subject = segs[1];
+                        if (!subject || subject.toLowerCase() === 'order_config.json') continue;
+                        var key = arch.level + '|' + arch.semester + '|' + subject;
+                        if (seen[key]) continue;
+                        seen[key] = true;
+                        var parsed = self.nmuParseSubjectFolder(subject);
+                        out.push({ Level: arch.level, Semester: arch.semester, Subject: subject, Code: parsed.code, DisplayName: parsed.clean, Branch: parsed.branch });
+                    }
                 }
                 var result = JSON.stringify(out);
                 self.setCacheItem(catCacheKey, result);
@@ -833,39 +1028,51 @@ window.nmuFunctions = {
         });
     },
 
-    // Same idea for the RECORDED_LECTURER folders used by the recorded lectures
-    // pages. Parses the big metadata entirely in JS, resolves the thumbnail name
-    // for each video (same logic as the old .NET path), and returns a compact
-    // PascalCase list matching the RecordedFile model exactly.
+    // Same idea for the Records folders used by the recorded lectures pages.
+    // New layout: Data/{Subject}/Records/{Lecturer}/*.{mp4|mp3|...}
+    // Thumbs: {ArchiveId}.thumbs/Data/... (*.jpg)
     getRecordedFiles: function (level, semester) {
         var self = this;
-        var recCacheKey = 'rec_files_v2_' + level + '_' + semester;
+        var arch = self.nmuGetArchiveId(level, semester);
+        if (!arch) return Promise.resolve('');
+        var recCacheKey = 'rec_files_v3_' + level + '_' + semester;
         return this.getCacheItem(recCacheKey).then(function (cached) {
             if (cached) return cached;
-            return self.ensureRawMetadata().then(function (json) {
+            return self.ensureRawMetadata(arch).then(function (json) {
                 if (!json) return '';
                 var data;
                 try { data = JSON.parse(json); } catch (e) { return ''; }
                 var files = data.files || [];
-                var prefix1 = 'NMU/' + level + '/' + semester + '/RECORDED_LECTURER/';
-                var prefix2 = 'NMU/' + level + '/' + semester + '/RECORDED LECTURER/';
-                var thumbPrefix1 = 'nmu.ce.thumbs/' + prefix1;
-                var thumbPrefix2 = 'nmu.ce.thumbs/' + prefix2;
+                var thumbPrefix = arch + '.thumbs/Data/';
 
                 // Collect thumb names (video frame previews) for thumbnail matching.
                 var thumbs = [];
                 for (var i = 0; i < files.length; i++) {
                     var nm = files[i].name || '';
-                    if (nm.indexOf(thumbPrefix1) !== 0 && nm.indexOf(thumbPrefix2) !== 0) continue;
+                    if (nm.indexOf(thumbPrefix) !== 0) continue;
                     if (nm.slice(-4).toLowerCase() !== '.jpg') continue;
                     thumbs.push(nm);
+                }
+
+                function parseRec(nm) {
+                    var segs = nm.split('/');
+                    if (segs.length < 4 || segs[0] !== 'Data') return { subject: '', lecturer: '' };
+                    var subject = segs[1] || '';
+                    var recIdx = -1;
+                    for (var k = 0; k < segs.length; k++) {
+                        if (segs[k].toLowerCase() === 'records') { recIdx = k; break; }
+                    }
+                    var lecturer = (recIdx >= 0 && recIdx + 1 < segs.length) ? segs[recIdx + 1] : '';
+                    return { subject: subject, lecturer: lecturer };
                 }
 
                 var out = [];
                 for (var i = 0; i < files.length; i++) {
                     var f = files[i];
                     var nm = f.name || '';
-                    if (nm.indexOf(prefix1) !== 0 && nm.indexOf(prefix2) !== 0) continue;
+                    if (nm.indexOf('Data/') !== 0) continue;
+                    if (nm.toLowerCase().indexOf('/records/') === -1) continue;
+                    if (!self._isRecordedMediaName(nm)) continue;
                     var lower = nm.toLowerCase();
                     var fileNoExt = nm.slice(nm.lastIndexOf('/') + 1);
                     var dot = fileNoExt.lastIndexOf('.');
@@ -874,13 +1081,19 @@ window.nmuFunctions = {
                     for (var j = 0; j < thumbs.length; j++) {
                         if (thumbs[j].indexOf(fileNoExt) !== -1) { thumb = thumbs[j]; break; }
                     }
+                    var pr = parseRec(nm);
                     var sz = f.size;
                     var n = (sz === undefined || sz === null || sz === '') ? null : Number(sz);
                     out.push({
                         Name: nm,
                         Size: (n === null || isNaN(n)) ? null : n,
                         ThumbName: thumb || null,
-                        IsAudio: lower.endsWith('.mp3') || lower.endsWith('.wav') || lower.endsWith('.m4a')
+                        IsAudio: lower.endsWith('.mp3') || lower.endsWith('.wav') || lower.endsWith('.m4a'),
+                        Lecturer: pr.lecturer || '',
+                        SubjectFullName: pr.subject || '',
+                        ArchiveId: arch,
+                        DisplayName: fileNoExt.split('_').join(' '),
+                        SubFolder: pr.lecturer || 'General'
                     });
                 }
                 var result = JSON.stringify(out);
@@ -1024,7 +1237,7 @@ window.nmuFunctions = {
           // Extract level_semester from keys
           var seen = {};
           keys.forEach(function (k) {
-              // Pattern: nmu_quiz_list_Level_1_Semester_1_v4 or nmu_q_content_NMU/Level_1/Semester_1/...
+              // Pattern: nmu_quiz_list_Level_1_Semester_1_v5_newarch or nmu_q_content_Data/...
               var match = k.match(/(Level_\d+)_(Semester_\d+)/i);
               if (match) {
                   var key = match[1] + '_' + match[2];
@@ -1085,7 +1298,9 @@ window.nmuFunctions = {
               'nmu_quiz_list_' + oldLevelClean + '_' + oldSemClean,
               'nmu_quiz_sync_done_' + oldLevelClean + '_' + oldSemClean
           ];
-          var contentPrefix = 'NMU/' + oldLevelClean + '/' + oldSemClean + '/QUIZE/';
+          // New layout content keys: nmu_q_content_Data/... ; legacy: nmu_q_content_NMU/...
+          var contentPrefixNew = 'Data/';
+          var contentPrefixOld = 'NMU/' + oldLevelClean + '/' + oldSemClean + '/QUIZE/';
 
           var removed = 0;
           // Remove localStorage keys
@@ -1101,11 +1316,11 @@ window.nmuFunctions = {
                                   break;
                               }
                           }
-                          // Also match content keys with the old path
-                          if (key.startsWith('nmu_q_content_') && key.indexOf(contentPrefix) >= 0) {
+                          // Also match content keys with the old + new paths
+                          if (key.startsWith('nmu_q_content_') && (key.indexOf(contentPrefixOld) >= 0 || key.indexOf(contentPrefixNew) >= 0)) {
                               if (toRemove.indexOf(key) < 0) toRemove.push(key);
                           }
-                          if (key.startsWith('nmu_q_meta_') && key.indexOf(contentPrefix) >= 0) {
+                          if (key.startsWith('nmu_q_meta_') && (key.indexOf(contentPrefixOld) >= 0 || key.indexOf(contentPrefixNew) >= 0)) {
                               if (toRemove.indexOf(key) < 0) toRemove.push(key);
                           }
                       }
