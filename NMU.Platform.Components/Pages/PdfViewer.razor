@@ -1,7 +1,9 @@
 ﻿@page "/materials/{Subject}/viewer"
+@implements IDisposable
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @inject NavigationState NavState
+@inject LayoutState LayoutState
 @inject HttpClient Http
 @inject IPlatformService Platform
 @inject ToastService Toast
@@ -64,6 +66,13 @@
         if (string.IsNullOrEmpty(fileUrl)) return "";
         var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(fileUrl)))[..16];
         return $"pdf_{hash}";
+    }
+
+    protected override void OnInitialized()
+    {
+        // Immersive reading: reclaim the sidebar space so the header spans
+        // the full width (restored on exit in Dispose).
+        LayoutState.HideSidebar();
     }
 
     protected override async Task OnInitializedAsync()
@@ -217,6 +226,11 @@
             _ = JS.InvokeVoidAsync("nmuFunctions.openExternal", url);
     }
 
+    public void Dispose()
+    {
+        LayoutState.ShowSidebar();
+    }
+
     private void OpenFallback()
     {
         if (!string.IsNullOrEmpty(_fallbackUrl))
@@ -235,7 +249,10 @@
             if (cachedMeta == null || cachedMeta.ContentLength == 0) return;
 
             // 2. HEAD request from C# (No CORS/Proxy issues)
-            using var request = new HttpRequestMessage(HttpMethod.Head, fileUrl);
+            using var request = new HttpRequestMessage(HttpMethod.Head, fileUrl)
+            {
+                Headers = { CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true } }
+            };
             using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
             if (!response.IsSuccessStatusCode) return;
 

@@ -153,11 +153,15 @@ else
         </div>
         @if (_lecturers.Count > 1)
         {
-            <div class="files-folder-dropdown">
+            <div class="files-folder-dropdown show-desktop">
                 <button type="button" class="folder-dropdown-toggle @(_showLecturerDropdown ? "open" : "")"
                         @onclick="ToggleLecturerDropdown">
                     <i class="fa-solid fa-user-tie"></i>
-                    <span class="folder-dropdown-current">@_currentLecturer</span>
+                    <span class="folder-dropdown-current">@LecturerDisplayName(_currentLecturer)</span>
+                    @if (!string.IsNullOrEmpty(LecturerTag(_currentLecturer)))
+                    {
+                        <span class="badge badge-sky lec-tag">@LecturerTag(_currentLecturer)</span>
+                    }
                     <i class="fa-solid fa-chevron-down"></i>
                 </button>
                 @if (_showLecturerDropdown)
@@ -177,7 +181,11 @@ else
                             <button class="folder-dropdown-item @(l == _currentLecturer ? "active" : "")"
                                     @onclick="() => SelectLecturer(l)">
                                 <i class="fa-solid fa-user-tie"></i>
-                                @l
+                                @LecturerDisplayName(l)
+                                @if (!string.IsNullOrEmpty(LecturerTag(l)))
+                                {
+                                    <span class="badge badge-sky lec-tag">@LecturerTag(l)</span>
+                                }
                             </button>
                         }
                     </div>
@@ -239,21 +247,32 @@ else
 
                     var memKey = LecturerMemoryKey(_studentLevel, _studentSemester, decodedGroup);
                     _lastLecturer.TryGetValue(memKey, out var remembered);
-                    var hasRemembered = !string.IsNullOrEmpty(remembered)
-                        && _lecturers.Contains(remembered, StringComparer.Ordinal);
-                    if (_lecturers.Count > 1 && !hasRemembered)
+                    var queryLecturer = ReadLecturerQuery();
+                    if (!string.IsNullOrEmpty(queryLecturer) && _lecturers.Contains(queryLecturer, StringComparer.Ordinal))
                     {
-                        // Multiple lecturers: ask first instead of mixing all files together.
-                        _currentLecturer = "";
-                        _filteredFiles = new List<RecordedFile>();
-                        _showLecturerDialog = true;
+                        // Lecturer pre-selected on the subjects page: go straight in.
+                        _currentLecturer = queryLecturer;
+                        _lastLecturer[memKey] = queryLecturer;
+                        ApplyFilter();
                     }
                     else
                     {
-                        _currentLecturer = _lecturers.Count == 1
-                            ? _lecturers[0]
-                            : remembered ?? "";
-                        ApplyFilter();
+                        var hasRemembered = !string.IsNullOrEmpty(remembered)
+                            && _lecturers.Contains(remembered, StringComparer.Ordinal);
+                        if (_lecturers.Count > 1 && !hasRemembered)
+                        {
+                            // Multiple lecturers: ask first instead of mixing all files together.
+                            _currentLecturer = "";
+                            _filteredFiles = new List<RecordedFile>();
+                            _showLecturerDialog = true;
+                        }
+                        else
+                        {
+                            _currentLecturer = _lecturers.Count == 1
+                                ? _lecturers[0]
+                                : remembered ?? "";
+                            ApplyFilter();
+                        }
                     }
                 }
             }
@@ -370,24 +389,23 @@ else
     private static string LecturerMemoryKey(string level, string semester, string group)
         => $"{level}|{semester}|{group}";
 
+    private string? ReadLecturerQuery()
+    {
+        try
+        {
+            var q = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query).Get("lecturer");
+            return string.IsNullOrWhiteSpace(q) ? null : q;
+        }
+        catch { return null; }
+    }
+
     /// <summary>Lecturer name without any parenthetical tag, e.g. "Dr. Nourhan (LAB)" -> "Dr. Nourhan".</summary>
     private static string LecturerDisplayName(string lecturer)
-    {
-        if (string.IsNullOrEmpty(lecturer)) return "";
-        var idx = lecturer.IndexOf('(');
-        if (idx > 0) return lecturer.Substring(0, idx).Trim();
-        return lecturer;
-    }
+        => RecordedService.SplitLecturerTag(lecturer).Name;
 
     /// <summary>Parenthetical tag of a lecturer folder, e.g. "Dr. Nourhan (LAB)" -> "LAB".</summary>
     private static string LecturerTag(string lecturer)
-    {
-        if (string.IsNullOrEmpty(lecturer)) return "";
-        var s = lecturer.IndexOf('(');
-        var e = s >= 0 ? lecturer.IndexOf(')', s + 1) : -1;
-        if (s >= 0 && e > s + 1) return lecturer.Substring(s + 1, e - s - 1).Trim();
-        return "";
-    }
+        => RecordedService.SplitLecturerTag(lecturer).Tag;
 
     private string ResolveDownloadUrl(RecordedFile file)
     {

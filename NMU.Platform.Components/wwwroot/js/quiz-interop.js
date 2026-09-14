@@ -6,6 +6,19 @@ window.quizInterop = {
         return Promise.resolve();
     },
 
+    // Typeset ONLY the given element (fresh nodes). Used after Blazor swaps
+    // content that MathJax had previously processed — a whole-document
+    // typeset there would fight detached nodes and duplicate/freeze output.
+    typesetElement: function (elementId) {
+        try {
+            var el = document.getElementById(elementId);
+            if (el && window.MathJax && window.MathJax.typesetPromise) {
+                return window.MathJax.typesetPromise([el]).catch(function () { });
+            }
+        } catch (e) {}
+        return Promise.resolve();
+    },
+
     highlightAllCode: function () {
         if (window.Prism) {
             setTimeout(function () { Prism.highlightAll(); }, 50);

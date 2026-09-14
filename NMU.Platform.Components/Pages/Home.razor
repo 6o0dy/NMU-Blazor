@@ -49,11 +49,14 @@
                 <button class="btn-outlined" @onclick="GoToYouTube" @onclick:stopPropagation>Browse Videos ➔</button>
             </div>
 
-            <div class="dev-card" @onclick="GoToLaboratory">
-                <div class="dev-card-title"><span>🧪</span> Virtual Lab</div>
-                <div class="dev-card-desc">Live simulations of practical electricity and circuits experiments.</div>
-                <button class="btn-outlined" @onclick="GoToLaboratory" @onclick:stopPropagation>Enter Lab ➔</button>
-            </div>
+            @if (_showVirtualLab)
+            {
+                <div class="dev-card" @onclick="GoToLaboratory">
+                    <div class="dev-card-title"><span>🧪</span> Virtual Lab</div>
+                    <div class="dev-card-desc">Live simulations of practical electricity and circuits experiments.</div>
+                    <button class="btn-outlined" @onclick="GoToLaboratory" @onclick:stopPropagation>Enter Lab ➔</button>
+                </div>
+            }
         </div>
     </div>
 
@@ -177,7 +180,7 @@
             <div class="subject-picker-card" @onclick:stopPropagation>
                 <div class="subject-picker-header">
                     <button class="btn-small-icon" @onclick="ClosePicker">&times;</button>
-                    <h3>Select Your Subjects</h3>
+                    <h3>Select Your Subjects @if (catalogUpdating) { <span class="updating-badge">جارٍ تحديث قائمة المواد...</span> }</h3>
                     <div class="search-wrapper">
                         <i class="fa-solid fa-magnifying-glass search-icon-inside"></i>
                         <input type="text" class="search-input" placeholder="Search subjects..."
@@ -225,8 +228,10 @@
                                         var label = string.IsNullOrEmpty(entry.DisplayName) ? entry.Subject.Replace("_", " ") : entry.DisplayName;
                                         <label class="subject-check-card @(isSel ? "selected" : "")" @onclick="() => ToggleSubject(entry)">
                                             <span class="subject-check-circle"></span>
-                                            <span class="subject-check-name">@label @if (!string.IsNullOrEmpty(entry.Code)) { <small style="opacity:.6;">(@entry.Code)</small> }</span>
-                                            <span class="subject-check-check">✓</span>
+                                            <span class="subject-check-name">@label</span>
+                                            <span class="pick-stack">
+                                                @if (!string.IsNullOrEmpty(entry.Code)) { <span class="badge badge-sky">@entry.Code</span> }
+                                            </span>
                                         </label>
                                     }
                                 </div>
@@ -289,9 +294,11 @@
     private List<CustomSubjectSelection> editSelectedSubjects = new();
     private bool showSubjectPicker;
     private bool catalogLoading;
+    private bool catalogUpdating;
     private string searchQuery = "";
     private List<SubjectCatalogEntry> catalog = new();
     private List<SubjectGroup> groups = new();
+    private bool _showVirtualLab;
 
     protected override void OnInitialized()
     {
@@ -307,6 +314,8 @@
             currentStudent = await StudentService.GetStudentAsync();
         }
         catch { }
+
+        _ = UpdateVirtualLabAsync();
 
         if (LayoutState.PendingSettings)
         {
@@ -331,6 +340,17 @@
     {
         OpenCacheModal();
         StateHasChanged();
+    }
+
+    private async Task UpdateVirtualLabAsync()
+    {
+        try
+        {
+            if (currentStudent == null) { _showVirtualLab = false; return; }
+            _showVirtualLab = await MaterialsService.HasPhysics2Async(currentStudent);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch { }
     }
 
     public void Dispose()
@@ -364,14 +384,42 @@
     {
         searchQuery = "";
         showSubjectPicker = true;
+        var justLoaded = false;
         if (catalog.Count == 0)
         {
             catalogLoading = true;
             catalog = await MaterialsService.GetSubjectCatalogAsync();
             catalogLoading = false;
+            justLoaded = true;
         }
         BuildGroups();
         StateHasChanged();
+        // Background catalog refresh once per session on first picker open:
+        // instant cached list first, fresh merge when done.
+        if (!justLoaded)
+            _ = RefreshCatalogAsync();
+    }
+
+    private async Task RefreshCatalogAsync()
+    {
+        try
+        {
+            if (!MaterialsService.CatalogSessionRefreshDue()) return;
+            catalogUpdating = true;
+            await InvokeAsync(StateHasChanged);
+            var fresh = await MaterialsService.RefreshSubjectCatalogForcedAsync();
+            if (fresh != null && fresh.Count > 0)
+            {
+                catalog = fresh;
+                BuildGroups();
+            }
+        }
+        catch { }
+        finally
+        {
+            catalogUpdating = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private void BuildGroups()
@@ -563,6 +611,7 @@
         showManageModal = false;
         isEditing = false;
         StateHasChanged();
+        _ = UpdateVirtualLabAsync();
 
         // Smart auto-cleanup: if level or semester changed, remove old cached quiz data
         if (levelChanged || semChanged)

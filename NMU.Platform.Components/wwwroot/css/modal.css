@@ -241,6 +241,20 @@ input[type="text"], select {
     padding: 16px 18px 12px; border-bottom: 1px solid var(--border-color); position: relative;
 }
 .subject-picker-header h3 { margin: 0 0 10px; color: var(--primary); font-size: 18px; font-weight: 800; }
+
+/* Background catalog refresh status inside the picker header */
+.updating-badge {
+    display: inline-block;
+    font-size: 0.68rem; font-weight: 700;
+    color: var(--primary);
+    margin-inline-start: 8px;
+    animation: updating-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes updating-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+}
 .btn-small-icon {
     position: absolute; top: 10px; right: 14px; background: transparent; border: none;
     color: var(--text-secondary); font-size: 26px; cursor: pointer; line-height: 1;
@@ -282,6 +296,16 @@ input[type="text"], select {
 .subject-check-card.selected .subject-check-circle { border-color: var(--primary); background: var(--primary); }
 .subject-check-card.selected .subject-check-circle::after { content: '✓'; color: #fff; font-weight: 900; }
 .subject-check-name { flex: 1; font-size: 13px; color: var(--text-primary); font-weight: 700; line-height: 1.3; }
+
+/* Picker rows: code badge as a fixed element beside the name (like the check),
+   vertically centered, never wrapping with the text.
+   NOTE: chained with .badge for higher specificity so this size always wins
+   over the base .badge rule regardless of stylesheet load order. */
+/* Picker rows: code badge and check stacked vertically in a fixed trailing
+   column (code on top, check below), beside the wrapping name.
+   NOTE: chained selectors beat the base .badge rule regardless of load order. */
+.pick-stack { flex-shrink: 0; align-self: center; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.pick-stack .badge { font-size: 0.5rem; padding: 0 5px; white-space: nowrap; letter-spacing: 0.4px; }
 .subject-picker-footer {
     padding: 12px 18px; border-top: 1px solid var(--border-color);
     display: flex; gap: 10px;

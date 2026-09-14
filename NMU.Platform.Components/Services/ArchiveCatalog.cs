@@ -83,14 +83,31 @@ public static class ArchiveCatalog
     public static string GetMetadataUrl(string archiveId)
         => $"https://archive.org/metadata/{archiveId}";
 
+    /// <summary>
+    /// Builds a download URL with each path segment percent-encoded.
+    /// Raw archive names contain spaces, '&amp;', '#', '+' and non-ASCII text;
+    /// a raw '&amp;' would truncate the path as a query separator and archive.org
+    /// answers such malformed paths with a CORS-less 302 (blocked download).
+    /// Callers must always pass the RAW metadata path (never pre-encoded).
+    /// </summary>
     public static string GetDownloadUrl(string archiveId, string filePath)
-        => $"https://archive.org/download/{archiveId}/{filePath}";
+    {
+        if (string.IsNullOrEmpty(filePath))
+            return $"https://archive.org/download/{archiveId}/";
+        var encoded = string.Join("/", filePath.Split('/').Select(Uri.EscapeDataString));
+        return $"https://archive.org/download/{archiveId}/{encoded}";
+    }
 
     public static string GetThumbsPrefix(string archiveId)
         => $"{archiveId}.thumbs/";
 
-    public static string GetAdvancedSearchUrl(string archiveId)
-        => $"https://archive.org/advancedsearch.php?q=identifier:{archiveId}&fl[]=identifier&fl[]=item_size&rows=1&output=json";
+    /// <summary>
+    /// Maximum age of a successful background refresh before the archive is
+    /// re-fetched. archive.org's search index does not list the NMU.CE_*
+    /// identifiers (advancedsearch always returns zero docs), so freshness is
+    /// decided by age instead of by a remote size signal.
+    /// </summary>
+    public static readonly TimeSpan RevalidateAfter = TimeSpan.FromMinutes(15);
 
     /// <summary>Normalizes department: "ce"/"CE" -&gt; "CE", "aie" -&gt; "AIE", empty/ALL -&gt; "ALL".</summary>
     public static string NormalizeDepartment(string? dept)
@@ -158,6 +175,30 @@ public static class ArchiveCatalog
         if (string.IsNullOrEmpty(b) || b == "ALL") return true;
         if (d == "ALL") return true;
         return b == d;
+    }
+
+    /// <summary>
+    /// True when the subject is Physics 2 (second physics course), e.g.
+    /// "Physics II", "Physics 2", "الفيزياء 2". Physics 1 courses such as
+    /// "PHY212 - Introduction to Engineering Physics" return false: the "2"
+    /// must appear as a level indicator in the clean name, never in the code.
+    /// </summary>
+    public static bool IsPhysics2Subject(string? subjectFolder)
+    {
+        if (string.IsNullOrWhiteSpace(subjectFolder)) return false;
+        ParseSubjectFolder(subjectFolder, out _, out var clean, out _);
+        var name = string.IsNullOrEmpty(clean) ? subjectFolder : clean;
+        var lower = name.ToLowerInvariant();
+        var hasPhys = lower.Contains("physic") || lower.Contains("phys") || name.Contains("فيز");
+        if (!hasPhys) return false;
+        var tokens = Regex.Split(lower, @"[^a-z0-9\u0600-\u06FF]+")
+            .Where(t => t.Length > 0)
+            .ToHashSet(StringComparer.Ordinal);
+        if (tokens.Contains("2") || tokens.Contains("ii") || tokens.Contains("second"))
+            return true;
+        if (name.Contains('٢') || lower.Contains("ثاني") || lower.Contains("التاني"))
+            return true;
+        return false;
     }
 
     /// <summary>Returns true for archive.org derivative sidecar files that must be ignored.</summary>

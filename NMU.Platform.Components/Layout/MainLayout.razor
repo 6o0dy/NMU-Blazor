@@ -7,6 +7,7 @@
 @inherits LayoutComponentBase
 @inject StudentService StudentService
 @inject QuizService QuizService
+@inject MaterialsService MaterialsService
 @inject IPlatformService Platform
 @inject LayoutState LayoutState
 @inject ToastService Toast
@@ -17,10 +18,12 @@
 <div class="app-shell" dir="ltr">
     @if (!NavState.IsFullScreen && !showLoading)
     {
-        @if (LayoutState.SidebarOpen)
+        @if (LayoutState.SidebarOpen && !LayoutState.SidebarHidden)
         {
             <div class="sidebar-backdrop" @onclick="CloseSidebar"></div>
         }
+        @if (!LayoutState.SidebarHidden)
+        {
         <aside class="sidebar @(LayoutState.SidebarOpen ? "sidebar-open" : "")">
             <div class="brand-box">
                 <div class="brand-badge">N</div>
@@ -32,7 +35,10 @@
                 <NavLink class="sidebar-nav-item" href="/materials" Match="NavLinkMatch.Prefix" @onclick="CloseSidebar">📚 Study Materials</NavLink>
                 <NavLink class="sidebar-nav-item" href="/recorded" Match="NavLinkMatch.Prefix" @onclick="CloseSidebar">🎥 Recorded Lectures</NavLink>
                 <NavLink class="sidebar-nav-item" href="/quizzes" Match="NavLinkMatch.Prefix" @onclick="CloseSidebar">🧩 Quizzes &amp; Bank</NavLink>
-                <NavLink class="sidebar-nav-item" href="/laboratory" Match="NavLinkMatch.Prefix" @onclick="CloseSidebar">🧪 Virtual Lab</NavLink>
+                @if (_showVirtualLab)
+                {
+                    <NavLink class="sidebar-nav-item" href="/laboratory" Match="NavLinkMatch.Prefix" @onclick="CloseSidebar">🧪 Virtual Lab</NavLink>
+                }
                 <NavLink class="sidebar-nav-item" href="/feedback" Match="NavLinkMatch.Prefix" @onclick="CloseSidebar">⭐ Feedback</NavLink>
             </nav>
 
@@ -42,6 +48,7 @@
             <button class="sidebar-nav-item" @onclick="MenuManageData">👤 My Data</button>
             <button class="sidebar-nav-item danger" @onclick="MenuClearCache">🗑️ Clear Cache</button>
         </aside>
+        }
     }
 
     <div class="main-wrapper">
@@ -84,7 +91,7 @@
     </div>
 </div>
 
-@if (!NavState.IsFullScreen)
+@if (!NavState.IsFullScreen && !LayoutState.BottomNavHidden)
 {
     <nav class="mobile-bottom-nav" dir="ltr">
         <NavLink class="mobile-nav-btn" href="/" Match="NavLinkMatch.All">
@@ -116,6 +123,7 @@
     private static bool _initialLoadDone;
     private bool showLoading;
     private bool showSetup;
+    private bool _showVirtualLab;
     private bool _toastVisible;
     private string _toastMessage = "";
     private ToastType _toastType;
@@ -227,6 +235,7 @@
                 {
                     _ = QuizService.EnsureQuizSyncedAsync(student.AcademicLevel, student.Semester);
                     _ = PrefetchMaterialsAsync(student);
+                    _showVirtualLab = await MaterialsService.HasPhysics2Async(student);
                 }
                 else
                     showSetup = true;
@@ -251,7 +260,30 @@
         // browser back button can never step off the site.
         if (Platform.IsWeb)
             _ = JS.InvokeVoidAsync("window.nmuEnsureWebBackTrap");
+        // Re-evaluate the Virtual Lab entry when returning home (data may change).
+        try
+        {
+            var rel = Navigation.ToBaseRelativePath(e.Location).Trim('/');
+            if (string.IsNullOrEmpty(rel))
+                _ = RefreshVirtualLabAsync();
+        }
+        catch { }
         StateHasChanged();
+    }
+
+    private async Task RefreshVirtualLabAsync()
+    {
+        try
+        {
+            var student = await StudentService.GetStudentAsync();
+            var show = await MaterialsService.HasPhysics2Async(student);
+            if (show != _showVirtualLab)
+            {
+                _showVirtualLab = show;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch { }
     }
 
     private async Task OnLoadingDone()
@@ -265,6 +297,7 @@
                 showLoading = false;
                 _ = QuizService.EnsureQuizSyncedAsync(student.AcademicLevel, student.Semester);
                 _ = PrefetchMaterialsAsync(student);
+                _showVirtualLab = await MaterialsService.HasPhysics2Async(student);
             }
             else
             {

@@ -8,7 +8,6 @@ namespace NMU.Platform.Components.Services;
 public class MaterialsService
 {
     private readonly IJSRuntime _js;
-    private readonly HttpClient _http;
     private readonly ILogger<MaterialsService> _logger;
     // Per-semester archives: Level_1/Semester_1 -> NMU.CE_1.1 ... Level_5/Semester_2 -> NMU.CE_5.2
     // Resolved via ArchiveCatalog.GetArchiveId(level, semester). No single ArchiveId anymore.
@@ -16,10 +15,9 @@ public class MaterialsService
     private const string SubjectsCacheVersion = "v70_newarch_subjects_";
     private const string SubjectFilesCacheVersion = "v70_newarch_subjectfiles_";
 
-    public MaterialsService(IJSRuntime js, HttpClient http, ILogger<MaterialsService> logger)
+    public MaterialsService(IJSRuntime js, ILogger<MaterialsService> logger)
     {
         _js = js;
-        _http = http;
         _logger = logger;
     }
 
@@ -30,7 +28,7 @@ public class MaterialsService
         => $"{SubjectFilesCacheVersion}{level}_{semester}_{subject}";
 
     private static string MetaCacheKey(string level, string semester)
-        => $"nmu_mat_meta_{level}_{semester}";
+        => $"nmu_mat_meta_v2_{level}_{semester}";
 
     /// <summary>
     /// Returns the small cached subject list (name + file count) instantly, without
@@ -60,11 +58,11 @@ public class MaterialsService
     /// semesters (PDF folder catalog). Used to populate the custom-subjects picker
     /// so a credit-hours student can pin subjects from any level/semester.
     /// </summary>
-    public async Task<List<SubjectCatalogEntry>> GetSubjectCatalogAsync()
+    public async Task<List<SubjectCatalogEntry>> GetSubjectCatalogAsync(bool force = false)
     {
         try
         {
-            var json = await _js.InvokeAsync<string>("nmuFunctions.getSubjectCatalog");
+            var json = await _js.InvokeAsync<string>("nmuFunctions.getSubjectCatalog", force);
             if (!string.IsNullOrEmpty(json))
             {
                 var parsed = JsonSerializer.Deserialize<List<SubjectCatalogEntry>>(json, CaseInsensitive);
@@ -74,6 +72,46 @@ public class MaterialsService
         }
         catch { }
         return new List<SubjectCatalogEntry>();
+    }
+
+    /// <summary>
+    /// Fire-and-forget rebuild of the cross-archive subject catalog after an
+    /// archive change was detected (new subjects must reach the picker).
+    /// </summary>
+    public async Task RefreshSubjectCatalogAsync()
+    {
+        await RefreshSubjectCatalogForcedAsync();
+    }
+
+    private static bool _catalogRefreshedThisSession;
+
+    /// <summary>
+    /// True only on the first call per app session: the custom-subjects picker
+    /// refreshes once per session, on its first open.
+    /// </summary>
+    public bool CatalogSessionRefreshDue()
+    {
+        if (_catalogRefreshedThisSession) return false;
+        _catalogRefreshedThisSession = true;
+        return true;
+    }
+
+    /// <summary>
+    /// Force-rebuilds the cross-archive catalog.
+    /// Returns the fresh list, or null on failure/empty.
+    /// </summary>
+    public async Task<List<SubjectCatalogEntry>?> RefreshSubjectCatalogForcedAsync()
+    {
+        try
+        {
+            var fresh = await GetSubjectCatalogAsync(force: true);
+            return fresh.Count > 0 ? fresh : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "RefreshSubjectCatalogForcedAsync error: {Message}", ex.Message);
+            return null;
+        }
     }
 
     public async Task<List<MaterialSubjectInfo>> GetCachedSubjectsInfoAsync(string level, string semester)
@@ -142,12 +180,17 @@ public class MaterialsService
             if (check == null || !check.Value.changed) return;
 
             _filesMemCache.TryRemove($"{level}_{semester}", out _);
-            var files = await GetFilesAsync(level, semester);
+            // Force: bypass the persistent file-list caches so newly added
+            // archive files are actually picked up (not re-served stale).
+            var files = await GetFilesAsync(level, semester, force: true);
             var subjects = BuildSubjectsInfo(files, level, semester);
             if (subjects.Count > 0)
             {
                 await _js.InvokeVoidAsync("nmuFunctions.safeSetItemBoth", SubjectsCacheKey(level, semester), JsonSerializer.Serialize(subjects));
                 await SaveMetaAsync(metaKey, check.Value);
+                // New subjects may exist -> rebuild the cross-archive catalog
+                // in the background for the custom-subjects picker.
+                _ = RefreshSubjectCatalogAsync();
                 onSubjectsUpdated?.Invoke(subjects);
             }
         }
@@ -170,7 +213,8 @@ public class MaterialsService
             if (check == null || !check.Value.changed) return;
 
             _filesMemCache.TryRemove($"{level}_{semester}", out _);
-            var files = await GetFilesAsync(level, semester);
+            // Force: bypass the persistent file-list caches (see above).
+            var files = await GetFilesAsync(level, semester, force: true);
             var (_, subjectFiles) = GetFilesForSubject(files, level, semester, subject);
             if (subjectFiles.Count > 0)
             {
@@ -187,27 +231,13 @@ public class MaterialsService
 
     private async Task<(bool changed, long length, string etag, string lastMod)?> MetadataChangedAsync(string metaKey)
     {
-        // metaKey format: nmu_mat_meta_{level}_{semester} -> resolve the owning archive.
         var online = await _js.InvokeAsync<bool>("nmuFunctions.isOnline");
         if (!online) return null;
 
-        // archive.org rejects HEAD on /metadata (405, no CORS). Instead GET the item
-        // size from the search API (CORS-enabled); item_size changes whenever any
-        // file is added/removed, which is exactly what revalidation needs to detect.
-        // NOTE: metaKey embeds level/semester; parse them to find the archive.
-        var archiveId = ArchiveIdFromMetaKey(metaKey);
-        if (archiveId == null) return null;
-        var serverLength = 0L;
-        using (var request = new HttpRequestMessage(HttpMethod.Get, ArchiveCatalog.GetAdvancedSearchUrl(archiveId)))
-        using (var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead))
-        {
-            if (!response.IsSuccessStatusCode) return null;
-            var json = await response.Content.ReadAsStringAsync();
-            var data = JsonSerializer.Deserialize<SearchResponse>(json);
-            serverLength = data?.Response?.Docs?.FirstOrDefault()?.ItemSize ?? 0;
-        }
-        if (serverLength <= 0) return null;
-
+        // archive.org's search index does not list the NMU.CE_* identifiers, so
+        // no remote size signal exists. Freshness is decided by age instead:
+        // at most one background refresh per RevalidateAfter window. This check
+        // itself performs zero network calls.
         string? cachedMetaJson = null;
         try { cachedMetaJson = await _js.InvokeAsync<string?>("nmuFunctions.safeGetItem", metaKey); } catch { }
 
@@ -216,33 +246,17 @@ public class MaterialsService
             try
             {
                 var cachedMeta = JsonSerializer.Deserialize<QuizMeta>(cachedMetaJson);
-                if (cachedMeta != null && cachedMeta.ContentLength > 0)
+                if (cachedMeta != null && cachedMeta.Timestamp > 0)
                 {
-                    if (serverLength == cachedMeta.ContentLength)
-                        return (false, serverLength, "", "");
+                    var ageMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - cachedMeta.Timestamp;
+                    if (ageMs < ArchiveCatalog.RevalidateAfter.TotalMilliseconds)
+                        return (false, cachedMeta.ContentLength, cachedMeta.Etag, cachedMeta.LastModified);
                 }
             }
             catch { }
         }
 
-        return (true, serverLength, "", "");
-    }
-
-    private static string? ArchiveIdFromMetaKey(string metaKey)
-    {
-        // metaKey = "nmu_mat_meta_{level}_{semester}"
-        const string prefix = "nmu_mat_meta_";
-        if (!metaKey.StartsWith(prefix, StringComparison.Ordinal)) return null;
-        var rest = metaKey[prefix.Length..];
-        // level itself contains an underscore (Level_1), so split from the right.
-        var idx = rest.LastIndexOf('_');
-        // find "Level_X_Semester_Y": level = Level_X, semester = Semester_Y
-        // rest looks like "Level_1_Semester_1"
-        var parts = rest.Split('_');
-        if (parts.Length < 4) return null;
-        var level = $"{parts[0]}_{parts[1]}";
-        var semester = string.Join("_", parts.Skip(2));
-        return ArchiveCatalog.GetArchiveId(level, semester);
+        return (true, 0, "", "");
     }
 
     private async Task SaveMetaAsync(string metaKey, (bool changed, long length, string etag, string lastMod) check)
@@ -255,6 +269,37 @@ public class MaterialsService
             Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
         };
         try { await _js.InvokeVoidAsync("nmuFunctions.safeSetItem", metaKey, JsonSerializer.Serialize(meta)); } catch { }
+    }
+
+    /// <summary>
+    /// True when the student has Physics 2 among their subjects: directly
+    /// selected in custom mode, or present in their level/semester catalog.
+    /// Used to gate the Virtual Lab entry points.
+    /// </summary>
+    public async Task<bool> HasPhysics2Async(StudentProfile? student)
+    {
+        try
+        {
+            if (student == null) return false;
+            if (student.CustomSubjectsMode && student.CustomSubjects != null && student.CustomSubjects.Count > 0)
+                return student.CustomSubjects.Any(s => ArchiveCatalog.IsPhysics2Subject(s.Subject));
+            var level = student.AcademicLevel.Replace(" ", "_");
+            var semester = student.Semester.Replace(" ", "_");
+            if (await HasPhysics2CachedAsync(level, semester)) return true;
+            // Caches may predate the upload: run the time-gated background
+            // refresh now (no-op when freshly checked) and re-check.
+            await CheckAndUpdateMaterialsAsync(level, semester, null);
+            return await HasPhysics2CachedAsync(level, semester);
+        }
+        catch { return false; }
+    }
+
+    private async Task<bool> HasPhysics2CachedAsync(string level, string semester)
+    {
+        var subjects = await GetCachedSubjectsInfoAsync(level, semester);
+        if (subjects.Count == 0)
+            subjects = await GetSubjectsInfoAsync(level, semester);
+        return subjects.Any(s => ArchiveCatalog.IsPhysics2Subject(s.Name));
     }
 
     private static List<MaterialSubjectInfo> BuildSubjectsInfo(List<ArchiveFile> files, string level, string semester)
@@ -329,26 +374,30 @@ public class MaterialsService
             return mem;
 
         var cacheKey = $"{CacheVersion}{level}_{semester}";
-        var cached = await _js.InvokeAsync<string>("nmuFunctions.safeGetItem", cacheKey);
-        if (!string.IsNullOrEmpty(cached))
+        if (!force)
         {
-            try
+            var cached = await _js.InvokeAsync<string>("nmuFunctions.safeGetItem", cacheKey);
+            if (!string.IsNullOrEmpty(cached))
             {
-                var parsed = JsonSerializer.Deserialize<List<ArchiveFile>>(cached, CaseInsensitive);
-                if (parsed != null && parsed.Count > 0)
+                try
                 {
-                    _filesMemCache[memKey] = parsed;
-                    return parsed;
+                    var parsed = JsonSerializer.Deserialize<List<ArchiveFile>>(cached, CaseInsensitive);
+                    if (parsed != null && parsed.Count > 0)
+                    {
+                        _filesMemCache[memKey] = parsed;
+                        return parsed;
+                    }
                 }
+                catch { }
             }
-            catch { }
         }
 
         try
         {
             // Parse + filter the big metadata in JS and receive only this semester's
             // compact {name,size} list (~150 KB) — keeps the 2.3 MB off the .NET thread.
-            var json = await _js.InvokeAsync<string>("nmuFunctions.getSemesterFiles", level, semester);
+            // force:true re-fetches the raw metadata and overwrites the sem cache.
+            var json = await _js.InvokeAsync<string>("nmuFunctions.getSemesterFiles", level, semester, force);
             _logger.LogDebug("GetFilesAsync: getSemesterFiles returned {Len} chars", json?.Length ?? 0);
             if (!string.IsNullOrEmpty(json))
             {
@@ -494,8 +543,8 @@ public class MaterialsService
     {
         archiveId ??= (level != null && semester != null) ? ArchiveCatalog.GetArchiveId(level, semester) : null;
         if (archiveId == null) return new List<string>();
-        var encoded = string.Join("/", dirPath.Split('/').Select(Uri.EscapeDataString));
-        var url = $"{ArchiveCatalog.GetDownloadUrl(archiveId, encoded)}order_config.json?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+        // Pass RAW path: GetDownloadUrl encodes each segment exactly once.
+        var url = $"{ArchiveCatalog.GetDownloadUrl(archiveId, dirPath)}order_config.json?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
         try
         {
             var json = await _js.InvokeAsync<string>("nmuFunctions.fetchJson", url);

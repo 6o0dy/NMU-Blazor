@@ -13,6 +13,8 @@ public class LayoutState
     public bool PendingSettings { get; set; }
     public bool PendingCache { get; set; }
     public bool SidebarOpen { get; set; }
+    public bool SidebarHidden { get; set; }
+    public bool BottomNavHidden { get; set; }
 
     public void ToggleSidebar()
     {
@@ -31,6 +33,34 @@ public class LayoutState
     {
         if (!SidebarOpen) return;
         SidebarOpen = false;
+        NotifyStateChanged();
+    }
+
+    public void HideSidebar()
+    {
+        if (SidebarHidden) return;
+        SidebarHidden = true;
+        NotifyStateChanged();
+    }
+
+    public void ShowSidebar()
+    {
+        if (!SidebarHidden) return;
+        SidebarHidden = false;
+        NotifyStateChanged();
+    }
+
+    public void HideBottomNav()
+    {
+        if (BottomNavHidden) return;
+        BottomNavHidden = true;
+        NotifyStateChanged();
+    }
+
+    public void ShowBottomNav()
+    {
+        if (!BottomNavHidden) return;
+        BottomNavHidden = false;
         NotifyStateChanged();
     }
 

@@ -8,47 +8,49 @@ namespace NMU.Platform.Components.Services;
 public class RecordedService
 {
     private readonly IJSRuntime _js;
-    private readonly HttpClient _http;
     private readonly ILogger<RecordedService> _logger;
     private const string CacheVersion = "v70_newarch_recorded_";
     private const string GroupsCacheVersion = "v70_newarch_recgroups_";
 
-    public RecordedService(IJSRuntime js, HttpClient http, ILogger<RecordedService> logger)
+    public RecordedService(IJSRuntime js, ILogger<RecordedService> logger)
     {
         _js = js;
-        _http = http;
         _logger = logger;
     }
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<RecordedFile>> _filesMemCache = new();
 
-    public async Task<List<RecordedFile>> GetFilesAsync(string level, string semester)
+    public async Task<List<RecordedFile>> GetFilesAsync(string level, string semester, bool force = false)
     {
         var memKey = $"{level}_{semester}";
-        if (_filesMemCache.TryGetValue(memKey, out var mem) && mem != null)
+        if (!force && _filesMemCache.TryGetValue(memKey, out var mem) && mem != null)
             return mem;
 
         var cacheKey = $"{CacheVersion}{level}_{semester}";
-        var cached = await _js.InvokeAsync<string>("nmuFunctions.safeGetItem", cacheKey);
-        if (!string.IsNullOrEmpty(cached))
+        if (!force)
         {
-            try
+            var cached = await _js.InvokeAsync<string>("nmuFunctions.safeGetItem", cacheKey);
+            if (!string.IsNullOrEmpty(cached))
             {
-                var parsed = JsonSerializer.Deserialize<List<RecordedFile>>(cached, CaseInsensitive);
-                if (parsed != null && parsed.Count > 0)
+                try
                 {
-                    _filesMemCache[memKey] = parsed;
-                    return parsed;
+                    var parsed = JsonSerializer.Deserialize<List<RecordedFile>>(cached, CaseInsensitive);
+                    if (parsed != null && parsed.Count > 0)
+                    {
+                        _filesMemCache[memKey] = parsed;
+                        return parsed;
+                    }
                 }
+                catch { }
             }
-            catch { }
         }
 
         try
         {
             // Parse the big metadata in JS and receive only this semester's recorded
             // list (with resolved thumbnails) as a compact PascalCase JSON string.
-            var json = await _js.InvokeAsync<string>("nmuFunctions.getRecordedFiles", level, semester);
+            // force:true re-fetches the raw metadata and overwrites the rec cache.
+            var json = await _js.InvokeAsync<string>("nmuFunctions.getRecordedFiles", level, semester, force);
             _logger.LogDebug("GetFilesAsync: getRecordedFiles returned {Len} chars", json?.Length ?? 0);
             if (!string.IsNullOrEmpty(json))
             {
@@ -70,11 +72,22 @@ public class RecordedService
         // Fallback: fetch the full metadata and filter in .NET (older cached app.js).
         try
         {
-            var fullJson = await GetRawMetadataAsync(level, semester);
-            if (string.IsNullOrEmpty(fullJson))
-                return new List<RecordedFile>();
             var archiveId = ArchiveCatalog.GetArchiveId(level, semester);
             if (archiveId == null) return new List<RecordedFile>();
+            string? fullJson;
+            if (force)
+            {
+                // Always-fresh network fetch + refresh the raw metadata cache.
+                fullJson = await _js.InvokeAsync<string>("nmuFunctions.fetchText", ArchiveCatalog.GetMetadataUrl(archiveId));
+                if (!string.IsNullOrEmpty(fullJson))
+                {
+                    try { await _js.InvokeVoidAsync("nmuFunctions.setRawMetadata", archiveId, fullJson); } catch { }
+                }
+            }
+            else
+                fullJson = await GetRawMetadataAsync(level, semester);
+            if (string.IsNullOrEmpty(fullJson))
+                return new List<RecordedFile>();
             var data = JsonSerializer.Deserialize<ArchiveMetadata>(fullJson);
             var thumbsPrefix = $"{archiveId}.thumbs/Data/";
 
@@ -167,9 +180,9 @@ public class RecordedService
         => $"{GroupsCacheVersion}{level}_{semester}";
 
     /// <summary>
-    /// Background revalidation for the recorded lectures groups: sends a HEAD request
-    /// to the archive metadata; only if it changed does it re-fetch the recorded list,
-    /// rebuild the group counts, refresh the caches, and notify the page.
+    /// Background revalidation for the recorded lectures groups: at most one
+    /// re-fetch per RevalidateAfter window (no network call in the check itself,
+    /// since archive.org's search index does not list the NMU.CE_* identifiers).
     /// </summary>
     public async Task CheckAndUpdateRecordedAsync(string level, string semester, Action<List<RecordedGroupInfo>>? onGroupsUpdated = null)
     {
@@ -181,38 +194,12 @@ public class RecordedService
             var online = await _js.InvokeAsync<bool>("nmuFunctions.isOnline");
             if (!online) return;
 
-            // archive.org rejects HEAD on /metadata (405, no CORS). GET the item size
-            // from the search API instead; it changes whenever any file is added.
-            var archiveId = ArchiveCatalog.GetArchiveId(level, semester);
-            if (archiveId == null) return;
-            using var request = new HttpRequestMessage(HttpMethod.Get, ArchiveCatalog.GetAdvancedSearchUrl(archiveId));
-            using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-            if (!response.IsSuccessStatusCode) return;
-
-            var serverLength = 0L;
-            try
-            {
-                var json = await response.Content.ReadAsStringAsync();
-                var data = JsonSerializer.Deserialize<SearchResponse>(json, CaseInsensitive);
-                serverLength = data?.Response?.Docs?.FirstOrDefault()?.ItemSize ?? 0;
-            }
-            catch { serverLength = 0; }
-            if (serverLength <= 0) return;
-
-            QuizMeta? cachedMeta = null;
-            try
-            {
-                var cachedMetaJson = await _js.InvokeAsync<string?>("nmuFunctions.safeGetItem", metaKey);
-                if (!string.IsNullOrEmpty(cachedMetaJson))
-                    cachedMeta = JsonSerializer.Deserialize<QuizMeta>(cachedMetaJson, CaseInsensitive);
-            }
-            catch { }
-
-            if (cachedMeta != null && cachedMeta.ContentLength > 0 && serverLength == cachedMeta.ContentLength)
-                return;
+            if (!await IsRefreshDueAsync(metaKey)) return;
 
             _filesMemCache.TryRemove($"{level}_{semester}", out _);
-            var files = await GetFilesAsync(level, semester);
+            // Force: bypass the persistent recorded-list cache so newly added
+            // archive videos are actually picked up (not re-served stale).
+            var files = await GetFilesAsync(level, semester, force: true);
             var groups = GetGroups(files, level, semester);
             var info = BuildGroupsInfo(files, level, semester, groups);
 
@@ -221,7 +208,7 @@ public class RecordedService
                 await _js.InvokeVoidAsync("nmuFunctions.safeSetItemBoth", GroupsCacheKey(level, semester), JsonSerializer.Serialize(info, CaseInsensitive));
                 await _js.InvokeVoidAsync("nmuFunctions.safeSetItem", metaKey, JsonSerializer.Serialize(new QuizMeta
                 {
-                    ContentLength = serverLength > 0 ? serverLength : files.Count,
+                    ContentLength = files.Count,
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
                 }));
                 onGroupsUpdated?.Invoke(info);
@@ -231,6 +218,44 @@ public class RecordedService
         {
             _logger.LogDebug(ex, "CheckAndUpdateRecordedAsync error: {Message}", ex.Message);
         }
+    }
+
+    /// <summary>
+    /// True when no successful refresh happened within the revalidation window
+    /// (or never). Reads only the local timestamp — zero network calls.
+    /// </summary>
+    private async Task<bool> IsRefreshDueAsync(string metaKey)
+    {
+        try
+        {
+            var cachedMetaJson = await _js.InvokeAsync<string?>("nmuFunctions.safeGetItem", metaKey);
+            if (!string.IsNullOrEmpty(cachedMetaJson))
+            {
+                var cachedMeta = JsonSerializer.Deserialize<QuizMeta>(cachedMetaJson, CaseInsensitive);
+                if (cachedMeta != null && cachedMeta.Timestamp > 0)
+                {
+                    var ageMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - cachedMeta.Timestamp;
+                    if (ageMs < ArchiveCatalog.RevalidateAfter.TotalMilliseconds)
+                        return false;
+                }
+            }
+        }
+        catch { }
+        return true;
+    }
+
+    /// <summary>
+    /// Splits "Dr. Nourhan (LAB)" into clean name + parenthetical tag ("LAB").
+    /// Lecturers without parentheses return an empty tag.
+    /// </summary>
+    public static (string Name, string Tag) SplitLecturerTag(string lecturer)
+    {
+        if (string.IsNullOrEmpty(lecturer)) return ("", "");
+        var s = lecturer.IndexOf('(');
+        var e = s >= 0 ? lecturer.IndexOf(')', s + 1) : -1;
+        if (s > 0 && e > s + 1)
+            return (lecturer.Substring(0, s).Trim(), lecturer.Substring(s + 1, e - s - 1).Trim());
+        return (lecturer, "");
     }
 
     /// <summary>

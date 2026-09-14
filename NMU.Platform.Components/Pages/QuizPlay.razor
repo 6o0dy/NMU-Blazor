@@ -3,6 +3,7 @@
 @inject NavigationManager Navigation
 @inject NavigationState NavState
 @inject QuizStateService QuizState
+@inject LayoutState LayoutState
 @inject IJSRuntime JS
 
 @if (_isNavigatingToResult)
@@ -165,7 +166,10 @@
                 @onclick="ToggleLanguage">
             AR/EN
         </button>
-        <div style="margin-top:25px;">
+        @* Keyed by question + language so Blazor DESTROYS MathJax's alien DOM
+           and recreates fresh text nodes on every toggle (otherwise the old
+           rendered math stays visible and the app eventually freezes). *@
+        <div style="margin-top:25px;" id="quiz-explanation-content" dir="auto" @key="@($"exp-{QuizState.CurrentIndex}-{QuizState.ExpLangAr}")">
             @if (QuizState.ExpLangAr && !string.IsNullOrEmpty(q.ExplanationAr))
             {
                 @((MarkupString)FormatQuestionText(q.ExplanationAr))
@@ -189,10 +193,20 @@
                 🚩 Flag
             </button>
         }
-        <button class="ctrl-btn" style="flex:1;visibility:@(QuizState.CurrentIndex == total - 1 ? "hidden" : "visible");"
-                @onclick="ExamNextQuestion">
-            Next ➡
-        </button>
+        @if (!QuizState.IsRealExam && QuizState.CurrentIndex == total - 1)
+        {
+            <button class="ctrl-btn" style="flex:1;background:var(--correct);color:#000;border:none;font-weight:700;"
+                    @onclick="AttemptSubmit">
+                🏁 Finish
+            </button>
+        }
+        else
+        {
+            <button class="ctrl-btn" style="flex:1;visibility:@(QuizState.CurrentIndex == total - 1 ? "hidden" : "visible");"
+                    @onclick="ExamNextQuestion">
+                Next ➡
+            </button>
+        }
     </div>
 
     @if (QuizState.IsRealExam)
@@ -227,7 +241,7 @@
     <div class="modal-overlay active-modal" @onclick="CloseSubmitModal">
         <div class="modal-box" @onclick:stopPropagation>
             <div class="modal-content-scrollable">
-                <h2 style="color:var(--primary);margin-top:0;">Submit Exam?</h2>
+                <h2 style="color:var(--primary);margin-top:0;">@(QuizState.IsRealExam ? "Submit Exam?" : "Finish Quiz?")</h2>
                 <p style="color:var(--text-secondary);">Are you sure you want to finish?</p>
             </div>
             <div class="modal-footer">
@@ -269,6 +283,7 @@
     private System.Threading.Timer? _timer;
     private bool _needsMediaRender;
     private bool _needsMathJax;
+    private bool _needsExpTypeset;
     private bool _copiedFlag;
     private bool _isNavigatingToResult;
 
@@ -276,6 +291,8 @@
     {
         NavState.PageTitle = "Quizzes";
         QuizState.StateChanged += OnQuizStateChanged;
+        LayoutState.HideSidebar();
+        LayoutState.HideBottomNav();
     }
 
     private void OnQuizStateChanged()
@@ -305,6 +322,12 @@
             _needsMathJax = false;
             await JS.InvokeVoidAsync("quizInterop.typesetMathJax");
         }
+
+        if (_needsExpTypeset)
+        {
+            _needsExpTypeset = false;
+            await JS.InvokeVoidAsync("quizInterop.typesetElement", "quiz-explanation-content");
+        }
     }
 
     private async Task RenderCurrentQuestionMedia()
@@ -332,10 +355,9 @@
             }
         }
 
-        if (QuizState.IsRealExam)
-        {
-            await JS.InvokeVoidAsync("quizInterop.scrollPaletteActive");
-        }
+        // Keep the current question number centered in the palette strip
+        // on every navigation (practice and exam modes alike).
+        await JS.InvokeVoidAsync("quizInterop.scrollPaletteActive");
 
         await JS.InvokeVoidAsync("quizInterop.typesetMathJax");
         await JS.InvokeVoidAsync("quizInterop.highlightAllCode");
@@ -558,10 +580,10 @@
         }
     }
 
-    private async Task ToggleLanguage()
+    private void ToggleLanguage()
     {
         QuizState.ExpLangAr = !QuizState.ExpLangAr;
-        _needsMathJax = true;
+        _needsExpTypeset = true;
         StateHasChanged();
     }
 
@@ -614,6 +636,8 @@
     public void Dispose()
     {
         QuizState.StateChanged -= OnQuizStateChanged;
+        LayoutState.ShowSidebar();
+        LayoutState.ShowBottomNav();
         _timer?.Dispose();
     }
 }

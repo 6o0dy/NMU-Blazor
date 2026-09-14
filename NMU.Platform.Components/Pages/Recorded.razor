@@ -50,7 +50,8 @@ else
                 var title = string.IsNullOrEmpty(g.DisplayName) ? g.Name.Replace("_", " ") : g.DisplayName;
                 var line = GetGroupLine(g.Name);
                 var offlineCount = _offlineCounts.TryGetValue(g.Name, out var oc) ? oc : 0;
-                <div class="dev-card mat-card" @onclick="() => OpenGroup(g.Name)">
+                var lecList = _groupLecturers.TryGetValue(g.Name, out var gl) ? gl : new List<string>();
+                <div class="dev-card mat-card" @onclick="() => OpenGroupAsync(g.Name)">
                     <div class="dev-card-top">
                         <span class="dev-card-icon @style.colorClass"><i class="@icon"></i></span>
                         @if (!string.IsNullOrEmpty(g.Code))
@@ -60,13 +61,23 @@ else
                     </div>
                     <div class="dev-card-title mat-title" title="@title">@title</div>
                     <div class="dev-card-desc mat-sub" title="@line">
-                        @line
+                        @if (lecList.Count == 0)
+                        {
+                            @line
+                        }
+                        else
+                        {
+                            @foreach (var l in lecList)
+                            {
+                                <span class="lec-chip" title="@l">@l</span>
+                            }
+                        }
                         @if (offlineCount > 0)
                         {
-                            <span class="mat-offline"> • ✓ @offlineCount Offline</span>
+                            <span class="lec-chip lec-chip-off">✓ @offlineCount</span>
                         }
                     </div>
-                    <button class="btn-outlined mat-open" @onclick="() => OpenGroup(g.Name)" @onclick:stopPropagation>View Recordings ➔</button>
+                    <button class="btn-outlined mat-open" @onclick="() => OpenGroupAsync(g.Name)" @onclick:stopPropagation>View Recordings ➔</button>
                 </div>
             }
             @if (_groupsInfo.Count == 0)
@@ -79,6 +90,33 @@ else
     </div>
 }
 
+@if (_dialogOpen)
+{
+    <div class="subject-picker-overlay" @onclick="CloseLecturerDialog">
+        <div class="subject-picker-card" @onclick:stopPropagation>
+            <div class="subject-picker-header">
+                <button class="btn-small-icon" @onclick="CloseLecturerDialog">&times;</button>
+                <h3>Select Lecturer</h3>
+            </div>
+            <div class="subject-picker-body">
+                @foreach (var lec in _dialogLecturers)
+                {
+                    var l = lec;
+                    var split = RecordedService.SplitLecturerTag(l);
+                    <div class="subject-check-card lec-pick" @onclick="() => PickDialogLecturer(l)">
+                        <span class="subject-check-name" title="@l">@split.Name</span>
+                        @if (!string.IsNullOrEmpty(split.Tag))
+                        {
+                            <span class="badge badge-sky lec-tag">@split.Tag</span>
+                        }
+                        <i class="fa-solid fa-chevron-right" style="color:var(--text-secondary);font-size:12px;"></i>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private bool _loading = true;
     private bool _error;
@@ -87,8 +125,13 @@ else
     private string _studentSemester = "First_Term";
     private string _studentDept = "ALL";
     private bool _customMode;
-    private Dictionary<string, string> _groupLecturers = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, List<string>> _groupLecturers = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, int> _offlineCounts = new(StringComparer.OrdinalIgnoreCase);
+    private List<RecordedFile> _allFiles = new();
+    private Dictionary<string, List<string>> _customGroupLecturers = new(StringComparer.OrdinalIgnoreCase);
+    private bool _dialogOpen;
+    private string _dialogGroup = "";
+    private List<string> _dialogLecturers = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -154,7 +197,8 @@ else
     {
         var result = new List<RecordedGroupInfo>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var lecMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var lecMap = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var fullMap = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var group in selections.GroupBy(s => (s.Level, s.Semester)))
         {
@@ -169,8 +213,8 @@ else
                 if (seen.Add(g))
                 {
                     var lecs = RecordedService.GetLecturersForGroup(files, group.Key.Level, group.Key.Semester, g);
-                    if (lecs.Count > 0)
-                        lecMap[g] = lecs.Count == 1 ? lecs[0] : $"{lecs[0]} +{lecs.Count - 1}";
+                    fullMap[g] = lecs;
+                    lecMap[g] = lecs;
                     result.Add(new RecordedGroupInfo
                     {
                         Name = g,
@@ -181,13 +225,14 @@ else
         }
 
         _groupLecturers = lecMap;
+        _customGroupLecturers = fullMap;
         return result;
     }
 
     private string GetGroupLine(string groupFull)
     {
-        if (_groupLecturers.TryGetValue(groupFull, out var lec) && !string.IsNullOrEmpty(lec))
-            return lec;
+        if (_groupLecturers.TryGetValue(groupFull, out var list) && list.Count > 0)
+            return string.Join(", ", list);
         return "Recorded lectures";
     }
 
@@ -204,10 +249,7 @@ else
             if (!map.TryGetValue(subj, out var list)) { list = new List<string>(); map[subj] = list; }
             if (!list.Contains(lecturer, StringComparer.Ordinal)) list.Add(lecturer);
         }
-        _groupLecturers = map.ToDictionary(
-            kv => kv.Key,
-            kv => kv.Value.Count == 1 ? kv.Value[0] : $"{kv.Value[0]} +{kv.Value.Count - 1}",
-            StringComparer.OrdinalIgnoreCase);
+        _groupLecturers = map;
     }
 
     private string ResolveUrl(RecordedFile file)
@@ -222,6 +264,7 @@ else
         try
         {
             var files = await RecordedService.GetFilesAsync(_studentLevel, _studentSemester);
+            _allFiles = files;
             RebuildLecturerMap(files);
 
             // Offline video counts (native only; web streams without a media cache).
@@ -256,10 +299,61 @@ else
         _ = LoadDataAsync();
     }
 
-    private void OpenGroup(string group)
+    private async Task OpenGroupAsync(string group)
     {
-        Navigation.NavigateTo($"recorded/{Uri.EscapeDataString(group)}", replace: true);
+        try
+        {
+            List<string> lecturers;
+            if (_customMode && _customGroupLecturers.TryGetValue(group, out var full))
+            {
+                lecturers = full;
+            }
+            else
+            {
+                if (_allFiles.Count == 0)
+                {
+                    _allFiles = await RecordedService.GetFilesAsync(_studentLevel, _studentSemester);
+                    RebuildLecturerMap(_allFiles);
+                    await InvokeAsync(StateHasChanged);
+                }
+                lecturers = RecordedService.GetFilesForGroup(_allFiles, _studentLevel, _studentSemester, group)
+                    .Select(f => f.Lecturer)
+                    .Where(l => !string.IsNullOrWhiteSpace(l))
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(l => l, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
+            // Multiple lecturers: choose first on this page, navigate after.
+            if (lecturers.Count > 1)
+            {
+                _dialogGroup = group;
+                _dialogLecturers = lecturers;
+                _dialogOpen = true;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            NavigateToGroup(group, lecturers.Count == 1 ? lecturers[0] : null);
+        }
+        catch
+        {
+            NavigateToGroup(group, null);
+        }
     }
+
+    private void NavigateToGroup(string group, string? lecturer)
+    {
+        _dialogOpen = false;
+        var url = $"recorded/{Uri.EscapeDataString(group)}";
+        if (!string.IsNullOrEmpty(lecturer))
+            url += $"?lecturer={Uri.EscapeDataString(lecturer)}";
+        Navigation.NavigateTo(url, replace: true);
+    }
+
+    private void PickDialogLecturer(string lecturer) => NavigateToGroup(_dialogGroup, lecturer);
+
+    private void CloseLecturerDialog() => _dialogOpen = false;
 
     private void OnRefreshRequested() => Reload();
 

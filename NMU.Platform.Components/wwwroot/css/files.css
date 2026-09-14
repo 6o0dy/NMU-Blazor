@@ -296,6 +296,11 @@
     flex-shrink: 0;
 }
 
+/* Lecturer dropdown stays visible on all screen sizes (no bottom-bar twin). */
+.files-folder-dropdown.show-desktop {
+    display: block;
+}
+
 .folder-dropdown-toggle {
     display: flex;
     align-items: center;

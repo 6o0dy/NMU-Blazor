@@ -263,7 +263,9 @@ window.nmuFunctions = {
     },
 
     fetchJson: function (url) {
-        return fetch(url).then(function (r) {
+        // no-store: metadata/order files must never come from the HTTP cache
+        // (freshness is decided by the app-level caches + force refresh).
+        return fetch(url, { cache: 'no-store' }).then(function (r) {
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return r.json();
         }).then(function (data) {
@@ -313,7 +315,8 @@ window.nmuFunctions = {
         var cacheKey = "nmu_q_content_" + filePath;
         var arch = archiveId || (level && semester ? this.nmuGetArchiveId(level, semester) : null);
         if (!arch) return Promise.reject(new Error('unknown archive'));
-        var url = "https://archive.org/download/" + arch + "/" + filePath + "?t=" + Date.now();
+        var enc = String(filePath).split('/').map(encodeURIComponent).join('/');
+        var url = "https://archive.org/download/" + arch + "/" + enc + "?t=" + Date.now();
         return fetch(url, { cache: "no-store" }).then(function (r) {
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return r.json();
@@ -327,7 +330,8 @@ window.nmuFunctions = {
         var cacheKey = "nmu_q_content_" + filePath;
         var arch = archiveId || (level && semester ? this.nmuGetArchiveId(level, semester) : null);
         if (!arch) return;
-        var url = "https://archive.org/download/" + arch + "/" + filePath + "?t=" + Date.now();
+        var enc = String(filePath).split('/').map(encodeURIComponent).join('/');
+        var url = "https://archive.org/download/" + arch + "/" + enc + "?t=" + Date.now();
         fetch(url, { cache: "no-store" }).then(function (r) {
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return r.json();
@@ -863,7 +867,9 @@ window.nmuFunctions = {
 
     // Raw text fetch (avoids JSON.parse + JSON.stringify round trip for big payloads)
     fetchText: function (url) {
-        return fetch(url).then(function (r) {
+        // no-store: archive metadata must never come from the HTTP cache,
+        // otherwise forced refreshes would still read stale data.
+        return fetch(url, { cache: 'no-store' }).then(function (r) {
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return r.text();
         });
@@ -897,7 +903,9 @@ window.nmuFunctions = {
 
     // Returns the raw metadata for one semester archive, fetching + caching when missing.
     // Concurrent callers for the SAME archive share the in-flight fetch.
-    ensureRawMetadata: function (archiveId, level, semester) {
+    // force:true always re-fetches from network and overwrites the cache
+    // (used when an archive change was detected).
+    ensureRawMetadata: function (archiveId, level, semester, force) {
         var self = this;
         var arch = archiveId;
         if ((!arch || arch.indexOf('NMU.CE_') !== 0) && level && semester) {
@@ -906,19 +914,19 @@ window.nmuFunctions = {
         // Legacy no-arg call -> cannot resolve archive.
         if (!arch || arch.indexOf('NMU.CE_') !== 0) return Promise.resolve('');
         self._rawMetaPromises = self._rawMetaPromises || {};
-        if (self._rawMetaPromises[arch]) return self._rawMetaPromises[arch];
-        // Keep legacy single-promise field in sync for the first archive.
-        self._rawMetaPromises[arch] = self.getRawMetadata(arch).then(function (cached) {
+        if (!force && self._rawMetaPromises[arch]) return self._rawMetaPromises[arch];
+        var job = (force ? Promise.resolve('') : self.getRawMetadata(arch)).then(function (cached) {
             if (cached) return cached;
             return self.fetchText('https://archive.org/metadata/' + arch).then(function (json) {
                 if (json) self.setRawMetadata(arch, json);
                 return json;
             });
         });
-        self._rawMetaPromises[arch].catch(function () {
-            self._rawMetaPromises[arch] = null;
+        self._rawMetaPromises[arch] = job;
+        job.catch(function () {
+            if (self._rawMetaPromises[arch] === job) self._rawMetaPromises[arch] = null;
         });
-        return self._rawMetaPromises[arch];
+        return job;
     },
 
     _isDerivativeName: function (nm) {
@@ -946,34 +954,41 @@ window.nmuFunctions = {
 
     // Parse the semester archive metadata ENTIRELY in JS and return only
     // the small {Name,Size} list for Data/ files. Result cached per semester.
-    getSemesterFiles: function (level, semester) {
+    // force:true re-fetches the raw metadata and overwrites the cache.
+    getSemesterFiles: function (level, semester, force) {
         var self = this;
         var arch = self.nmuGetArchiveId(level, semester);
         if (!arch) return Promise.resolve('');
         var semCacheKey = 'sem_files_v3_' + level + '_' + semester;
+        function parse(json) {
+            if (!json) return '';
+            var data;
+            try { data = JSON.parse(json); } catch (e) { return ''; }
+            var out = [];
+            var files = data.files || [];
+            for (var i = 0; i < files.length; i++) {
+                var f = files[i];
+                var nm = f.name || '';
+                if (nm.indexOf('Data/') !== 0) continue;
+                if (nm.indexOf(arch + '.thumbs/') === 0) continue;
+                if (self._isDerivativeName(nm)) continue;
+                var sz = f.size;
+                var n = (sz === undefined || sz === null || sz === '') ? null : Number(sz);
+                // PascalCase keys match the ArchiveFile model exactly.
+                out.push({ Name: nm, Size: (n === null || isNaN(n)) ? null : n });
+            }
+            var result = JSON.stringify(out);
+            self.setCacheItem(semCacheKey, result);
+            return result;
+        }
+        if (force) {
+            return self.ensureRawMetadata(arch, null, null, true).then(parse).catch(function () {
+                return '';
+            });
+        }
         return this.getCacheItem(semCacheKey).then(function (cached) {
             if (cached) return cached;
-            return self.ensureRawMetadata(arch).then(function (json) {
-                if (!json) return '';
-                var data;
-                try { data = JSON.parse(json); } catch (e) { return ''; }
-                var out = [];
-                var files = data.files || [];
-                for (var i = 0; i < files.length; i++) {
-                    var f = files[i];
-                    var nm = f.name || '';
-                    if (nm.indexOf('Data/') !== 0) continue;
-                    if (nm.indexOf(arch + '.thumbs/') === 0) continue;
-                    if (self._isDerivativeName(nm)) continue;
-                    var sz = f.size;
-                    var n = (sz === undefined || sz === null || sz === '') ? null : Number(sz);
-                    // PascalCase keys match the ArchiveFile model exactly.
-                    out.push({ Name: nm, Size: (n === null || isNaN(n)) ? null : n });
-                }
-                var result = JSON.stringify(out);
-                self.setCacheItem(semCacheKey, result);
-                return result;
-            });
+            return self.ensureRawMetadata(arch).then(parse);
         }).catch(function () {
             return '';
         });
@@ -981,8 +996,8 @@ window.nmuFunctions = {
 
     // Same idea for the Quizzes folder list used by the quiz pages.
     // New layout: Data/{Subject}/Quizzes/{Lecturer}/*.json
-    getQuizFiles: function (level, semester) {
-        return this.getSemesterFiles(level, semester).then(function (json) {
+    getQuizFiles: function (level, semester, force) {
+        return this.getSemesterFiles(level, semester, force).then(function (json) {
             if (!json) return '';
             var data;
             try { data = JSON.parse(json); } catch (e) { return ''; }
@@ -1000,11 +1015,10 @@ window.nmuFunctions = {
     // Build the catalog of every subject that exists across ALL semester archives
     // (PDF folders). Used by the custom-subjects picker. Each archive is fetched
     // once and cached; empty archives resolve instantly.
-    getSubjectCatalog: function () {
+    getSubjectCatalog: function (force) {
         var self = this;
         var catCacheKey = 'subject_catalog_v2';
-        return this.getCacheItem(catCacheKey).then(function (cached) {
-            if (cached) return cached;
+        function build() {
             var archives = [
                 { id: 'NMU.CE_1.1', level: 'Level_1', semester: 'Semester_1' },
                 { id: 'NMU.CE_1.2', level: 'Level_1', semester: 'Semester_2' },
@@ -1018,7 +1032,7 @@ window.nmuFunctions = {
                 { id: 'NMU.CE_5.2', level: 'Level_5', semester: 'Semester_2' }
             ];
             var jobs = archives.map(function (a) {
-                return self.ensureRawMetadata(a.id).then(function (json) {
+                return self.ensureRawMetadata(a.id, null, null, force).then(function (json) {
                     return { arch: a, json: json };
                 }).catch(function () { return { arch: a, json: '' }; });
             });
@@ -1053,6 +1067,15 @@ window.nmuFunctions = {
                 self.setCacheItem(catCacheKey, result);
                 return result;
             });
+        }
+        if (force) {
+            return build().catch(function () {
+                return '';
+            });
+        }
+        return this.getCacheItem(catCacheKey).then(function (cached) {
+            if (cached) return cached;
+            return build();
         }).catch(function () {
             return '';
         });
@@ -1061,14 +1084,14 @@ window.nmuFunctions = {
     // Same idea for the Records folders used by the recorded lectures pages.
     // New layout: Data/{Subject}/Records/{Lecturer}/*.{mp4|mp3|...}
     // Thumbs: {ArchiveId}.thumbs/Data/... (*.jpg)
-    getRecordedFiles: function (level, semester) {
+    getRecordedFiles: function (level, semester, force) {
         var self = this;
         var arch = self.nmuGetArchiveId(level, semester);
         if (!arch) return Promise.resolve('');
         var recCacheKey = 'rec_files_v3_' + level + '_' + semester;
         return this.getCacheItem(recCacheKey).then(function (cached) {
-            if (cached) return cached;
-            return self.ensureRawMetadata(arch).then(function (json) {
+            if (cached && !force) return cached;
+            return self.ensureRawMetadata(arch, null, null, force).then(function (json) {
                 if (!json) return '';
                 var data;
                 try { data = JSON.parse(json); } catch (e) { return ''; }

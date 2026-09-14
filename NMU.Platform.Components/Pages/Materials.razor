@@ -46,6 +46,7 @@ else
                 var subjectName = string.IsNullOrEmpty(sub.DisplayName) ? sub.Name.Replace("_", " ") : sub.DisplayName;
                 var offlineCount = _offlineCounts.TryGetValue(sub.Name, out var oc) ? oc : 0;
                 var subLine = GetSubjectLine(sub.Name);
+                var lecList = _subjectLecturers.TryGetValue(sub.Name, out var ll) ? ll : new List<string>();
                 <div class="dev-card mat-card" @onclick="() => OpenSubject(sub.Name)">
                     <div class="dev-card-top">
                         <span class="dev-card-icon @style.colorClass"><i class="@style.icon"></i></span>
@@ -56,10 +57,20 @@ else
                     </div>
                     <div class="dev-card-title mat-title" title="@subjectName">@subjectName</div>
                     <div class="dev-card-desc mat-sub" title="@subLine">
-                        @subLine
+                        @if (_customMode || lecList.Count == 0)
+                        {
+                            @subLine
+                        }
+                        else
+                        {
+                            @foreach (var l in lecList)
+                            {
+                                <span class="lec-chip" title="@l">@l</span>
+                            }
+                        }
                         @if (offlineCount > 0)
                         {
-                            <span class="mat-offline"> • ✓ @offlineCount Offline</span>
+                            <span class="lec-chip lec-chip-off">✓ @offlineCount</span>
                         }
                     </div>
                     <button class="btn-outlined mat-open" @onclick="() => OpenSubject(sub.Name)" @onclick:stopPropagation>Open Files ➔</button>
@@ -80,6 +91,34 @@ else
     </div>
 }
 
+@if (_dialogOpen)
+{
+    <div class="subject-picker-overlay" @onclick="CloseLecturerDialog">
+        <div class="subject-picker-card" @onclick:stopPropagation>
+            <div class="subject-picker-header">
+                <button class="btn-small-icon" @onclick="CloseLecturerDialog">&times;</button>
+                <h3>Select Lecturer</h3>
+            </div>
+            <div class="subject-picker-body">
+                @foreach (var lec in _dialogLecturers)
+                {
+                    var l = lec;
+                    var split = NMU.Platform.Components.Services.RecordedService.SplitLecturerTag(l);
+                    var clean = string.IsNullOrEmpty(split.Name) ? l : split.Name;
+                    <div class="subject-check-card lec-pick" @onclick="() => PickDialogLecturer(l)">
+                        <span class="subject-check-name" title="@l">@clean</span>
+                        @if (!string.IsNullOrEmpty(split.Tag))
+                        {
+                            <span class="badge badge-sky lec-tag">@split.Tag</span>
+                        }
+                        <i class="fa-solid fa-chevron-right" style="color:var(--text-secondary);font-size:12px;"></i>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private string? _archiveId;
 
@@ -95,6 +134,9 @@ else
     private string _studentSemester = "First_Term";
     private string _studentDept = "ALL";
     private bool _customMode;
+    private bool _dialogOpen;
+    private string _dialogSubject = "";
+    private List<string> _dialogLecturers = new();
 
     private string _semesterHint
     {
@@ -172,6 +214,7 @@ else
                         _subjects = FilterByDepartment(subjects);
                         _noData = _subjects.Count == 0;
                         RefreshOfflineBadges();
+                        StateHasChanged();
                     });
                 });
         }
@@ -227,14 +270,14 @@ else
         _offlineCounts = counts;
     }
 
-    private Dictionary<string, string> _subjectLecturers = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, List<string>> _subjectLecturers = new(StringComparer.OrdinalIgnoreCase);
 
     private string GetSubjectLine(string subjectFull)
     {
         if (_customMode && _subjectSources.TryGetValue(subjectFull, out var src))
             return src.Replace("_", " ");
-        if (_subjectLecturers.TryGetValue(subjectFull, out var lec) && !string.IsNullOrEmpty(lec))
-            return lec;
+        if (_subjectLecturers.TryGetValue(subjectFull, out var list) && list.Count > 0)
+            return string.Join(", ", list);
         return "PDF study materials";
     }
 
@@ -254,10 +297,7 @@ else
             if (!map.TryGetValue(subject, out var list)) { list = new List<string>(); map[subject] = list; }
             if (!list.Contains(lec, StringComparer.Ordinal)) list.Add(lec);
         }
-        _subjectLecturers = map.ToDictionary(
-            kv => kv.Key,
-            kv => kv.Value.Count == 1 ? kv.Value[0] : $"{kv.Value[0]} +{kv.Value.Count - 1}",
-            StringComparer.OrdinalIgnoreCase);
+        _subjectLecturers = map;
     }
 
     private List<MaterialSubjectInfo> FilterByDepartment(List<MaterialSubjectInfo> list)
@@ -283,8 +323,45 @@ else
 
     private void OpenSubject(string subject)
     {
-        Navigation.NavigateTo($"materials/{Uri.EscapeDataString(subject)}", replace: true);
+        _ = OpenSubjectAsync(subject);
     }
+
+    private async Task OpenSubjectAsync(string subject)
+    {
+        try
+        {
+            if (_allFiles.Count == 0)
+                _allFiles = await MaterialsService.GetFilesAsync(_studentLevel, _studentSemester);
+            var lecturers = MaterialsService.GetLecturersForSubject(_allFiles, subject);
+            // Multiple lecturers: choose first on this page, navigate after.
+            if (lecturers.Count > 1)
+            {
+                _dialogSubject = subject;
+                _dialogLecturers = lecturers;
+                _dialogOpen = true;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+            NavigateToSubject(subject, lecturers.Count == 1 ? lecturers[0] : null);
+        }
+        catch
+        {
+            NavigateToSubject(subject, null);
+        }
+    }
+
+    private void NavigateToSubject(string subject, string? lecturer)
+    {
+        _dialogOpen = false;
+        var url = $"materials/{Uri.EscapeDataString(subject)}";
+        if (!string.IsNullOrEmpty(lecturer))
+            url += $"?lecturer={Uri.EscapeDataString(lecturer)}";
+        Navigation.NavigateTo(url, replace: true);
+    }
+
+    private void PickDialogLecturer(string lecturer) => NavigateToSubject(_dialogSubject, lecturer);
+
+    private void CloseLecturerDialog() => _dialogOpen = false;
 
     private static string GetPdfCacheKey(string fileUrl)
     {

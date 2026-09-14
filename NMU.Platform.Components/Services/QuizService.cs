@@ -7,28 +7,12 @@ namespace NMU.Platform.Components.Services;
 
 public class QuizMeta
 {
+    /// <summary>Last known item count (diagnostic only).</summary>
     public long ContentLength { get; set; }
     public string Etag { get; set; } = "";
     public string LastModified { get; set; } = "";
+    /// <summary>Last successful background refresh (Unix ms). Drives time-gated revalidation.</summary>
     public long Timestamp { get; set; }
-}
-
-public class SearchDoc
-{
-    [System.Text.Json.Serialization.JsonPropertyName("identifier")]
-    public string Identifier { get; set; } = "";
-    [System.Text.Json.Serialization.JsonPropertyName("item_size")]
-    public long ItemSize { get; set; }
-}
-
-public class SearchResponse
-{
-    public SearchResponseBody? Response { get; set; }
-}
-
-public class SearchResponseBody
-{
-    public List<SearchDoc>? Docs { get; set; }
 }
 
 public class SyncProgress
@@ -175,37 +159,15 @@ public class QuizService
             var online = await _js.InvokeAsync<bool>("nmuFunctions.isOnline");
             if (!online) return;
 
-            string? cachedMetaJson = null;
-            try { cachedMetaJson = await _js.InvokeAsync<string?>("nmuFunctions.safeGetItem", metaKey); } catch { }
+            // archive.org's search index does not list the NMU.CE_* identifiers,
+            // so no remote size signal exists. Freshness is decided by age instead:
+            // at most one background refresh per RevalidateAfter window (no network
+            // call in this check itself).
+            if (!await IsRefreshDueAsync(metaKey)) return;
 
-            QuizMeta? cachedMeta = null;
-            if (!string.IsNullOrEmpty(cachedMetaJson))
-            {
-                try { cachedMeta = JsonSerializer.Deserialize<QuizMeta>(cachedMetaJson); } catch { }
-            }
-
-            var archiveId = ArchiveCatalog.GetArchiveId(level, mappedSemester);
-            if (archiveId == null) return;
-            var metaUrl = ArchiveCatalog.GetAdvancedSearchUrl(archiveId);
-
-            using var request = new HttpRequestMessage(HttpMethod.Get, metaUrl);
-            using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-            if (!response.IsSuccessStatusCode) return;
-
-            var serverLength = 0L;
-            try
-            {
-                var json = await response.Content.ReadAsStringAsync();
-                var data = JsonSerializer.Deserialize<SearchResponse>(json);
-                serverLength = data?.Response?.Docs?.FirstOrDefault()?.ItemSize ?? 0;
-            }
-            catch { serverLength = 0; }
-            if (serverLength <= 0) return;
-
-            if (cachedMeta != null && cachedMeta.ContentLength > 0 && serverLength == cachedMeta.ContentLength)
-                return;
-
-            var names = await GetQuizFileNamesAsync(level, mappedSemester);
+            // Force: bypass the persistent quiz-file cache so newly added
+            // archive quizzes are actually picked up (not re-served stale).
+            var names = await GetQuizFileNamesAsync(level, mappedSemester, force: true);
             if (names.Count == 0) return;
 
             var matchedFiles = names
@@ -225,10 +187,14 @@ public class QuizService
 
                 var newMeta = new QuizMeta
                 {
-                    ContentLength = serverLength > 0 ? serverLength : matchedFiles.Count,
+                    ContentLength = matchedFiles.Count,
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
                 };
                 await _js.InvokeVoidAsync("nmuFunctions.safeSetItem", metaKey, JsonSerializer.Serialize(newMeta));
+
+                // New quiz files may exist -> drop the offline-sync flag so the
+                // background sync downloads the missing ones (cached ones skip).
+                try { await _js.InvokeVoidAsync("nmuFunctions.safeRemoveItem", $"nmu_quiz_sync_done_{level}_{mappedSemester}_v5"); } catch { }
 
                 onListUpdated?.Invoke(files);
                 _toast.ShowToast("تم تحديث قائمة الكويزات", ToastType.Success);
@@ -238,6 +204,30 @@ public class QuizService
         {
             _logger.LogDebug(ex, "CheckAndUpdateQuizListAsync error: {Message}", ex.Message);
         }
+    }
+
+    /// <summary>
+    /// True when no successful refresh happened within the revalidation window
+    /// (or never). Reads only the local timestamp — zero network calls.
+    /// </summary>
+    private async Task<bool> IsRefreshDueAsync(string metaKey)
+    {
+        try
+        {
+            var cachedMetaJson = await _js.InvokeAsync<string?>("nmuFunctions.safeGetItem", metaKey);
+            if (!string.IsNullOrEmpty(cachedMetaJson))
+            {
+                var cachedMeta = JsonSerializer.Deserialize<QuizMeta>(cachedMetaJson, CaseInsensitive);
+                if (cachedMeta != null && cachedMeta.Timestamp > 0)
+                {
+                    var ageMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - cachedMeta.Timestamp;
+                    if (ageMs < ArchiveCatalog.RevalidateAfter.TotalMilliseconds)
+                        return false;
+                }
+            }
+        }
+        catch { }
+        return true;
     }
 
     /// <summary>
@@ -412,7 +402,10 @@ public class QuizService
             }
 
             var url = ArchiveCatalog.GetDownloadUrl(archiveId, filePath);
-            using var request = new HttpRequestMessage(HttpMethod.Head, url);
+            using var request = new HttpRequestMessage(HttpMethod.Head, url)
+            {
+                Headers = { CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true } }
+            };
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
             if (!response.IsSuccessStatusCode) return;
 
@@ -593,13 +586,14 @@ public class QuizService
     /// Returns the Quizzes folder file names for a semester. The big archive metadata is
     /// parsed in JS (native JSON.parse) so it never blocks the .NET thread.
     /// </summary>
-    private async Task<List<string>> GetQuizFileNamesAsync(string level, string semester)
+    private async Task<List<string>> GetQuizFileNamesAsync(string level, string semester, bool force = false)
     {
         level = MapLevel(level);
         semester = MapSemester(semester);
         try
         {
-            var json = await _js.InvokeAsync<string>("nmuFunctions.getQuizFiles", level, semester);
+            // force:true re-fetches the raw metadata and overwrites the sem cache.
+            var json = await _js.InvokeAsync<string>("nmuFunctions.getQuizFiles", level, semester, force);
             if (!string.IsNullOrEmpty(json))
             {
                 var parsed = JsonSerializer.Deserialize<List<string>>(json);

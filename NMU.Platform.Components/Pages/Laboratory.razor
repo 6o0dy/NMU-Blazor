@@ -3,8 +3,26 @@
 @inject NavigationManager Navigation
 @inject NavigationState NavState
 @inject LayoutState LayoutState
+@inject StudentService StudentService
+@inject MaterialsService MaterialsService
 
-@if (_filtered.Count == 0)
+@if (_checking)
+{
+    <div class="loading-state">
+        <i class="fas fa-circle-notch fa-spin fa-2x" style="color:var(--primary)"></i>
+        <br /><br />Loading data...
+    </div>
+}
+else if (!_allowed)
+{
+    <div class="loading-state" style="color:var(--text-secondary);">
+        <div style="font-size:2.5rem;margin-bottom:10px;">🧪</div>
+        Virtual Lab is available for Physics 2 students only.
+        <br /><br />
+        <button class="placeholder-btn" @onclick='() => Navigation.NavigateTo("", replace: true)'>Back to Home</button>
+    </div>
+}
+else if (_filtered.Count == 0)
 {
     <div class="lab-no-results">No experiments found.</div>
 }
@@ -65,6 +83,8 @@ else
     private string _searchQuery = "";
     private List<Experiment> _filtered = new();
     private bool _showWarning = true;
+    private bool _checking = true;
+    private bool _allowed;
 
     RenderFragment _searchBarFragment => @<div class="lab-search-section">
         <div class="lab-search-row">
@@ -86,6 +106,19 @@ else
         LayoutState.SearchBar = _searchBarFragment;
         LayoutState.NotifyStateChanged();
         ApplyFilter();
+        _ = CheckAccessAsync();
+    }
+
+    private async Task CheckAccessAsync()
+    {
+        try
+        {
+            var student = await StudentService.GetStudentAsync();
+            _allowed = await MaterialsService.HasPhysics2Async(student);
+        }
+        catch { _allowed = false; }
+        _checking = false;
+        await InvokeAsync(StateHasChanged);
     }
 
     private void OnSearchInput(ChangeEventArgs e)

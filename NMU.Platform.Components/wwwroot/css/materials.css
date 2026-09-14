@@ -125,6 +125,33 @@
     white-space: nowrap;
 }
 
+/* ---------- Lecturer chips: each lecturer boxed separately ---------- */
+.materials-container .lec-chip,
+.recorded-container .lec-chip {
+    display: inline-block;
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface-hover);
+    color: var(--text-secondary);
+    border-radius: 6px;
+    padding: 0 7px;
+    font-size: 0.7rem;
+    line-height: 1.5;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+    margin: 1px 4px 1px 0;
+}
+
+.materials-container .lec-chip-off,
+.recorded-container .lec-chip-off {
+    color: var(--correct);
+    border-color: rgba(34, 197, 94, 0.35);
+    background: rgba(34, 197, 94, 0.12);
+    font-weight: 700;
+}
+
 .materials-container .btn-outlined.mat-open,
 .recorded-container .btn-outlined.mat-open {
     width: 100%;

@@ -4,13 +4,17 @@
 
 .viewer-page {
     position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
+    /* Docked exactly below the app header (52px + safe area): no overlap,
+       no gap. The header (z-index 20000) always paints above this overlay. */
+    top: calc(52px + var(--safe-area-top, env(safe-area-inset-top, 0px)));
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
     z-index: 10000;
     background: var(--bg-main);
     display: flex;
     flex-direction: column;
-    padding-top: calc(40px + var(--safe-area-top, env(safe-area-inset-top, 0px)));
     padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 

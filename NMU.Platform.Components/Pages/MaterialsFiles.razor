@@ -32,7 +32,20 @@ else
         @if (_filteredFiles.Count == 0)
         {
             <div style="text-align:center; color:#94a3b8; padding:20px; grid-column:1/-1;">
-                No PDF files found.
+                @if (!string.IsNullOrWhiteSpace(_searchQuery))
+                {
+                    <span>No matching files.</span>
+                }
+                else if (_lecturers.Count > 1 && string.IsNullOrEmpty(_currentLecturer))
+                {
+                    <div>Please select a lecturer to view files.</div>
+                    <br />
+                    <button class="placeholder-btn" @onclick="OpenLecturerDialog">Choose Lecturer</button>
+                }
+                else
+                {
+                    <span>No PDF files found.</span>
+                }
             </div>
         }
         else
@@ -65,10 +78,6 @@ else
                             {
                                 <span class="file-lecturer" title="@f.Lecturer">@f.Lecturer</span>
                             }
-                            @if (isCached)
-                            {
-                                <span class="mat-offline">✓ Offline</span>
-                            }
                         </span>
                     </div>
                     @if (!Platform.IsWeb)
@@ -95,6 +104,34 @@ else
     </div>
 }
 
+@if (_showLecturerDialog && !_loading && _errorMsg == null)
+{
+    <div class="subject-picker-overlay" @onclick="CloseLecturerDialog">
+        <div class="subject-picker-card" @onclick:stopPropagation>
+            <div class="subject-picker-header">
+                <button class="btn-small-icon" @onclick="CloseLecturerDialog">&times;</button>
+                <h3>Select Lecturer</h3>
+            </div>
+            <div class="subject-picker-body">
+                @foreach (var lec in _lecturers)
+                {
+                    var l = lec;
+                    var split = NMU.Platform.Components.Services.RecordedService.SplitLecturerTag(l);
+                    var clean = string.IsNullOrEmpty(split.Name) ? l : split.Name;
+                    <div class="subject-check-card lec-pick" @onclick="() => PickLecturer(l)">
+                        <span class="subject-check-name" title="@l">@clean</span>
+                        @if (!string.IsNullOrEmpty(split.Tag))
+                        {
+                            <span class="badge badge-sky lec-tag">@split.Tag</span>
+                        }
+                        <i class="fa-solid fa-chevron-right" style="color:var(--text-secondary);font-size:12px;"></i>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public string Subject { get; set; } = "";
 
@@ -113,6 +150,8 @@ else
     private string _studentSemester = "First_Term";
     private bool _showFolderDropdown;
     private bool _showLecturerDropdown;
+    private bool _showLecturerDialog;
+    private static readonly Dictionary<string, string> _lastLecturer = new();
 
     private static string GetPdfCacheKey(string fileUrl)
     {
@@ -130,11 +169,15 @@ else
         </div>
         @if (_lecturers.Count > 1)
         {
-            <div class="files-folder-dropdown">
+            <div class="files-folder-dropdown show-desktop">
                 <button type="button" class="folder-dropdown-toggle @(_showLecturerDropdown ? "open" : "")"
                         @onclick="ToggleLecturerDropdown">
                     <i class="fa-solid fa-user-tie"></i>
-                    <span class="folder-dropdown-current">@_currentLecturer</span>
+                    <span class="folder-dropdown-current">@LecturerClean(_currentLecturer)</span>
+                    @if (!string.IsNullOrEmpty(LecturerTag(_currentLecturer)))
+                    {
+                        <span class="badge badge-sky lec-tag">@LecturerTag(_currentLecturer)</span>
+                    }
                     <i class="fa-solid fa-chevron-down"></i>
                 </button>
                 @if (_showLecturerDropdown)
@@ -143,10 +186,16 @@ else
                         @foreach (var lec in _lecturers)
                         {
                             var l = lec;
+                            var clean = LecturerClean(l);
+                            var tag = LecturerTag(l);
                             <button class="folder-dropdown-item @(l == _currentLecturer ? "active" : "")"
                                     @onclick="() => SelectLecturerFromDropdown(l)">
                                 <i class="fa-solid fa-user-tie"></i>
-                                @l
+                                @clean
+                                @if (!string.IsNullOrEmpty(tag))
+                                {
+                                    <span class="badge badge-sky lec-tag">@tag</span>
+                                }
                             </button>
                         }
                     </div>
@@ -257,6 +306,36 @@ else
 
             RebuildLecturerFolderState();
 
+            var memKey = LecturerMemoryKey(_studentLevel, _studentSemester, Subject);
+            _lastLecturer.TryGetValue(memKey, out var remembered);
+            var queryLecturer = ReadLecturerQuery();
+            if (!string.IsNullOrEmpty(queryLecturer) && _lecturers.Contains(queryLecturer, StringComparer.Ordinal))
+            {
+                // Lecturer pre-selected on the subjects page: go straight in.
+                _showLecturerDialog = false;
+                if (queryLecturer != _currentLecturer)
+                    ChangeLecturer(queryLecturer);
+                RememberLecturer(queryLecturer);
+            }
+            else
+            {
+                var hasRemembered = !string.IsNullOrEmpty(remembered) && _lecturers.Contains(remembered, StringComparer.Ordinal);
+                if (_lecturers.Count > 1 && !hasRemembered)
+                {
+                    // Multiple lecturers: ask first instead of auto-picking one.
+                    _currentLecturer = "";
+                    _currentFolder = "";
+                    _folders = new List<string>();
+                    _filteredFiles = new List<MaterialFile>();
+                    _showLecturerDialog = true;
+                    LayoutState.BottomBar = null;
+                }
+                else if (hasRemembered && remembered != _currentLecturer)
+                {
+                    ChangeLecturer(remembered!);
+                }
+            }
+
             if (_allSubjectFiles.Count == 0)
                 _errorMsg = $"No files found for \"{Subject}\".";
 
@@ -277,7 +356,15 @@ else
                     await InvokeAsync(() =>
                     {
                         _allSubjectFiles = updated;
-                        RebuildLecturerFolderState();
+                        if (_showLecturerDialog || (_lecturers.Count > 1 && string.IsNullOrEmpty(_currentLecturer)))
+                        {
+                            // Still waiting for an explicit choice: refresh the
+                            // lecturer list only, never auto-pick.
+                            _lecturers = ComputeLecturers();
+                            _filteredFiles = new List<MaterialFile>();
+                        }
+                        else
+                            RebuildLecturerFolderState();
                     });
                 });
         }
@@ -334,13 +421,16 @@ else
         LayoutState.NotifyStateChanged();
     }
 
-    private void RebuildLecturerFolderState()
-    {
-        _lecturers = _allSubjectFiles.Select(f => f.Lecturer)
+    private List<string> ComputeLecturers()
+        => _allSubjectFiles.Select(f => f.Lecturer)
             .Where(l => !string.IsNullOrWhiteSpace(l))
             .Distinct(StringComparer.Ordinal)
             .OrderBy(l => l, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+    private void RebuildLecturerFolderState()
+    {
+        _lecturers = ComputeLecturers();
         if (_lecturers.Count == 0 && _allSubjectFiles.Count > 0)
             _lecturers = new List<string> { "" };
         if (string.IsNullOrEmpty(_currentLecturer) || !_lecturers.Contains(_currentLecturer, StringComparer.Ordinal))
@@ -362,7 +452,56 @@ else
     private void SelectLecturerFromDropdown(string lecturer)
     {
         _showLecturerDropdown = false;
+        RememberLecturer(lecturer);
         ChangeLecturer(lecturer);
+    }
+
+    private void OpenLecturerDialog()
+    {
+        _showLecturerDialog = true;
+    }
+
+    private void CloseLecturerDialog()
+    {
+        _showLecturerDialog = false;
+    }
+
+    private void PickLecturer(string lecturer)
+    {
+        _showLecturerDialog = false;
+        RememberLecturer(lecturer);
+        ChangeLecturer(lecturer);
+    }
+
+    private void RememberLecturer(string lecturer)
+    {
+        var key = LecturerMemoryKey(_studentLevel, _studentSemester, Subject);
+        if (string.IsNullOrEmpty(lecturer))
+            _lastLecturer.Remove(key);
+        else
+            _lastLecturer[key] = lecturer;
+    }
+
+    private static string LecturerMemoryKey(string level, string semester, string subject)
+        => $"{level}|{semester}|{subject}";
+
+    private static string LecturerClean(string lecturer)
+    {
+        var split = NMU.Platform.Components.Services.RecordedService.SplitLecturerTag(lecturer);
+        return string.IsNullOrEmpty(split.Name) ? lecturer : split.Name;
+    }
+
+    private static string LecturerTag(string lecturer)
+        => NMU.Platform.Components.Services.RecordedService.SplitLecturerTag(lecturer).Tag;
+
+    private string? ReadLecturerQuery()
+    {
+        try
+        {
+            var q = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query).Get("lecturer");
+            return string.IsNullOrWhiteSpace(q) ? null : q;
+        }
+        catch { return null; }
     }
 
     private void ToggleFolderDropdown()
@@ -379,6 +518,13 @@ else
 
     private void ApplyFileFilter()
     {
+        if (string.IsNullOrEmpty(_currentLecturer) && _lecturers.Count > 1)
+        {
+            // Multi-lecturer subject with no selection yet: never mix files together.
+            _filteredFiles = new List<MaterialFile>();
+            return;
+        }
+
         var filtered = _allSubjectFiles.Where(f =>
             (string.IsNullOrEmpty(_currentLecturer) || string.Equals(f.Lecturer, _currentLecturer, StringComparison.Ordinal)) &&
             f.Folder == _currentFolder &&

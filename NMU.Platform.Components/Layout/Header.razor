@@ -12,9 +12,12 @@
 
 <header class="header" dir="ltr" lang="en">
     <div class="header-left">
-        <button class="menu-toggle-btn" @onclick="ToggleSidebar" title="Menu" aria-label="Menu">
-            <i class="fas fa-bars"></i>
-        </button>
+        @if (!LayoutState.SidebarHidden)
+        {
+            <button class="menu-toggle-btn" @onclick="ToggleSidebar" title="Menu" aria-label="Menu">
+                <i class="fas fa-bars"></i>
+            </button>
+        }
         @if (!IsHome)
         {
             <button class="back-btn" @onclick="GoBack" title="Back">
