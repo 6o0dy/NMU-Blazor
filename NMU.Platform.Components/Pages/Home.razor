@@ -59,88 +59,109 @@
 
     @if (showManageModal)
     {
-        <div class="custom-modal" dir="ltr" id="manage-modal" style="display: flex;">
-            <div class="modal-card">
-                <button class="close-modal" @onclick="CloseManageModal">&times;</button>
-                <h2>YOUR INFORMATION</h2>
-
-                <div class="field-group">
-                    <label>Your Name</label>
-                    <input type="text" id="edit-name" @bind="editName" disabled="@(!isEditing)" placeholder="Enter name" />
+        <div class="profile-overlay" dir="ltr" id="manage-modal">
+            <div class="profile-card">
+                <div class="profile-head">
+                    <button class="profile-close" @onclick="CloseManageModal">&times;</button>
+                    <div class="profile-eyebrow">Student Profile</div>
+                    <h2>Your Information</h2>
+                    <p class="sub">@(isEditing ? "Update your data below." : "View your saved data.")</p>
                 </div>
-
-                <div class="field-group">
-                    <label>Academic Level</label>
-                    <select id="edit-year" @bind="editYear" disabled="@(!isEditing)">
-                        <option value="Level 1">Level 1</option>
-                        <option value="Level 2">Level 2</option>
-                        <option value="Level 3">Level 3</option>
-                        <option value="Level 4">Level 4</option>
-                        <option value="Level 5">Level 5</option>
-                    </select>
-                </div>
-
-                <div class="field-group">
-                    <label>Department</label>
-                    <select id="edit-dept" @bind="editDept" disabled="@(!isEditing)">
-                        <option value="ALL">General / All</option>
-                        <option value="CE">CE - Computer Engineering</option>
-                        <option value="AIE">AIE - AI Engineering</option>
-                    </select>
-                </div>
-
-                <div class="field-group">
-                    <label>The Semester</label>
-                    <div class="edit-term-container">
-                        <div class="term-radio @(editTerm == "Semester 1" ? "selected" : "")"
-                             @onclick='() => { if (isEditing) editTerm = "Semester 1"; }'>
-                            Semester 1
-                        </div>
-                        <div class="term-radio @(editTerm == "Semester 2" ? "selected" : "")"
-                             @onclick='() => { if (isEditing) editTerm = "Semester 2"; }'>
-                            Semester 2
+                <div class="profile-body">
+                    <div class="profile-section">
+                        <div class="profile-section-title"><span class="step-num">1</span> Personal</div>
+                        <div class="field-group">
+                            <label>Your Name</label>
+                            <input type="text" id="edit-name" @bind="editName" disabled="@(!isEditing)" placeholder="Enter name" />
                         </div>
                     </div>
-                </div>
 
-                <div class="custom-mode-group">
-                    <label class="custom-mode-row" @onclick="ToggleCustomMode">
-                        <span>
-                            <strong>Custom Subjects</strong>
-                            <small>Register subjects from any level / semester</small>
-                        </span>
-                        <span class="custom-mode-switch @(editCustomMode ? "on" : "")"></span>
-                    </label>
-                    @if (editCustomMode)
-                    {
-                        <div class="selected-subjects-bar">
-                            <button type="button" class="select-subjects-btn" @onclick="OpenPicker" disabled="@(!isEditing)">
-                                <i class="fa-solid fa-list-check"></i> Select Subjects
-                                @if (editSelectedSubjects.Count > 0)
-                                {
-                                    <span class="selected-count-badge">@editSelectedSubjects.Count</span>
-                                }
-                            </button>
-                            @if (editSelectedSubjects.Count > 0)
+                    <div class="profile-section">
+                        <div class="profile-section-title"><span class="step-num">2</span> Academic</div>
+                        <div class="profile-grid">
+                            <div class="field-group">
+                                <label>Academic Level</label>
+                                <select id="edit-year" @bind="editYear" disabled="@(!isEditing)">
+                                    <option value="Level 1">Level 1</option>
+                                    <option value="Level 2">Level 2</option>
+                                    <option value="Level 3">Level 3</option>
+                                    <option value="Level 4">Level 4</option>
+                                    <option value="Level 5">Level 5</option>
+                                </select>
+                            </div>
+
+                            <div class="field-group">
+                                <label>Department</label>
+                                <select id="edit-dept" @bind="editDept" disabled="@(!isEditing)">
+                                    <option value="AIE">AIE - AI Engineering</option>
+                                    <option value="CE">CE - Computer Engineering</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="field-group" style="margin-top:12px;">
+                            <label>The Semester</label>
+                            <div class="term-tiles">
+                                <label class="tile-item">
+                                    <input type="radio" name="edit-term" value="Semester 1"
+                                           checked='@(editTerm == "Semester 1")'
+                                           disabled="@(!isEditing)"
+                                           @onchange='() => { if (isEditing) editTerm = "Semester 1"; }' />
+                                    <span class="tile-btn">Semester 1</span>
+                                </label>
+                                <label class="tile-item">
+                                    <input type="radio" name="edit-term" value="Semester 2"
+                                           checked='@(editTerm == "Semester 2")'
+                                           disabled="@(!isEditing)"
+                                           @onchange='() => { if (isEditing) editTerm = "Semester 2"; }' />
+                                    <span class="tile-btn">Semester 2</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="profile-section">
+                        <div class="profile-section-title"><span class="step-num">3</span> Subjects <span class="opt-tag">اختياري</span></div>
+                        <div class="custom-mode-group">
+                            <label class="custom-mode-row" @onclick="ToggleCustomMode">
+                                <span>
+                                    <strong>Custom Subjects</strong>
+                                    <small>Register subjects from any level / semester</small>
+                                </span>
+                                <span class="custom-mode-switch @(editCustomMode ? "on" : "")"></span>
+                            </label>
+                            @if (editCustomMode)
                             {
-                                <div class="selected-subjects-list">
-                                    @foreach (var s in editSelectedSubjects.OrderBy(s => s.Level).ThenBy(s => s.Semester).ThenBy(s => s.Subject))
+                                <div class="selected-subjects-bar">
+                                    <button type="button" class="select-subjects-btn" @onclick="OpenPicker" disabled="@(!isEditing)">
+                                        <i class="fa-solid fa-list-check"></i> Select Subjects
+                                        @if (editSelectedSubjects.Count > 0)
+                                        {
+                                            <span class="selected-count-badge">@editSelectedSubjects.Count</span>
+                                        }
+                                    </button>
+                                    @if (editSelectedSubjects.Count > 0)
                                     {
-                                        <span class="selected-subject-chip">
-                                            @s.Subject.Replace("_", " ")
-                                            @if (isEditing)
+                                        <div class="selected-subjects-list">
+                                            @foreach (var s in editSelectedSubjects.OrderBy(s => s.Level).ThenBy(s => s.Semester).ThenBy(s => s.Subject))
                                             {
-                                                <i class="fa-solid fa-xmark" @onclick="() => RemoveSubject(s)"></i>
+                                                <span class="selected-subject-chip">
+                                                    @s.Subject.Replace("_", " ")
+                                                    @if (isEditing)
+                                                    {
+                                                        <i class="fa-solid fa-xmark" @onclick="() => RemoveSubject(s)"></i>
+                                                    }
+                                                </span>
                                             }
-                                        </span>
+                                        </div>
                                     }
                                 </div>
                             }
                         </div>
-                    }
+                    </div>
                 </div>
 
-                <div class="modal-actions">
+                <div class="profile-foot">
                     <button class="action-btn @(isEditing ? "save-mode" : "edit-mode")" @onclick="HandleEditSave">
                         @(isEditing ? "Save Changes" : "Change")
                     </button>
@@ -224,25 +245,29 @@
 
     @if (showCacheModal)
     {
-        <div class="custom-modal" style="display: flex;">
-            <div class="modal-card" style="max-width:400px;">
-                <button class="close-modal" @onclick="CloseCacheModal">&times;</button>
-                <h2 style="text-align:center;font-size:1.2rem;color:var(--primary);">🗑️ CLEAR CACHE</h2>
-                <p style="text-align:center;color:#94a3b8;font-size:0.85rem;margin:0 0 20px;">Choose what to delete</p>
-
-                <div style="display:flex;flex-direction:column;gap:12px;">
-                    <button class="action-btn delete-mode" @onclick="ClearPdfCache" style="width:100%;">
-                        <i class="fa-regular fa-file-pdf"></i> Delete Files Cache
-                    </button>
-                    <button class="action-btn delete-mode" @onclick="ClearVideoCache" style="width:100%;">
-                        <i class="fa-solid fa-video"></i> Delete Videos Cache
-                    </button>
-                    <button class="action-btn delete-mode" @onclick="ClearQuizCache" style="width:100%;">
-                        <i class="fa-solid fa-list-check"></i> Delete Quizzes Cache
-                    </button>
-                    <button class="action-btn delete-mode" @onclick="ClearAllCache" style="width:100%;background:#dc2626;border-color:#dc2626;">
-                        <i class="fa-solid fa-radiation"></i> Delete Everything
-                    </button>
+        <div class="profile-overlay">
+            <div class="profile-card" style="max-width:400px;">
+                <div class="profile-head">
+                    <button class="profile-close" @onclick="CloseCacheModal">&times;</button>
+                    <div class="profile-eyebrow">Storage</div>
+                    <h2>🗑️ Clear Cache</h2>
+                    <p class="sub">Choose what to delete</p>
+                </div>
+                <div class="profile-body">
+                    <div style="display:flex;flex-direction:column;gap:12px;">
+                        <button class="action-btn delete-mode" @onclick="ClearPdfCache" style="width:100%;">
+                            <i class="fa-regular fa-file-pdf"></i> Delete Files Cache
+                        </button>
+                        <button class="action-btn delete-mode" @onclick="ClearVideoCache" style="width:100%;">
+                            <i class="fa-solid fa-video"></i> Delete Videos Cache
+                        </button>
+                        <button class="action-btn delete-mode" @onclick="ClearQuizCache" style="width:100%;">
+                            <i class="fa-solid fa-list-check"></i> Delete Quizzes Cache
+                        </button>
+                        <button class="action-btn delete-mode" @onclick="ClearAllCache" style="width:100%;background:#dc2626;border-color:#dc2626;">
+                            <i class="fa-solid fa-radiation"></i> Delete Everything
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -257,7 +282,7 @@
 
     private string editName = "";
     private string editYear = "Level 1";
-    private string editDept = "ALL";
+    private string editDept = "AIE";
     private string editTerm = "Semester 1";
 
     private bool editCustomMode;
@@ -320,7 +345,7 @@
         {
             editName = currentStudent.Name;
             editYear = currentStudent.AcademicLevel;
-            editDept = string.IsNullOrEmpty(currentStudent.Department) ? "ALL" : currentStudent.Department;
+            editDept = string.IsNullOrEmpty(currentStudent.Department) ? "AIE" : currentStudent.Department;
             editTerm = currentStudent.Semester;
             editCustomMode = currentStudent.CustomSubjectsMode;
             editSelectedSubjects = currentStudent.CustomSubjects != null
@@ -528,7 +553,7 @@
             Name = editName,
             AcademicLevel = editYear,
             Semester = editTerm,
-            Department = string.IsNullOrEmpty(editDept) ? "ALL" : editDept,
+            Department = string.IsNullOrEmpty(editDept) ? "AIE" : editDept,
             CustomSubjectsMode = editCustomMode,
             CustomSubjects = editCustomMode ? editSelectedSubjects : new List<CustomSubjectSelection>()
         };

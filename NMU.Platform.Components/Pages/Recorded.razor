@@ -2,6 +2,7 @@
 @using NMU.Platform.Components.Models
 @implements IDisposable
 @inject RecordedService RecordedService
+@inject MaterialsService MaterialsService
 @inject StudentService StudentService
 @inject NavigationManager Navigation
 @inject NavigationState NavState
@@ -45,12 +46,13 @@ else
             {
                 var g = _groupsInfo[i];
                 var icon = RecordedService.GetIconClass((g.DisplayName ?? g.Name) + " " + g.Code);
+                var style = MaterialsService.GetMaterialStyle(((string.IsNullOrEmpty(g.DisplayName) ? g.Name : g.DisplayName)) + " " + g.Code);
                 var title = string.IsNullOrEmpty(g.DisplayName) ? g.Name.Replace("_", " ") : g.DisplayName;
                 var line = GetGroupLine(g.Name);
                 var offlineCount = _offlineCounts.TryGetValue(g.Name, out var oc) ? oc : 0;
                 <div class="dev-card mat-card" @onclick="() => OpenGroup(g.Name)">
                     <div class="dev-card-top">
-                        <span class="dev-card-icon" style="color:var(--primary)"><i class="@icon"></i></span>
+                        <span class="dev-card-icon @style.colorClass"><i class="@icon"></i></span>
                         @if (!string.IsNullOrEmpty(g.Code))
                         {
                             <span class="badge badge-sky mat-code">@g.Code</span>

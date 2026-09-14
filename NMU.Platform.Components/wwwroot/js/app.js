@@ -143,6 +143,36 @@ window.nmuFunctions = {
         window.location.replace(url || window.location.href);
     },
 
+    // ---------- Theme (light / dark), persisted in localStorage ----------
+    nmuThemeGet: function () {
+        try {
+            return localStorage.getItem('nmu_theme') === 'dark' ? 'dark' : 'light';
+        } catch (e) { return 'light'; }
+    },
+
+    nmuThemeApply: function (theme) {
+        var t = (theme === 'dark') ? 'dark' : 'light';
+        try {
+            if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+            else document.documentElement.removeAttribute('data-theme');
+        } catch (e) {}
+        try {
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', t === 'dark' ? '#0a1120' : '#f3f7fb');
+        } catch (e) {}
+        return t;
+    },
+
+    nmuThemeSet: function (theme) {
+        var t = this.nmuThemeApply(theme);
+        try { localStorage.setItem('nmu_theme', t); } catch (e) {}
+        return t;
+    },
+
+    nmuThemeToggle: function () {
+        return this.nmuThemeSet(this.nmuThemeGet() === 'dark' ? 'light' : 'dark');
+    },
+
     // Auto marquee for file/video titles that overflow their slot (.file-name,
     // .recorded-title). Only overflowing labels animate; short ones stay static.
     // Safe with Blazor: the text node Blazor owns is moved (not replaced), so

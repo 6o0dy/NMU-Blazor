@@ -7,53 +7,66 @@
 
 @if (IsVisible)
 {
-    <div id="setup-modal" dir="ltr" lang="en">
-        <div class="setup-card">
-            @if (Platform.IsDesktop)
-            {
-                <button class="close-setup" @onclick="CloseApp">&times;</button>
-            }
-            <h2>THE INFORMATION</h2>
-            <div class="field-group">
-                <label>Your Name</label>
-                <input type="text" placeholder="Enter Your Name Here..." @bind="studentName" />
+    <div id="setup-modal" class="profile-overlay" dir="ltr" lang="en">
+        <div class="profile-card">
+            <div class="profile-head">
+                @if (Platform.IsDesktop)
+                {
+                    <button class="profile-close" @onclick="CloseApp">&times;</button>
+                }
+                <div class="profile-eyebrow">Student Profile</div>
+                <h2>The Information</h2>
+                <p class="sub">Tell us who you are to personalize your content.</p>
             </div>
-            <div class="field-group">
-                <label>Academic Level</label>
-                <select @bind="academicLevel">
-                    <option value="Level 1">Level 1</option>
-                    <option value="Level 2">Level 2</option>
-                    <option value="Level 3">Level 3</option>
-                    <option value="Level 4">Level 4</option>
-                    <option value="Level 5">Level 5</option>
-                </select>
-            </div>
-            <div class="field-group">
-                <label>Department</label>
-                <select @bind="department">
-                    <option value="ALL">General / All</option>
-                    <option value="CE">CE - Computer Engineering</option>
-                    <option value="AIE">AIE - AI Engineering</option>
-                </select>
-            </div>
-            <div class="field-group">
-                <label>Select The Semester</label>
-                <div class="term-tiles">
-                    <label class="tile-item">
-                        <input type="radio" name="term-select" value="Semester 1"
-                               checked="@(semester == Sem1)"
-                               @onchange="() => semester = Sem1" />
-                        <span class="tile-btn">Semester 1</span>
-                    </label>
-                    <label class="tile-item">
-                        <input type="radio" name="term-select" value="Semester 2"
-                               checked="@(semester == Sem2)"
-                               @onchange="() => semester = Sem2" />
-                        <span class="tile-btn">Semester 2</span>
-                    </label>
+            <div class="profile-body">
+                <div class="profile-section">
+                    <div class="profile-section-title"><span class="step-num">1</span> Personal</div>
+                    <div class="field-group">
+                        <label>Your Name</label>
+                        <input type="text" placeholder="Enter Your Name Here..." @bind="studentName" />
+                    </div>
                 </div>
-            </div>
-
+                <div class="profile-section">
+                    <div class="profile-section-title"><span class="step-num">2</span> Academic</div>
+                    <div class="profile-grid">
+                        <div class="field-group">
+                            <label>Academic Level</label>
+                            <select @bind="academicLevel">
+                                <option value="Level 1">Level 1</option>
+                                <option value="Level 2">Level 2</option>
+                                <option value="Level 3">Level 3</option>
+                                <option value="Level 4">Level 4</option>
+                                <option value="Level 5">Level 5</option>
+                            </select>
+                        </div>
+                        <div class="field-group">
+                            <label>Department</label>
+                            <select @bind="department">
+                                <option value="AIE">AIE - AI Engineering</option>
+                                <option value="CE">CE - Computer Engineering</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="field-group" style="margin-top:12px;">
+                        <label>Select The Semester</label>
+                        <div class="term-tiles">
+                            <label class="tile-item">
+                                <input type="radio" name="term-select" value="Semester 1"
+                                       checked="@(semester == Sem1)"
+                                       @onchange="() => semester = Sem1" />
+                                <span class="tile-btn">Semester 1</span>
+                            </label>
+                            <label class="tile-item">
+                                <input type="radio" name="term-select" value="Semester 2"
+                                       checked="@(semester == Sem2)"
+                                       @onchange="() => semester = Sem2" />
+                                <span class="tile-btn">Semester 2</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="profile-section">
+                    <div class="profile-section-title"><span class="step-num">3</span> Subjects <span class="opt-tag">اختياري</span></div>
             <div class="custom-mode-group">
                 <label class="custom-mode-row" @onclick="ToggleCustomMode">
                     <span>
@@ -83,9 +96,13 @@
                         }
                     </div>
                 }
+                </div>
             </div>
+        </div>
 
-            <button class="save-btn" @onclick="SaveData">Save Data</button>
+            <div class="profile-foot">
+                <button class="save-btn" @onclick="SaveData">Save Data</button>
+            </div>
         </div>
     </div>
 
@@ -162,7 +179,7 @@
 
     private string studentName = string.Empty;
     private string academicLevel = "Level 1";
-    private string department = "ALL";
+    private string department = "AIE";
     private string semester = string.Empty;
 
     const string Sem1 = "Semester 1";
@@ -188,7 +205,7 @@
             {
                 studentName = student.Name;
                 academicLevel = student.AcademicLevel;
-                department = string.IsNullOrEmpty(student.Department) ? "ALL" : student.Department;
+                department = string.IsNullOrEmpty(student.Department) ? "AIE" : student.Department;
                 semester = student.Semester;
                 customMode = student.CustomSubjectsMode;
                 _selectedSubjects = student.CustomSubjects ?? new List<CustomSubjectSelection>();
@@ -307,7 +324,7 @@
             Name = studentName,
             AcademicLevel = academicLevel,
             Semester = semester,
-            Department = string.IsNullOrEmpty(department) ? "ALL" : department,
+            Department = string.IsNullOrEmpty(department) ? "AIE" : department,
             CustomSubjectsMode = customMode,
             CustomSubjects = customMode ? _selectedSubjects : new List<CustomSubjectSelection>()
         });

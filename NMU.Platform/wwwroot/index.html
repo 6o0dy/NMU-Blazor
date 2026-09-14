@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>NMU-CE &amp; AIE</title>
     <base href="/" />
+    <meta name="theme-color" content="#f3f7fb" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+        try { if (localStorage.getItem('nmu_theme') === 'dark') { document.documentElement.setAttribute('data-theme', 'dark'); } } catch (e) {}
+    </script>
     <link rel="stylesheet" href="_content/NMU.Platform.Components/lib/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/theme.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/app.css" />

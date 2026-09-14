@@ -28,6 +28,9 @@
     </div>
 
     <div class="header-right">
+        <button class="icon-btn" @onclick="ToggleTheme" title="@(_darkMode ? "Light mode" : "Dark mode")" aria-label="Toggle theme">
+            <i class="@(_darkMode ? "fas fa-sun" : "fas fa-moon")"></i>
+        </button>
         @if (Platform.IsWeb && IsHome)
         {
             <button class="download-btn" @onclick="DownloadApp">
@@ -107,8 +110,19 @@
     private bool IsYouTubePlayer => Navigation.Uri.Contains("/youtube/") && Navigation.Uri.Contains("/player");
     private bool _isDownloading;
     private bool _showExitConfirm;
+    private bool _darkMode;
 
     private void ToggleSidebar() => LayoutState.ToggleSidebar();
+
+    private async Task ToggleTheme()
+    {
+        try
+        {
+            var theme = await JS.InvokeAsync<string>("nmuFunctions.nmuThemeToggle");
+            _darkMode = theme == "dark";
+        }
+        catch { _darkMode = !_darkMode; }
+    }
 
     private void TriggerExitConfirmation()
     {
@@ -141,6 +155,17 @@
         if (firstRender)
         {
             _dotNetRef = DotNetObjectReference.Create(this);
+            try
+            {
+                var theme = await JS.InvokeAsync<string>("nmuFunctions.nmuThemeGet");
+                var dark = theme == "dark";
+                if (dark != _darkMode)
+                {
+                    _darkMode = dark;
+                    StateHasChanged();
+                }
+            }
+            catch { }
             if (!Platform.IsWeb)
             {
                 await JS.InvokeVoidAsync("window.nmuAddGoBackListener", _dotNetRef);

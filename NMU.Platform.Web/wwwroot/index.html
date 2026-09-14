@@ -6,6 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>NMU-CE &amp; AIE</title>
     <base href="/" />
+    <meta name="theme-color" content="#f3f7fb" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+        try { if (localStorage.getItem('nmu_theme') === 'dark') { document.documentElement.setAttribute('data-theme', 'dark'); } } catch (e) {}
+    </script>
     <script>
         (function() {
             var params = new URLSearchParams(location.search);

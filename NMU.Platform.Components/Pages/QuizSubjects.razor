@@ -3,6 +3,7 @@
 @using NMU.Platform.Components.Services
 @implements IDisposable
 @inject QuizService QuizService
+@inject MaterialsService MaterialsService
 @inject StudentService StudentService
 @inject NavigationManager Navigation
 @inject NavigationState NavState
@@ -65,12 +66,13 @@ else
             @foreach (var subject in _subjects)
             {
                 var s = subject;
+                var style = MaterialsService.GetMaterialStyle(s.Name + " " + s.Code);
                 <div class="subject-card" @onclick="() => OpenSubject(s)">
                     @if (!string.IsNullOrEmpty(s.Code))
                     {
                         <span class="badge badge-sky code-badge-corner">@s.Code</span>
                     }
-                    <div class="card-icon" style="color:var(--primary)">
+                    <div class="card-icon @style.colorClass">
                         <i class="@GetIconCSharp(s.Name + " " + s.Code)"></i>
                     </div>
                     <div class="card-label-wrap">

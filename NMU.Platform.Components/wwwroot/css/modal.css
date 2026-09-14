@@ -92,6 +92,138 @@ input[type="text"], select {
 }
 .selected-subject-chip i { cursor: pointer; color: var(--primary); font-size: 11px; }
 
+/* ---------- Unified profile dialogs (Setup + My Data) ----------
+   Responsive shell: fixed header, scrollable body, sticky actions.
+   Organized in numbered sections with a 2-column academic grid. */
+.profile-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(15, 23, 42, 0.9); z-index: 9999;
+    display: flex; justify-content: center; align-items: center;
+    padding: 14px; box-sizing: border-box;
+    backdrop-filter: blur(10px);
+}
+
+.profile-card {
+    background: var(--bg-card);
+    width: min(94vw, 480px);
+    max-height: min(88vh, 720px);
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 0 30px rgba(147, 26, 35, 0.12);
+    display: flex; flex-direction: column;
+    overflow: hidden; position: relative;
+    animation: slideUp 0.3s ease-out;
+    box-sizing: border-box;
+}
+
+.profile-head {
+    padding: 20px 22px 14px;
+    border-bottom: 1px solid var(--border-color);
+    position: relative; flex-shrink: 0;
+}
+
+.profile-eyebrow {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.7rem; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--primary); margin-bottom: 4px;
+    padding-right: 36px;
+}
+
+.profile-head h2 {
+    margin: 0 0 2px; padding-right: 36px;
+    font-size: 1.25rem; font-weight: 800;
+    color: var(--text-primary);
+}
+
+.profile-head p.sub {
+    margin: 0; font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.profile-close {
+    position: absolute; top: 12px; right: 14px;
+    background: transparent; border: none;
+    color: var(--text-secondary); font-size: 28px;
+    cursor: pointer; line-height: 1; z-index: 2;
+    transition: 0.25s;
+}
+
+.profile-close:hover { color: var(--primary); transform: scale(1.1); }
+
+.profile-body {
+    padding: 16px 22px 10px;
+    overflow-y: auto; flex: 1 1 auto; min-height: 0;
+}
+
+.profile-section { margin-bottom: 18px; }
+.profile-section:last-child { margin-bottom: 6px; }
+
+.profile-section-title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.72rem; font-weight: 800;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--text-secondary); margin-bottom: 10px;
+}
+
+.step-num {
+    width: 20px; height: 20px; border-radius: 6px;
+    background: rgba(147, 26, 35, 0.12); color: var(--primary);
+    font-size: 0.68rem; font-weight: 800;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+
+.opt-tag {
+    font-size: 0.65rem; font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    background: var(--bg-surface-hover);
+    border: 1px solid var(--border-color);
+    border-radius: 6px; padding: 1px 7px;
+    margin-inline-start: auto;
+}
+
+.profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.profile-grid .field-group { margin-bottom: 0; }
+
+@media (max-width: 480px) {
+    .profile-grid { grid-template-columns: 1fr; }
+}
+
+.profile-card input:disabled,
+.profile-card select:disabled {
+    opacity: 0.7; cursor: default;
+    background: var(--bg-surface-hover);
+}
+
+.profile-card .tile-item input:disabled + .tile-btn {
+    opacity: 0.6; cursor: default;
+}
+
+.profile-card .selected-subjects-list {
+    max-height: 120px; overflow-y: auto;
+}
+
+.profile-foot {
+    padding: 12px 22px calc(16px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-card);
+    display: flex; gap: 10px; flex-shrink: 0;
+}
+
+.profile-foot .action-btn,
+.profile-foot .save-btn { margin-top: 0; }
+
+.profile-foot .save-btn { font-size: 15px; padding: 14px; }
+
+@media (max-width: 380px) {
+    .profile-foot { flex-direction: column; }
+    .profile-head h2 { font-size: 1.1rem; }
+    .profile-body { padding: 14px 16px 8px; }
+    .profile-head, .profile-foot { padding-left: 16px; padding-right: 16px; }
+}
+
 /* ---------- Subject picker overlay ---------- */
 .subject-picker-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
