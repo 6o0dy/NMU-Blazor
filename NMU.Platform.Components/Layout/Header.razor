@@ -204,6 +204,8 @@
     {
         if (IsVideoPlayer)
             try { await JS.InvokeVoidAsync("videoPlayer.destroy"); } catch { }
+        if (IsYouTubePlayer)
+            try { await JS.InvokeVoidAsync("youtubePlayer.destroy"); } catch { }
         NavState.CurrentFileUrl = null;
         NavState.CurrentFileName = null;
         NavState.IsFullScreen = false;

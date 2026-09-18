@@ -1,13 +1,54 @@
 @page "/youtube/{Channel}/player"
 @inject NavigationManager Navigation
 @inject NavigationState NavState
+@inject IJSRuntime JS
+@implements IDisposable
 
-<div class="yt-player-root" id="yt-player-body">
-    <div class="yt-player-body">
-        <div class="yt-iframe-wrap">
-            <iframe src="https://www.youtube.com/embed/@_videoId?autoplay=1&rel=0"
-                    allow="autoplay; encrypted-media; fullscreen"
-                    allowfullscreen class="yt-iframe"></iframe>
+@* Chromeless YouTube player: the iframe is created WITHOUT any YouTube UI
+   (no control bar, no keyboard shortcuts, no fullscreen button) and a tap
+   layer + pause cover sit above it, so none of YouTube's own elements
+   (controls, watermark, title) can be touched. Only OUR controls below. *@
+<div class="yt-player-root" id="yt-player-body" @oncontextmenu:preventDefault>
+    <div class="ytp-stage" id="ytp-stage">
+        <div id="yt-player-container" class="ytp-frame"></div>
+        <div id="ytp-tap" class="ytp-tap" title="Play / Pause"></div>
+        <div id="ytp-spinner" class="ytp-spinner" style="display:none">
+            <i class="fas fa-circle-notch fa-spin fa-2x"></i>
+        </div>
+        <div id="ytp-cover" class="ytp-cover">
+            <button id="ytp-cover-btn" class="ytp-cover-btn" type="button" aria-label="Play">
+                <i id="ytp-cover-icon" class="fa-solid fa-play"></i>
+            </button>
+        </div>
+        <div id="ytp-error" class="ytp-error" style="display:none">
+            <div class="ytp-error-text">Couldn't load this video.</div>
+            <div class="yt-direct-actions">
+                <button id="ytp-retry" class="placeholder-btn" type="button">Retry</button>
+                <button id="ytp-open" class="placeholder-btn" type="button">Open in YouTube</button>
+            </div>
+        </div>
+    </div>
+    <div class="ytp-controls" id="ytp-controls">
+        <div class="ytp-progress-area" id="ytp-progress-area">
+            <div class="ytp-progress-bg"></div>
+            <div class="ytp-progress-bar" id="ytp-progress-bar" style="width:0%"></div>
+            <div class="ytp-progress-thumb" id="ytp-progress-thumb" style="left:0%"></div>
+        </div>
+        <div class="ytp-row">
+            <button id="ytp-play" class="ytp-btn" type="button" aria-label="Play/Pause">
+                <i id="ytp-play-icon" class="fa-solid fa-play"></i>
+            </button>
+            <span class="ytp-time"><span id="ytp-time-current">0:00</span> / <span id="ytp-time-duration">0:00</span></span>
+            <div class="ytp-spacer"></div>
+            <button id="ytp-mute" class="ytp-btn" type="button" aria-label="Mute">
+                <i id="ytp-mute-icon" class="fa-solid fa-volume-high"></i>
+            </button>
+            <input id="ytp-volume" class="ytp-volume" type="range" min="0" max="100" value="100" aria-label="Volume" />
+            <button id="ytp-speed" class="ytp-btn ytp-speed" type="button" title="Speed">1x</button>
+            <span id="ytp-quality-badge" class="ytp-quality-badge" title="Current quality">Auto</span>
+            <button id="ytp-full" class="ytp-btn" type="button" aria-label="Fullscreen">
+                <i class="fa-solid fa-expand"></i>
+            </button>
         </div>
     </div>
 </div>
@@ -41,5 +82,16 @@
 
         NavState.IsFullScreen = true;
         NavState.PageTitle = _videoTitle;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || string.IsNullOrEmpty(_videoId)) return;
+        try { await JS.InvokeVoidAsync("youtubePlayer.init", _videoId); } catch { }
+    }
+
+    public void Dispose()
+    {
+        try { _ = JS.InvokeVoidAsync("youtubePlayer.destroy"); } catch { }
     }
 }
