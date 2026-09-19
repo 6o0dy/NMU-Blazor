@@ -246,18 +246,12 @@
     pointer-events: none;
 }
 
-/* ---------- Chromeless custom player (our controls only) ---------- */
+/* ---------- Chromeless YouTube player (vp design system skin) ----------
+   Layout/controls come from videoplayer.css (.vp-*). Below: only the bits
+   unique to YouTube (iframe host, tap shield, error panel, quality badge). */
 .yt-player-root {
     display: flex;
     flex-direction: column;
-}
-
-.ytp-stage {
-    position: relative;
-    flex: 1;
-    min-height: 0;
-    background: #000;
-    overflow: hidden;
 }
 
 .ytp-frame,
@@ -277,53 +271,6 @@
     z-index: 3;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
-}
-
-.ytp-spinner {
-    position: absolute;
-    inset: 0;
-    z-index: 4;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--primary);
-    pointer-events: none;
-}
-
-/* Pause cover: transparent so the frozen frame stays visible, but it still
-   sits above YouTube's UI and swallows every tap/hover. Only our button shows. */
-.ytp-cover {
-    position: absolute;
-    inset: 0;
-    z-index: 5;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    cursor: pointer;
-}
-
-.ytp-cover-btn {
-    position: relative;
-    z-index: 1;
-    width: 76px;
-    height: 76px;
-    border-radius: 50%;
-    border: none;
-    background: var(--primary);
-    color: #fff;
-    font-size: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 0 30px rgba(0, 0, 0, 0.6);
-    transition: transform 0.15s ease;
-    padding-left: 6px;
-}
-
-.ytp-cover-btn:active {
-    transform: scale(0.93);
 }
 
 .ytp-error {
@@ -346,135 +293,16 @@
     line-height: 1.8;
 }
 
-.ytp-controls {
-    position: relative;
-    z-index: 10;
-    background: rgba(10, 10, 15, 0.96);
-    border-top: 1px solid var(--border-color);
-    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-    transition: opacity 0.3s ease;
-    flex: 0 0 auto;
-}
-
-.yt-player-root.idle .ytp-controls {
-    opacity: 0;
-    pointer-events: none;
-}
-
-.ytp-progress-area {
-    position: relative;
-    height: 22px;
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    touch-action: none;
-}
-
-.ytp-progress-bg {
-    position: absolute;
-    left: 0;
-    right: 0;
-    height: 4px;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.18);
-}
-
-.ytp-progress-bar {
-    position: absolute;
-    left: 0;
-    height: 4px;
-    border-radius: 2px;
-    background: var(--primary);
-    pointer-events: none;
-}
-
-.ytp-progress-thumb {
-    position: absolute;
-    top: 50%;
-    width: 13px;
-    height: 13px;
-    border-radius: 50%;
-    background: var(--primary);
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-    box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
-}
-
-.ytp-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 2px;
-}
-
-.ytp-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-primary);
-    font-size: 16px;
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: background 0.15s ease;
-    flex: 0 0 auto;
-}
-
-.ytp-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.ytp-time {
-    font-size: 12px;
-    color: var(--text-secondary);
-    font-family: 'Fira Code', monospace;
-    white-space: nowrap;
-}
-
-.ytp-spacer {
-    flex: 1;
-}
-
-.ytp-volume {
-    width: 70px;
-    height: 3px;
-    accent-color: var(--primary);
-    cursor: pointer;
-    flex: 0 0 auto;
-}
-
-.ytp-speed {
-    width: auto;
-    border-radius: 8px;
-    font-size: 12px;
-    font-family: 'Fira Code', monospace;
-    padding: 0 8px;
-}
-
 .ytp-quality-badge {
     font-size: 11px;
     font-family: 'Fira Code', monospace;
-    color: var(--text-secondary);
-    border: 1px solid var(--border-color);
+    color: #ccc;
+    background: rgba(255, 255, 255, .06);
     border-radius: 8px;
     padding: 4px 8px;
     white-space: nowrap;
     flex: 0 0 auto;
-}
-
-@media (max-width: 560px) {
-    .ytp-volume {
-        display: none;
-    }
-    .ytp-time {
-        font-size: 11px;
-    }
-    .ytp-row {
-        gap: 6px;
-    }
+    letter-spacing: .5px;
 }
 
 @keyframes fadeIn {

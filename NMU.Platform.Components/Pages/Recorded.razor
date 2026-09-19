@@ -45,15 +45,16 @@ else
             @for (int i = 0; i < _groupsInfo.Count; i++)
             {
                 var g = _groupsInfo[i];
-                var icon = RecordedService.GetIconClass((g.DisplayName ?? g.Name) + " " + g.Code);
-                var style = MaterialsService.GetMaterialStyle(((string.IsNullOrEmpty(g.DisplayName) ? g.Name : g.DisplayName)) + " " + g.Code);
+                var displayName = string.IsNullOrEmpty(g.DisplayName) ? g.Name : g.DisplayName;
+                var style = SubjectIcons.Resolve(g.Code, displayName);
+                var icon = style.Icon;
                 var title = string.IsNullOrEmpty(g.DisplayName) ? g.Name.Replace("_", " ") : g.DisplayName;
                 var line = GetGroupLine(g.Name);
                 var offlineCount = _offlineCounts.TryGetValue(g.Name, out var oc) ? oc : 0;
                 var lecList = _groupLecturers.TryGetValue(g.Name, out var gl) ? gl : new List<string>();
                 <div class="dev-card mat-card" @onclick="() => OpenGroupAsync(g.Name)">
                     <div class="dev-card-top">
-                        <span class="dev-card-icon @style.colorClass"><i class="@icon"></i></span>
+                        <span class="dev-card-icon @style.ColorClass"><i class="@icon"></i></span>
                         @if (!string.IsNullOrEmpty(g.Code))
                         {
                             <span class="badge badge-sky mat-code">@g.Code</span>
@@ -215,10 +216,17 @@ else
                     var lecs = RecordedService.GetLecturersForGroup(files, group.Key.Level, group.Key.Semester, g);
                     fullMap[g] = lecs;
                     lecMap[g] = lecs;
+                    // Parse "CSE014 - ... .(ALL)" like the normal path does, so
+                    // cards get the same icon, code badge and clean title.
+                    NMU.Platform.Components.Services.ArchiveCatalog.ParseSubjectFolder(
+                        g, out var code, out var clean, out var branch);
                     result.Add(new RecordedGroupInfo
                     {
                         Name = g,
-                        Count = RecordedService.GetFilesForGroup(files, group.Key.Level, group.Key.Semester, g).Count
+                        Count = RecordedService.GetFilesForGroup(files, group.Key.Level, group.Key.Semester, g).Count,
+                        Code = code,
+                        DisplayName = clean,
+                        Branch = branch
                     });
                 }
             }

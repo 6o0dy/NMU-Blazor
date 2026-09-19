@@ -42,14 +42,14 @@ else
             @for (int i = 0; i < _subjects.Count; i++)
             {
                 var sub = _subjects[i];
-                var style = MaterialsService.GetMaterialStyle(sub.DisplayName + " " + sub.Code);
                 var subjectName = string.IsNullOrEmpty(sub.DisplayName) ? sub.Name.Replace("_", " ") : sub.DisplayName;
+                var style = SubjectIcons.Resolve(sub.Code, subjectName);
                 var offlineCount = _offlineCounts.TryGetValue(sub.Name, out var oc) ? oc : 0;
                 var subLine = GetSubjectLine(sub.Name);
                 var lecList = _subjectLecturers.TryGetValue(sub.Name, out var ll) ? ll : new List<string>();
                 <div class="dev-card mat-card" @onclick="() => OpenSubject(sub.Name)">
                     <div class="dev-card-top">
-                        <span class="dev-card-icon @style.colorClass"><i class="@style.icon"></i></span>
+                        <span class="dev-card-icon @style.ColorClass"><i class="@style.Icon"></i></span>
                         @if (!string.IsNullOrEmpty(sub.Code))
                         {
                             <span class="badge badge-sky mat-code">@sub.Code</span>
@@ -57,7 +57,7 @@ else
                     </div>
                     <div class="dev-card-title mat-title" title="@subjectName">@subjectName</div>
                     <div class="dev-card-desc mat-sub" title="@subLine">
-                        @if (_customMode || lecList.Count == 0)
+                        @if (lecList.Count == 0)
                         {
                             @subLine
                         }
@@ -134,6 +134,7 @@ else
     private string _studentSemester = "First_Term";
     private string _studentDept = "ALL";
     private bool _customMode;
+    private List<CustomSubjectSelection> _customSelections = new();
     private bool _dialogOpen;
     private string _dialogSubject = "";
     private List<string> _dialogLecturers = new();
@@ -175,19 +176,36 @@ else
             if (student?.CustomSubjectsMode == true && student.CustomSubjects != null && student.CustomSubjects.Count > 0)
             {
                 _customMode = true;
-                _subjects = student.CustomSubjects
-                    .Select(s => new MaterialSubjectInfo { Name = s.Subject, FileCount = 0 })
-                    .GroupBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
+                _customSelections = student.CustomSubjects
+                    .GroupBy(s => s.Subject, StringComparer.OrdinalIgnoreCase)
                     .Select(g => g.First())
                     .ToList();
-                _subjectSources = student.CustomSubjects
-                    .GroupBy(s => s.Subject, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(g => g.First().Subject,
-                                  g => $"{g.First().Level.Replace("_", " ")} • {g.First().Semester.Replace("_", " ")}",
+                _subjects = _customSelections
+                    .Select(s =>
+                    {
+                        // Parse "CSE014 - Structured Programming.(ALL)" like the normal
+                        // path does, so cards get the same icon, code badge and title.
+                        NMU.Platform.Components.Services.ArchiveCatalog.ParseSubjectFolder(
+                            s.Subject, out var code, out var clean, out var branch);
+                        return new MaterialSubjectInfo
+                        {
+                            Name = s.Subject,
+                            Code = code,
+                            DisplayName = clean,
+                            Branch = branch,
+                            FileCount = 0
+                        };
+                    })
+                    .ToList();
+                _subjectSources = _customSelections
+                    .ToDictionary(s => s.Subject,
+                                  s => $"{s.Level.Replace("_", " ")} • {s.Semester.Replace("_", " ")}",
                                   StringComparer.OrdinalIgnoreCase);
                 _noData = _subjects.Count == 0;
                 _loading = false;
                 await InvokeAsync(StateHasChanged);
+                // Background: lecturers + offline badges per subject's own archive.
+                _ = RefreshCustomDetailsAsync();
                 return;
             }
 
@@ -300,6 +318,80 @@ else
         _subjectLecturers = map;
     }
 
+    /// <summary>
+    /// Custom mode background pass: each subject lives in its own archive, so
+    /// load every involved archive once, then build lecturer chips + offline
+    /// badges per subject (same look as the normal mode).
+    /// </summary>
+    private async Task RefreshCustomDetailsAsync()
+    {
+        try
+        {
+            var pairs = _customSelections
+                .Select(s => (s.Level, s.Semester))
+                .Distinct()
+                .ToList();
+            var filesByArchive = new Dictionary<string, List<ArchiveFile>>(StringComparer.Ordinal);
+            var archiveIds = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var (level, semester) in pairs)
+            {
+                var files = await MaterialsService.GetFilesAsync(level, semester);
+                var key = $"{level}|{semester}";
+                filesByArchive[key] = files;
+                var aid = NMU.Platform.Components.Services.ArchiveCatalog.GetArchiveId(level, semester);
+                if (aid != null) archiveIds[key] = aid;
+            }
+
+            var lecMap = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var sub in _subjects)
+            {
+                var sel = _customSelections.FirstOrDefault(c =>
+                    string.Equals(c.Subject, sub.Name, StringComparison.OrdinalIgnoreCase));
+                if (sel == null) continue;
+                if (!filesByArchive.TryGetValue($"{sel.Level}|{sel.Semester}", out var files)) continue;
+                var lecturers = MaterialsService.GetLecturersForSubject(files, sub.Name);
+                if (lecturers.Count > 0) lecMap[sub.Name] = lecturers;
+            }
+
+            HashSet<string> cachedKeys;
+            try
+            {
+                var keys = await JS.InvokeAsync<string[]>("nmuFunctions.getCachedPdfKeys");
+                cachedKeys = new HashSet<string>(keys ?? Array.Empty<string>(), StringComparer.Ordinal);
+            }
+            catch { cachedKeys = new HashSet<string>(); }
+
+            var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var sub in _subjects)
+            {
+                var sel = _customSelections.FirstOrDefault(c =>
+                    string.Equals(c.Subject, sub.Name, StringComparison.OrdinalIgnoreCase));
+                if (sel == null) continue;
+                var akey = $"{sel.Level}|{sel.Semester}";
+                if (!filesByArchive.TryGetValue(akey, out var files)) continue;
+                if (!archiveIds.TryGetValue(akey, out var aid)) continue;
+                var n = 0;
+                foreach (var f in files)
+                {
+                    if (!f.Name.StartsWith($"Data/{sub.Name}/", StringComparison.Ordinal)) continue;
+                    if (!f.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (f.Name.ToLowerInvariant().EndsWith("_text.pdf")) continue;
+                    var url = NMU.Platform.Components.Services.ArchiveCatalog.GetDownloadUrl(aid, f.Name);
+                    if (cachedKeys.Contains(GetPdfCacheKey(url))) n++;
+                }
+                if (n > 0) counts[sub.Name] = n;
+            }
+
+            await InvokeAsync(() =>
+            {
+                _subjectLecturers = lecMap;
+                _offlineCounts = counts;
+                StateHasChanged();
+            });
+        }
+        catch { }
+    }
+
     private List<MaterialSubjectInfo> FilterByDepartment(List<MaterialSubjectInfo> list)
     {
         return list.Where(s => NMU.Platform.Components.Services.ArchiveCatalog.IsVisibleForDepartment(s.Branch, _studentDept)).ToList();
@@ -330,9 +422,21 @@ else
     {
         try
         {
-            if (_allFiles.Count == 0)
-                _allFiles = await MaterialsService.GetFilesAsync(_studentLevel, _studentSemester);
-            var lecturers = MaterialsService.GetLecturersForSubject(_allFiles, subject);
+            // Custom subjects live in their own archives: resolve first so the
+            // lecturer dialog (and file list) comes from the right place.
+            var (level, semester) = SubjectArchive(subject);
+            List<ArchiveFile> files;
+            if (string.Equals(level, _studentLevel, StringComparison.Ordinal)
+                && string.Equals(semester, _studentSemester, StringComparison.Ordinal)
+                && _allFiles.Count > 0)
+            {
+                files = _allFiles;
+            }
+            else
+            {
+                files = await MaterialsService.GetFilesAsync(level, semester);
+            }
+            var lecturers = MaterialsService.GetLecturersForSubject(files, subject);
             // Multiple lecturers: choose first on this page, navigate after.
             if (lecturers.Count > 1)
             {
@@ -348,6 +452,17 @@ else
         {
             NavigateToSubject(subject, null);
         }
+    }
+
+    private (string Level, string Semester) SubjectArchive(string subject)
+    {
+        if (_customMode)
+        {
+            var m = _customSelections.FirstOrDefault(c =>
+                string.Equals(c.Subject, subject, StringComparison.OrdinalIgnoreCase));
+            if (m != null) return (m.Level, m.Semester);
+        }
+        return (_studentLevel, _studentSemester);
     }
 
     private void NavigateToSubject(string subject, string? lecturer)

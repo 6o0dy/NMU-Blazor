@@ -18,7 +18,7 @@ window.youtubePlayer = {
     _loadingApi: false,
     _lastActivity: 0,
     _lastSaved: 0,
-    _speeds: [1, 1.25, 1.5, 2, 0.5],
+    _speeds: [1, 1.25, 1.5, 1.75, 2, 2.5, 3, 0.5],
     _speedIdx: 0,
     _drag: false,
     _badgePrimed: false,
@@ -33,6 +33,7 @@ window.youtubePlayer = {
         this._lastActivity = Date.now();
         this._lastSaved = 0;
         this._speedIdx = 0;
+        this._drawSpeed(1);
         this._drag = false;
         this._badgePrimed = false;
         this._hideError();
@@ -88,6 +89,7 @@ window.youtubePlayer = {
                     'onReady': function (e) { self._onReady(e); },
                     'onStateChange': function (e) { self._onState(e.data); },
                     'onPlaybackQualityChange': function (e) { self._onQualityChange(e && e.data); },
+                    'onPlaybackRateChange': function (e) { self._onRateChange(e && e.data); },
                     'onError': function () { self._onError(); }
                 }
             });
@@ -205,6 +207,15 @@ window.youtubePlayer = {
         this._lastActivity = Date.now();
     },
 
+    seekBy: function (sec) {
+        if (!this._player || !isFinite(sec)) return;
+        var dur = this._dur(), cur = 0;
+        try { cur = this._player.getCurrentTime() || 0; } catch (e) { }
+        var t = Math.max(0, Math.min(dur > 0 ? dur : cur + sec, cur + sec));
+        try { this._player.seekTo(t, true); } catch (e) { }
+        this._lastActivity = Date.now();
+    },
+
     setVolume: function (v) {
         if (!this._player) return;
         v = Math.max(0, Math.min(100, parseInt(v, 10) || 0));
@@ -236,8 +247,22 @@ window.youtubePlayer = {
         this._speedIdx = (this._speedIdx + 1) % this._speeds.length;
         var r = this._speeds[this._speedIdx];
         try { this._player.setPlaybackRate(r); } catch (e) { }
+        this._drawSpeed(r);
+    },
+
+    _drawSpeed: function (r) {
         var btn = this._el('ytp-speed');
         if (btn) btn.textContent = (r + 'x').replace('.0x', 'x');
+    },
+
+    // YouTube caps playback at 2x and silently rounds higher requests down.
+    // This event reports the REAL applied rate — the button always shows truth.
+    _onRateChange: function (r) {
+        if (!isFinite(r) || r <= 0) return;
+        for (var i = 0; i < this._speeds.length; i++) {
+            if (Math.abs(this._speeds[i] - r) < 0.01) { this._speedIdx = i; break; }
+        }
+        this._drawSpeed(r);
     },
 
     // QUALITY, HONEST VERSION (verified against Google's docs + IssueTracker
@@ -337,35 +362,29 @@ window.youtubePlayer = {
         if (d) d.textContent = this._fmt(dur);
     },
 
-    // ---------- cover / spinner / icons ----------
-    _showCover: function (mode) {
-        var cover = this._el('ytp-cover');
-        var icon = this._el('ytp-cover-icon');
-        if (cover) cover.style.display = 'flex';
+    // ---------- center indicator / buffering (vp design system) ----------
+    _showCenter: function (mode) {
+        var el = this._el('ytp-center-play');
+        var icon = this._el('ytp-center-icon');
+        if (el) el.style.opacity = '1';
         if (icon) icon.className = mode === 'replay' ? 'fa-solid fa-rotate-right' : 'fa-solid fa-play';
     },
 
-    _hideCover: function () {
-        var cover = this._el('ytp-cover');
-        if (cover) cover.style.display = 'none';
+    _hideCenter: function () {
+        var el = this._el('ytp-center-play');
+        if (el) el.style.opacity = '0';
     },
 
-    _coverAction: function () {
-        if (this._state() === 0) {
-            try { this._player.seekTo(0, true); } catch (e) { }
-            this.play();
-        } else {
-            this.togglePlay();
-        }
-    },
+    _showCover: function (mode) { this._showCenter(mode); },
+    _hideCover: function () { this._hideCenter(); },
 
     _showSpinner: function () {
-        var sp = this._el('ytp-spinner');
-        if (sp) sp.style.display = 'flex';
+        var sp = this._el('ytp-buffer');
+        if (sp) sp.style.display = 'block';
     },
 
     _hideSpinner: function () {
-        var sp = this._el('ytp-spinner');
+        var sp = this._el('ytp-buffer');
         if (sp) sp.style.display = 'none';
     },
 
@@ -390,10 +409,6 @@ window.youtubePlayer = {
         var self = this;
         var tap = this._el('ytp-tap');
         if (tap) tap.onclick = function () { self._activity(); self.togglePlay(); };
-        var coverBtn = this._el('ytp-cover-btn');
-        if (coverBtn) coverBtn.onclick = function (e) { if (e) e.stopPropagation(); self._activity(); self._coverAction(); };
-        var cover = this._el('ytp-cover');
-        if (cover) cover.onclick = function () { self._activity(); self._coverAction(); };
         var playBtn = this._el('ytp-play');
         if (playBtn) playBtn.onclick = function () { self._activity(); self.togglePlay(); };
         var muteBtn = this._el('ytp-mute');
@@ -406,8 +421,14 @@ window.youtubePlayer = {
         if (full) full.onclick = function () { self._activity(); self.toggleFullscreen(); };
         var retry = this._el('ytp-retry');
         if (retry) retry.onclick = function () { self.retry(); };
-        var open = this._el('ytp-open');
-        if (open) open.onclick = function () { self.openExternal(); };
+        var errOpen = this._el('ytp-error-open');
+        if (errOpen) errOpen.onclick = function () { self.openExternal(); };
+        var rowOpen = this._el('ytp-open');
+        if (rowOpen) rowOpen.onclick = function () { self._activity(); self.openExternal(); };
+        var back10 = this._el('ytp-back10');
+        if (back10) back10.onclick = function () { self._activity(); self.seekBy(-10); };
+        var fw10 = this._el('ytp-fw10');
+        if (fw10) fw10.onclick = function () { self._activity(); self.seekBy(10); };
         var area = this._el('ytp-progress-area');
         if (area && !area._ytpWired) { area._ytpWired = true; this._wireSeek(area); }
         var root = this._el('yt-player-body');
