@@ -116,7 +116,7 @@ else
                 @foreach (var lec in _lecturers)
                 {
                     var l = lec;
-                    var split = NMU.Platform.Components.Services.RecordedService.SplitLecturerTag(l);
+                    var split = NMU.Platform.Components.Services.VideosService.SplitLecturerTag(l);
                     var clean = string.IsNullOrEmpty(split.Name) ? l : split.Name;
                     <div class="subject-check-card lec-pick" @onclick="() => PickLecturer(l)">
                         <span class="subject-check-name" title="@l">@clean</span>
@@ -487,12 +487,12 @@ else
 
     private static string LecturerClean(string lecturer)
     {
-        var split = NMU.Platform.Components.Services.RecordedService.SplitLecturerTag(lecturer);
+        var split = NMU.Platform.Components.Services.VideosService.SplitLecturerTag(lecturer);
         return string.IsNullOrEmpty(split.Name) ? lecturer : split.Name;
     }
 
     private static string LecturerTag(string lecturer)
-        => NMU.Platform.Components.Services.RecordedService.SplitLecturerTag(lecturer).Tag;
+        => NMU.Platform.Components.Services.VideosService.SplitLecturerTag(lecturer).Tag;
 
     private string? ReadLecturerQuery()
     {

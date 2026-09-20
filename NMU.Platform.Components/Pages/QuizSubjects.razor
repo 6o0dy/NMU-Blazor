@@ -108,7 +108,7 @@ else
         LayoutState.RefreshRequested += OnRefreshRequested;
 
         // Fast path: render from the small cached subject list instantly, then
-        // refresh in the background (same pattern as Materials/Recorded).
+        // refresh in the background (same pattern as Materials/Videos).
         try
         {
             var student = await StudentService.GetStudentAsync();

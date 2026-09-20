@@ -2,7 +2,7 @@ namespace NMU.Platform.Components.Services;
 
 /// <summary>
 /// Single shared subject-icon catalog for the whole app (Study Materials,
-/// Recorded Lectures and Quizzes all resolve through here, so every course
+/// Videos and Quizzes all resolve through here, so every course
 /// shows the SAME icon everywhere).
 ///
 /// Resolution order:

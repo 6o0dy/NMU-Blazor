@@ -37,21 +37,25 @@
                 <button class="btn-outlined" @onclick="GoToQuizzes" @onclick:stopPropagation>Start Quizzes ➔</button>
             </div>
 
-            <div class="dev-card" @onclick="GoToRecorded">
-                <div class="dev-card-title"><span>🎥</span> Recorded Lectures</div>
-                <div class="dev-card-desc">Built-in player with seek bar and offline caching support.</div>
-                <button class="btn-outlined" @onclick="GoToRecorded" @onclick:stopPropagation>Watch Lectures ➔</button>
-            </div>
-
-            <div class="dev-card" @onclick="GoToYouTube">
-                <div class="dev-card-title"><span>▶️</span> YouTube Videos</div>
-                <div class="dev-card-desc">Curated subject explanations from YouTube channels.</div>
-                <button class="btn-outlined" @onclick="GoToYouTube" @onclick:stopPropagation>Browse Videos ➔</button>
+            <div class="dev-card dev-card-featured" @onclick="GoToVideos">
+                <div class="featured-visual">
+                    <span>🎥</span>
+                    <span class="featured-yt-badge" title="YouTube explanations included"><i class="fa-brands fa-youtube"></i></span>
+                </div>
+                <div class="featured-body">
+                    <div class="dev-card-title"><span class="nav-ico-yt">🎥<i class="fa-brands fa-youtube nav-yt-badge"></i></span> Videos</div>
+                    <div class="featured-sources">
+                        <span class="src-pill"><i class="fa-solid fa-user-tie"></i> Doctors' recordings</span>
+                        <span class="src-pill src-yt"><i class="fa-brands fa-youtube"></i> YouTube explanations</span>
+                    </div>
+                    <div class="dev-card-desc">Pick your lecturer or a YouTube channel per subject — all videos in one place.</div>
+                    <button class="btn-outlined" @onclick="GoToVideos" @onclick:stopPropagation>Watch Videos ➔</button>
+                </div>
             </div>
 
             @if (_showVirtualLab)
             {
-                <div class="dev-card" @onclick="GoToLaboratory">
+                <div class="dev-card dev-card-wide" @onclick="GoToLaboratory">
                     <div class="dev-card-title"><span>🧪</span> Virtual Lab</div>
                     <div class="dev-card-desc">Live simulations of practical electricity and circuits experiments.</div>
                     <button class="btn-outlined" @onclick="GoToLaboratory" @onclick:stopPropagation>Enter Lab ➔</button>
@@ -654,8 +658,7 @@
     }
 
     private void GoToMaterials() => NavigateTo("/materials");
-    private void GoToYouTube() => NavigateTo("/youtube");
-    private void GoToRecorded() => NavigateTo("/recorded");
+    private void GoToVideos() => NavigateTo("/videos");
     private void GoToQuizzes() => NavigateTo("/quizzes");
     private void GoToLaboratory() => NavigateTo("/laboratory");
 

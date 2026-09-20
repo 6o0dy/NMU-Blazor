@@ -22,8 +22,8 @@ else if (_channel == null)
 }
 else
 {
-    @* Same card design as the regular Recorded videos page. *@
-    <div class="recorded-files">
+    @* Same card design as the regular videos page. *@
+    <div class="video-files">
         @if (_filteredVideos.Count == 0)
         {
             <div style="text-align:center; color:#94a3b8; padding:20px; grid-column: 1 / -1;">
@@ -33,16 +33,16 @@ else
         @foreach (var vid in _filteredVideos)
         {
             var v = vid;
-            <div class="recorded-card" @onclick="() => PlayVideo(v)">
-                <img src="@v.Img" class="recorded-thumb" loading="lazy" onerror="nmuFunctions.ytImgFallback(this)" />
-                <div class="recorded-info">
-                    <div class="recorded-title" title="@v.Title">@v.Title</div>
-                    <div class="recorded-meta">
+            <div class="video-card" @onclick="() => PlayVideo(v)">
+                <img src="@v.Img" class="video-thumb" loading="lazy" onerror="nmuFunctions.ytImgFallback(this)" />
+                <div class="video-info">
+                    <div class="video-title" title="@v.Title">@v.Title</div>
+                    <div class="video-meta">
                         <span class="badge badge-vid">VIDEO</span>
-                        <span class="recorded-sub">@_channel?.ChannelName</span>
+                        <span class="video-sub">@_channel?.ChannelName</span>
                     </div>
                 </div>
-                <div class="recorded-dl" @onclick:stopPropagation @onclick="() => OpenOnYoutube(v.Url)" title="Open in YouTube">
+                <div class="video-dl" @onclick:stopPropagation @onclick="() => OpenOnYoutube(v.Url)" title="Open in YouTube">
                     <i class="fa-brands fa-youtube"></i>
                 </div>
             </div>

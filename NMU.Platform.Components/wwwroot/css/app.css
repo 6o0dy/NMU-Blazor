@@ -37,7 +37,7 @@ body {
 .bottom-section { flex-shrink: 0; }
 
 /* ---------- Hover marquee for overflowing file/video titles ----------
-   JS (nmuEnableMarquee) wraps the text of .file-name / .recorded-title in
+   JS (nmuEnableMarquee) wraps the text of .file-name / .video-title in
    .marquee-inner only when it actually overflows, and sets --marquee-dist
    (slide distance) + --marquee-dur. Default state shows ... ; hovering
    ANYWHERE on the card slides the title immediately to reveal it in full.
@@ -53,12 +53,12 @@ body {
 }
 
 .file-item:hover .marquee-on,
-.recorded-card:hover .marquee-on {
+.video-card:hover .marquee-on {
     text-overflow: clip;
 }
 
 .file-item:hover .marquee-on > .marquee-inner,
-.recorded-card:hover .marquee-on > .marquee-inner {
+.video-card:hover .marquee-on > .marquee-inner {
     animation: marquee-slide var(--marquee-dur, 8s) linear infinite;
 }
 

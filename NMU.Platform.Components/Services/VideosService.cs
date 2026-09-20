@@ -5,22 +5,22 @@ using NMU.Platform.Components.Models;
 
 namespace NMU.Platform.Components.Services;
 
-public class RecordedService
+public class VideosService
 {
     private readonly IJSRuntime _js;
-    private readonly ILogger<RecordedService> _logger;
-    private const string CacheVersion = "v70_newarch_recorded_";
-    private const string GroupsCacheVersion = "v70_newarch_recgroups_";
+    private readonly ILogger<VideosService> _logger;
+    private const string CacheVersion = "v70_newarch_videos_";
+    private const string GroupsCacheVersion = "v70_newarch_videogroups_";
 
-    public RecordedService(IJSRuntime js, ILogger<RecordedService> logger)
+    public VideosService(IJSRuntime js, ILogger<VideosService> logger)
     {
         _js = js;
         _logger = logger;
     }
 
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<RecordedFile>> _filesMemCache = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<VideoFile>> _filesMemCache = new();
 
-    public async Task<List<RecordedFile>> GetFilesAsync(string level, string semester, bool force = false)
+    public async Task<List<VideoFile>> GetFilesAsync(string level, string semester, bool force = false)
     {
         var memKey = $"{level}_{semester}";
         if (!force && _filesMemCache.TryGetValue(memKey, out var mem) && mem != null)
@@ -34,7 +34,7 @@ public class RecordedService
             {
                 try
                 {
-                    var parsed = JsonSerializer.Deserialize<List<RecordedFile>>(cached, CaseInsensitive);
+                    var parsed = JsonSerializer.Deserialize<List<VideoFile>>(cached, CaseInsensitive);
                     if (parsed != null && parsed.Count > 0)
                     {
                         _filesMemCache[memKey] = parsed;
@@ -47,14 +47,14 @@ public class RecordedService
 
         try
         {
-            // Parse the big metadata in JS and receive only this semester's recorded
+            // Parse the big metadata in JS and receive only this semester's video
             // list (with resolved thumbnails) as a compact PascalCase JSON string.
             // force:true re-fetches the raw metadata and overwrites the rec cache.
-            var json = await _js.InvokeAsync<string>("nmuFunctions.getRecordedFiles", level, semester, force);
-            _logger.LogDebug("GetFilesAsync: getRecordedFiles returned {Len} chars", json?.Length ?? 0);
+            var json = await _js.InvokeAsync<string>("nmuFunctions.getVideoFiles", level, semester, force);
+            _logger.LogDebug("GetFilesAsync: getVideoFiles returned {Len} chars", json?.Length ?? 0);
             if (!string.IsNullOrEmpty(json))
             {
-                var files = JsonSerializer.Deserialize<List<RecordedFile>>(json, CaseInsensitive) ?? new List<RecordedFile>();
+                var files = JsonSerializer.Deserialize<List<VideoFile>>(json, CaseInsensitive) ?? new List<VideoFile>();
                 _logger.LogDebug("GetFilesAsync: deserialized {Count} files (path A)", files.Count);
                 if (files.Count > 0)
                 {
@@ -73,7 +73,7 @@ public class RecordedService
         try
         {
             var archiveId = ArchiveCatalog.GetArchiveId(level, semester);
-            if (archiveId == null) return new List<RecordedFile>();
+            if (archiveId == null) return new List<VideoFile>();
             string? fullJson;
             if (force)
             {
@@ -87,7 +87,7 @@ public class RecordedService
             else
                 fullJson = await GetRawMetadataAsync(level, semester);
             if (string.IsNullOrEmpty(fullJson))
-                return new List<RecordedFile>();
+                return new List<VideoFile>();
             var data = JsonSerializer.Deserialize<ArchiveMetadata>(fullJson);
             var thumbsPrefix = $"{archiveId}.thumbs/Data/";
 
@@ -99,13 +99,13 @@ public class RecordedService
             var files = data?.Files?
                 .Where(f => f.Name.StartsWith("Data/", StringComparison.Ordinal)
                     && f.Name.Contains("/Records/", StringComparison.OrdinalIgnoreCase)
-                    && ArchiveCatalog.IsRecordedMedia(f.Name))
+                    && ArchiveCatalog.IsVideoMedia(f.Name))
                 .Select(f =>
                 {
                     var lower = f.Name.ToLower();
                     var fileNoExt = System.IO.Path.GetFileNameWithoutExtension(f.Name);
-                    ParseRecordedPath(f.Name, out var subjectFull, out var lecturer);
-                    return new RecordedFile
+                    ParseVideoPath(f.Name, out var subjectFull, out var lecturer);
+                    return new VideoFile
                     {
                         Name = f.Name,
                         Size = long.TryParse(f.Size, out var s) ? s : null,
@@ -118,7 +118,7 @@ public class RecordedService
                         SubFolder = string.IsNullOrEmpty(lecturer) ? "General" : lecturer
                     };
                 })
-                .ToList() ?? new List<RecordedFile>();
+                .ToList() ?? new List<VideoFile>();
 
             _logger.LogInformation("GetFilesAsync: fallback found {Count} files", files.Count);
             if (files.Count > 0)
@@ -132,7 +132,7 @@ public class RecordedService
         catch (Exception ex)
         {
             _logger.LogError(ex, "GetFilesAsync: fallback failed: {Message}", ex.Message);
-            return new List<RecordedFile>();
+            return new List<VideoFile>();
         }
     }
 
@@ -145,23 +145,23 @@ public class RecordedService
     /// Returns the small cached group list (name + count) instantly without touching
     /// the full file list, mirroring the materials page's fast path.
     /// </summary>
-    public async Task<List<RecordedGroupInfo>> GetCachedGroupsInfoAsync(string level, string semester)
+    public async Task<List<VideoGroupInfo>> GetCachedGroupsInfoAsync(string level, string semester)
     {
         try
         {
             var cached = await _js.InvokeAsync<string>("nmuFunctions.safeGetItem", GroupsCacheKey(level, semester));
             if (!string.IsNullOrEmpty(cached))
             {
-                var parsed = JsonSerializer.Deserialize<List<RecordedGroupInfo>>(cached, CaseInsensitive);
+                var parsed = JsonSerializer.Deserialize<List<VideoGroupInfo>>(cached, CaseInsensitive);
                 if (parsed != null && parsed.Count > 0)
                     return parsed;
             }
         }
         catch { }
-        return new List<RecordedGroupInfo>();
+        return new List<VideoGroupInfo>();
     }
 
-    public async Task<List<RecordedGroupInfo>> GetGroupsInfoAsync(string level, string semester)
+    public async Task<List<VideoGroupInfo>> GetGroupsInfoAsync(string level, string semester)
     {
         var cached = await GetCachedGroupsInfoAsync(level, semester);
         if (cached.Count > 0)
@@ -180,11 +180,11 @@ public class RecordedService
         => $"{GroupsCacheVersion}{level}_{semester}";
 
     /// <summary>
-    /// Background revalidation for the recorded lectures groups: at most one
+    /// Background revalidation for the videos groups: at most one
     /// re-fetch per RevalidateAfter window (no network call in the check itself,
     /// since archive.org's search index does not list the NMU.CE_* identifiers).
     /// </summary>
-    public async Task CheckAndUpdateRecordedAsync(string level, string semester, Action<List<RecordedGroupInfo>>? onGroupsUpdated = null)
+    public async Task CheckAndUpdateVideosAsync(string level, string semester, Action<List<VideoGroupInfo>>? onGroupsUpdated = null)
     {
         if (string.IsNullOrEmpty(level) || string.IsNullOrEmpty(semester)) return;
         try
@@ -197,7 +197,7 @@ public class RecordedService
             if (!await IsRefreshDueAsync(metaKey)) return;
 
             _filesMemCache.TryRemove($"{level}_{semester}", out _);
-            // Force: bypass the persistent recorded-list cache so newly added
+            // Force: bypass the persistent videos-list cache so newly added
             // archive videos are actually picked up (not re-served stale).
             var files = await GetFilesAsync(level, semester, force: true);
             var groups = GetGroups(files, level, semester);
@@ -216,7 +216,7 @@ public class RecordedService
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "CheckAndUpdateRecordedAsync error: {Message}", ex.Message);
+            _logger.LogDebug(ex, "CheckAndUpdateVideosAsync error: {Message}", ex.Message);
         }
     }
 
@@ -262,7 +262,7 @@ public class RecordedService
     /// Parses "Data/{Subject}/Records/{Lecturer}/{file}" into subject + lecturer.
     /// Returns empty strings when the path does not match the new layout.
     /// </summary>
-    public static void ParseRecordedPath(string fullPath, out string subjectFull, out string lecturer)
+    public static void ParseVideoPath(string fullPath, out string subjectFull, out string lecturer)
     {
         subjectFull = "";
         lecturer = "";
@@ -277,12 +277,12 @@ public class RecordedService
         lecturer = segs[recIdx + 1];
     }
 
-    public static List<RecordedGroupInfo> BuildGroupsInfo(List<RecordedFile> files, string level, string semester, List<string> groups)
+    public static List<VideoGroupInfo> BuildGroupsInfo(List<VideoFile> files, string level, string semester, List<string> groups)
     {
         return groups.Select(g =>
         {
             ArchiveCatalog.ParseSubjectFolder(g, out var code, out var clean, out var branch);
-            return new RecordedGroupInfo
+            return new VideoGroupInfo
             {
                 Name = g,
                 Count = GetFilesForGroup(files, level, semester, g).Count,
@@ -293,8 +293,8 @@ public class RecordedService
         }).ToList();
     }
 
-    /// <summary>Distinct lecturers inside one subject group (Recorded &gt; Doctor level).</summary>
-    public static List<string> GetLecturersForGroup(List<RecordedFile> allFiles, string level, string semester, string group)
+    /// <summary>Distinct lecturers inside one subject group (Videos &gt; Doctor level).</summary>
+    public static List<string> GetLecturersForGroup(List<VideoFile> allFiles, string level, string semester, string group)
     {
         var files = GetFilesForGroup(allFiles, level, semester, group);
         return files.Select(f => f.Lecturer)
@@ -304,13 +304,13 @@ public class RecordedService
             .ToList();
     }
 
-    public static List<string> GetGroups(List<RecordedFile> files, string level, string semester)
+    public static List<string> GetGroups(List<VideoFile> files, string level, string semester)
     {
         // New layout: groups are subjects -> Data/{Subject}/Records/...
         var groups = new HashSet<string>(StringComparer.Ordinal);
         foreach (var f in files)
         {
-            ParseRecordedPath(f.Name, out var subjectFull, out _);
+            ParseVideoPath(f.Name, out var subjectFull, out _);
             if (!string.IsNullOrEmpty(subjectFull))
                 groups.Add(subjectFull);
         }
@@ -322,30 +322,30 @@ public class RecordedService
         }, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    public static List<RecordedFile> GetFilesForGroup(List<RecordedFile> allFiles, string level, string semester, string group, string? lecturer = null)
+    public static List<VideoFile> GetFilesForGroup(List<VideoFile> allFiles, string level, string semester, string group, string? lecturer = null)
     {
         var prefix = $"Data/{group}/Records/";
-        var result = new List<RecordedFile>();
+        var result = new List<VideoFile>();
 
         foreach (var f in allFiles)
         {
             if (!f.Name.StartsWith(prefix, StringComparison.Ordinal))
                 continue;
 
-            ParseRecordedPath(f.Name, out _, out var fileLecturer);
+            ParseVideoPath(f.Name, out _, out var fileLecturer);
             if (!string.IsNullOrEmpty(lecturer)
                 && !string.Equals(fileLecturer, lecturer, StringComparison.Ordinal))
                 continue;
 
             var lower = f.Name.ToLower();
             if (lower.EndsWith(".ia.mp4")) continue;
-            if (!ArchiveCatalog.IsRecordedMedia(f.Name))
+            if (!ArchiveCatalog.IsVideoMedia(f.Name))
                 continue;
 
             var fileNoExt = System.IO.Path.GetFileNameWithoutExtension(f.Name);
             var displayName = fileNoExt.Replace("_", " ");
 
-            result.Add(new RecordedFile
+            result.Add(new VideoFile
             {
                 Name = f.Name,
                 Size = f.Size,
@@ -371,7 +371,7 @@ public class RecordedService
         return ArchiveCatalog.GetDownloadUrl(archiveId, filePath);
     }
 
-    public static string GetDownloadUrl(RecordedFile file)
+    public static string GetDownloadUrl(VideoFile file)
     {
         var archiveId = !string.IsNullOrEmpty(file.ArchiveId)
             ? file.ArchiveId

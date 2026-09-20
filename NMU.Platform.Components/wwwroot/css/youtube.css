@@ -10,7 +10,7 @@
     box-sizing: border-box;
 }
 
-/* Let the channels grid use the full content width like recorded pages. */
+/* Let the channels grid use the full content width like videos pages. */
 .page-container:has(> .yt-page) {
     max-width: 1200px;
 }

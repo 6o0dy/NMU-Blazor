@@ -61,6 +61,101 @@
     transform: translateY(-2px);
 }
 
+/* ---------- Featured card: merged videos + YouTube (full row) ----------
+   Scoped to home so the shared .cards-grid/.dev-card system used by other
+   pages is untouched. */
+.home-container .dev-card-featured,
+.home-container .dev-card-wide {
+    grid-column: 1 / -1;
+}
+
+.home-container .dev-card-featured {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    border-color: rgba(147, 26, 35, 0.35);
+    background:
+        linear-gradient(135deg, rgba(147, 26, 35, 0.08) 0%, transparent 55%),
+        var(--bg-card);
+}
+
+.home-container .featured-visual {
+    position: relative;
+    flex: 0 0 auto;
+    width: 88px;
+    height: 88px;
+    border-radius: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.6rem;
+    background: linear-gradient(135deg, rgba(147, 26, 35, 0.25), var(--bg-surface-hover));
+    border: 1px solid var(--border-color);
+}
+
+.home-container .featured-yt-badge {
+    position: absolute;
+    bottom: -8px;
+    right: -8px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #ff0000;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    border: 2px solid var(--bg-card);
+}
+
+.home-container .featured-body {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Title icon (camera + YouTube mark): hidden on wide screens (the big visual
+   tile is shown instead), shown only on narrow screens where the card falls
+   back to the standard look. */
+.home-container .dev-card-featured .dev-card-title .nav-ico-yt {
+    display: none;
+}
+
+.home-container .featured-body .dev-card-desc {
+    margin-bottom: 14px;
+}
+
+.home-container .featured-sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.home-container .src-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface-hover);
+    color: var(--text-secondary);
+    border-radius: 999px;
+    padding: 3px 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.home-container .src-pill i {
+    font-size: 0.75rem;
+}
+
+.home-container .src-pill.src-yt {
+    color: #ff6b6b;
+    border-color: rgba(255, 0, 0, 0.35);
+    background: rgba(255, 0, 0, 0.08);
+}
+
 .dev-card-title {
     font-size: 1.1rem;
     font-weight: 700;
@@ -185,4 +280,21 @@
 
 @media (max-width: 600px) {
     .hero-section h1 { font-size: 1.4rem; }
+    /* Narrow screens: the featured card falls back to the standard card
+       look — small icon beside the title, like every other card. */
+    .home-container .dev-card-featured {
+        display: block;
+    }
+    .home-container .featured-visual {
+        display: none;
+    }
+    .home-container .dev-card-featured .dev-card-title .nav-ico-yt {
+        display: inline-block;
+    }
+    /* Title badge inherits the shared top position (nudged slightly down to
+       sit in the 🎥 emoji's empty upper space); only slightly smaller here
+       so it doesn't break the title row. */
+    .home-container .dev-card-featured .dev-card-title .nav-yt-badge {
+        font-size: 10px;
+    }
 }

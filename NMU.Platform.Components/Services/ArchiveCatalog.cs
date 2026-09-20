@@ -250,8 +250,8 @@ public static class ArchiveCatalog
         return false;
     }
 
-    /// <summary>True for playable recorded files (video/audio), excluding derivatives and sidecars.</summary>
-    public static bool IsRecordedMedia(string name)
+    /// <summary>True for playable video files (video/audio), excluding derivatives and sidecars.</summary>
+    public static bool IsVideoMedia(string name)
     {
         if (string.IsNullOrEmpty(name)) return false;
         var lower = name.ToLowerInvariant();

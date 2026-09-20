@@ -1,8 +1,8 @@
 ﻿/* ==========================================================================
-   Recorded lectures (Slate Developer Theme)
+   Videos (Slate Developer Theme)
    ========================================================================== */
 
-.recorded-container {
+.video-container {
     max-width: 1200px;
     margin: 15px auto;
     padding: 20px;
@@ -14,11 +14,11 @@
 /* ---------- Video/Audio Cards Grid ----------
    Fluid columns: the count per row shrinks automatically as the screen
    narrows so cards never get squeezed or cut off at the edge. */
-.page-container:has(> .recorded-files) {
+.page-container:has(> .video-files) {
     max-width: 1200px;
 }
 
-.recorded-files {
+.video-files {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
     gap: 18px;
@@ -29,11 +29,11 @@
     box-sizing: border-box;
 }
 
-.recorded-files > * {
+.video-files > * {
     min-width: 0;
 }
 
-.recorded-card {
+.video-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: 12px;
@@ -43,12 +43,12 @@
     transition: all 0.2s ease;
 }
 
-.recorded-card:hover {
+.video-card:hover {
     transform: translateY(-2px);
     border-color: var(--primary);
 }
 
-.recorded-thumb {
+.video-thumb {
     width: 100%;
     aspect-ratio: 16 / 9;
     object-fit: cover;
@@ -65,12 +65,12 @@
     background: linear-gradient(135deg, rgba(147, 26, 35, 0.15) 0%, var(--bg-surface-hover) 100%);
 }
 
-.recorded-info {
+.video-info {
     padding: 14px;
     padding-right: 56px;
 }
 
-.recorded-title {
+.video-title {
     color: var(--text-primary);
     font-weight: 700;
     font-size: 0.95rem;
@@ -79,7 +79,7 @@
     text-overflow: ellipsis;
 }
 
-.recorded-meta {
+.video-meta {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -112,7 +112,7 @@
     font-family: 'Fira Code', monospace;
 }
 
-.recorded-sub {
+.video-sub {
     color: var(--text-secondary);
     font-size: 11px;
     font-family: 'Fira Code', monospace;
@@ -138,8 +138,113 @@
     white-space: nowrap;
 }
 
+.subject-check-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--bg-surface-hover);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 14px;
+    flex: 0 0 auto;
+}
+
+/* ---------- Merged YouTube sources ---------- */
+.badge-yt {
+    background: rgba(255, 0, 0, 0.12);
+    color: #ff4d4d;
+    border: 1px solid rgba(255, 0, 0, 0.35);
+    font-size: 0.62rem;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.badge-yt i {
+    font-size: 0.7rem;
+}
+
+.video-container .lec-chip.yt-chip {
+    color: #ff6b6b;
+    border-color: rgba(255, 0, 0, 0.35);
+    background: rgba(255, 0, 0, 0.08);
+    font-weight: 600;
+}
+
+.yt-only-card {
+    border-color: rgba(255, 0, 0, 0.25);
+}
+
+.subject-check-card.yt-pick {
+    border-color: rgba(255, 0, 0, 0.3);
+    background: rgba(255, 0, 0, 0.04);
+}
+
+.subject-check-card.yt-pick:hover {
+    border-color: #ff0000;
+}
+
+.yt-pick-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex: 0 0 auto;
+    border: 1px solid rgba(255, 0, 0, 0.35);
+    background: var(--bg-surface-hover);
+}
+
+/* ---------- Horizontal chips strip, manual scroll only ----------
+   Lecturer / YouTube names sit on ONE horizontal line (never wrapped).
+   The strip scrolls horizontally by hand (swipe / shift+wheel / touchpad);
+   no auto-scroll — scrollbars stay hidden on all browsers. */
+.video-container .dev-card-desc.mat-sub {
+    display: block;
+    -webkit-line-clamp: unset;
+    -webkit-box-orient: unset;
+    white-space: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    text-overflow: clip;
+    min-height: 1.9em;
+    max-height: 1.9em;
+    line-height: 1.7;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.video-container .dev-card-desc.mat-sub::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+.video-container .mat-sub .chips-marquee {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    max-width: none;
+}
+
+.video-container .mat-sub .chips-marquee .lec-chip {
+    flex: 0 0 auto;
+}
+
+.video-container .dev-card.mat-card:hover .dev-card-desc.mat-sub {
+    cursor: ew-resize;
+}
+
 /* ---------- Download Button (bottom-right of card) ---------- */
-.recorded-dl {
+.video-dl {
     position: absolute;
     bottom: 10px;
     right: 10px;
@@ -158,14 +263,14 @@
     backdrop-filter: blur(4px);
 }
 
-.recorded-dl:hover {
+.video-dl:hover {
     background: var(--primary);
     border-color: var(--primary);
     color: #fff;
 }
 
 /* ---------- Cache Status Pills (top-right over thumb) ---------- */
-.recorded-cache-badge {
+.video-cache-badge {
     position: absolute;
     top: 10px;
     right: 10px;
@@ -177,13 +282,13 @@
     z-index: 2;
 }
 
-.recorded-cache-badge.cached {
+.video-cache-badge.cached {
     background: rgba(34, 197, 94, 0.15);
     color: var(--correct);
     border: 1px solid rgba(34, 197, 94, 0.3);
 }
 
-.recorded-cache-badge.partial {
+.video-cache-badge.partial {
     background: rgba(249, 115, 22, 0.15);
     color: var(--timer-color);
     border: 1px solid rgba(249, 115, 22, 0.3);

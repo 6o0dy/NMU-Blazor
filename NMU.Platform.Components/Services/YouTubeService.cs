@@ -150,7 +150,7 @@ public class YouTubeService
     }
 
     /// <summary>
-    /// Background revalidation (same pattern as Materials/Recorded): re-fetch
+    /// Background revalidation (same pattern as Materials/Videos): re-fetch
     /// the archive youtube.json; if it changed, refresh cache + notify caller.
     /// Custom mode revalidates every involved archive, then merges.
     /// </summary>

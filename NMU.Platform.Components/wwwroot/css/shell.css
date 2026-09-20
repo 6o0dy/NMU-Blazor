@@ -208,6 +208,35 @@
     line-height: 1;
 }
 
+/* ---------- Videos nav icon with merged-YouTube badge ----------
+   The 🎥 glyph carries a small red YouTube mark (same signal as the
+   featured home card) in both the sidebar and the mobile bottom bar. */
+.nav-ico-yt {
+    position: relative;
+    display: inline-block;
+    line-height: 1;
+}
+
+.nav-yt-badge {
+    position: absolute;
+    top: -3px;
+    right: -7px;
+    font-size: 11px;
+    line-height: 1;
+    color: #ff0000;
+    background: var(--bg-card);
+    border-radius: 50%;
+    padding: 1px;
+}
+
+/* Sidebar glyph is smaller than the title/bottom-bar ones: push the mark
+   further out so it never rides on top of the camera itself. */
+.sidebar-nav-item .nav-yt-badge {
+    top: -4px;
+    right: -8px;
+    font-size: 10px;
+}
+
 /* ---------- Responsive Breakpoints ---------- */
 @media (max-width: 1023px) {
     .sidebar {

@@ -1,0 +1,673 @@
+@page "/videos"
+@using NMU.Platform.Components.Models
+@implements IDisposable
+@inject VideosService VideosService
+@inject MaterialsService MaterialsService
+@inject StudentService StudentService
+@inject NavigationManager Navigation
+@inject NavigationState NavState
+@inject LayoutState LayoutState
+@inject IJSRuntime JS
+@inject MediaCacheService MediaCache
+@inject IPlatformService Platform
+@inject YouTubeService YouTubeService
+
+@if (_loading)
+{
+    <div class="loading-state">
+        <i class="fas fa-circle-notch fa-spin fa-2x" style="color:var(--primary)"></i>
+        <br /><br />Loading data...
+    </div>
+}
+else if (_error)
+{
+    <div class="loading-state" style="color:#ef4444;">
+        Failed to connect to server.
+        <br /><br />
+        <button class="placeholder-btn" @onclick="Reload">Retry</button>
+    </div>
+}
+else
+{
+    <div class="video-container">
+        <div class="page-heading">
+            <h2>🎥 Videos</h2>
+            @if (_customMode)
+            {
+                <span class="code-tag">Custom • @_groupsInfo.Count groups</span>
+            }
+            else
+            {
+                <span class="code-tag">@_studentLevel.Replace("_", " ") • @_studentSemester.Replace("_", " ")</span>
+            }
+        </div>
+
+        <div class="cards-grid">
+            @for (int i = 0; i < _groupsInfo.Count; i++)
+            {
+                var g = _groupsInfo[i];
+                var displayName = string.IsNullOrEmpty(g.DisplayName) ? g.Name : g.DisplayName;
+                var style = SubjectIcons.Resolve(g.Code, displayName);
+                var icon = style.Icon;
+                var title = string.IsNullOrEmpty(g.DisplayName) ? g.Name.Replace("_", " ") : g.DisplayName;
+                var line = GetGroupLine(g.Name);
+                var offlineCount = _offlineCounts.TryGetValue(g.Name, out var oc) ? oc : 0;
+                var lecList = _groupLecturers.TryGetValue(g.Name, out var gl) ? gl : new List<string>();
+                var ytList = _groupYouTube.TryGetValue(g.Name, out var yl) ? yl : new List<YouTubeChannel>();
+                var isYtOnly = lecList.Count == 0 && ytList.Count > 0;
+                <div class="dev-card mat-card @(isYtOnly ? "yt-only-card" : "")" @onclick="() => OpenGroupAsync(g.Name)">
+                    <div class="dev-card-top">
+                        <span class="dev-card-icon @style.ColorClass"><i class="@icon"></i></span>
+                        <span style="display:flex;gap:6px;align-items:center;">
+                            @if (ytList.Count > 0)
+                            {
+                                <span class="badge badge-yt mat-code" title="Includes YouTube explanations"><i class="fa-brands fa-youtube"></i> YouTube</span>
+                            }
+                            @if (!string.IsNullOrEmpty(g.Code))
+                            {
+                                <span class="badge badge-sky mat-code">@g.Code</span>
+                            }
+                        </span>
+                    </div>
+                    <div class="dev-card-title mat-title" title="@title">@title</div>
+                    <div class="dev-card-desc mat-sub" title="@line">
+                        @if (lecList.Count == 0 && ytList.Count == 0)
+                        {
+                            @line
+                            @if (offlineCount > 0)
+                            {
+                                <span class="lec-chip lec-chip-off">✓ @offlineCount</span>
+                            }
+                        }
+                        else
+                        {
+                            <span class="chips-marquee">
+                                @foreach (var l in lecList)
+                                {
+                                    <span class="lec-chip" title="@l">@l</span>
+                                }
+                                @foreach (var y in ytList)
+                                {
+                                    <span class="lec-chip yt-chip" title="@y.ChannelName (YouTube) • @y.Videos.Count videos">▶ @y.ChannelName</span>
+                                }
+                                @if (offlineCount > 0)
+                                {
+                                    <span class="lec-chip lec-chip-off">✓ @offlineCount</span>
+                                }
+                            </span>
+                        }
+                    </div>
+                    @if (isYtOnly)
+                    {
+                        <button class="btn-outlined mat-open" @onclick="() => OpenGroupAsync(g.Name)" @onclick:stopPropagation><i class="fa-brands fa-youtube" style="color:#ff0000;"></i> Open YouTube ➔</button>
+                    }
+                    else
+                    {
+                        <button class="btn-outlined mat-open" @onclick="() => OpenGroupAsync(g.Name)" @onclick:stopPropagation>View Videos ➔</button>
+                    }
+                </div>
+            }
+            @if (_groupsInfo.Count == 0)
+            {
+                <div style="color:var(--text-secondary); text-align:center; grid-column:1/-1; padding-top:50px;">
+                    No videos available yet.
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (_dialogOpen)
+{
+    <div class="subject-picker-overlay" @onclick="CloseLecturerDialog">
+        <div class="subject-picker-card" @onclick:stopPropagation>
+            <div class="subject-picker-header">
+                <button class="btn-small-icon" @onclick="CloseLecturerDialog">&times;</button>
+                <h3>Select Source</h3>
+            </div>
+            <div class="subject-picker-body">
+                @foreach (var lec in _dialogLecturers)
+                {
+                    var l = lec;
+                    var split = VideosService.SplitLecturerTag(l);
+                    <div class="subject-check-card lec-pick" @onclick="() => PickDialogLecturer(l)">
+                        <span class="subject-check-icon"><i class="fa-solid fa-user-tie"></i></span>
+                        <span class="subject-check-name" title="@l">@split.Name</span>
+                        @if (!string.IsNullOrEmpty(split.Tag))
+                        {
+                            <span class="badge badge-sky lec-tag">@split.Tag</span>
+                        }
+                        <i class="fa-solid fa-chevron-right" style="color:var(--text-secondary);font-size:12px;"></i>
+                    </div>
+                }
+                @foreach (var ch in _dialogYouTube)
+                {
+                    var c = ch;
+                    <div class="subject-check-card lec-pick yt-pick" @onclick="() => PickDialogYouTube(c)">
+                        <img src="@c.AvatarUrl" class="yt-pick-avatar" loading="lazy" onerror="nmuFunctions.ytImgFallback(this)" alt="" />
+                        <span class="subject-check-name" title="@c.ChannelName">@c.ChannelName</span>
+                        <span class="badge badge-yt lec-tag"><i class="fa-brands fa-youtube"></i> YouTube • @c.Videos.Count</span>
+                        <i class="fa-solid fa-chevron-right" style="color:var(--text-secondary);font-size:12px;"></i>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _error;
+    private List<VideoGroupInfo> _groupsInfo = new();
+    private string _studentLevel = "Level_1";
+    private string _studentSemester = "First_Term";
+    private string _studentDept = "ALL";
+    private bool _customMode;
+    private Dictionary<string, List<string>> _groupLecturers = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, int> _offlineCounts = new(StringComparer.OrdinalIgnoreCase);
+    private List<VideoFile> _allFiles = new();
+    private Dictionary<string, List<string>> _customGroupLecturers = new(StringComparer.OrdinalIgnoreCase);
+    // Merged YouTube sources: subject group name -> channels explaining the same subject.
+    private List<YouTubeChannel> _allYouTubeChannels = new();
+    private Dictionary<string, List<YouTubeChannel>> _groupYouTube = new(StringComparer.OrdinalIgnoreCase);
+    private bool _dialogOpen;
+    private string _dialogGroup = "";
+    private List<string> _dialogLecturers = new();
+    private List<YouTubeChannel> _dialogYouTube = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        NavState.PageTitle = "VIDEOS";
+        LayoutState.RefreshRequested += OnRefreshRequested;
+        // Return immediately so the router paints the page (loading state); all data
+        // loading happens in the background, same as the materials page.
+        _ = LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            var student = await StudentService.GetStudentAsync();
+            if (student != null)
+            {
+                _studentLevel = student.AcademicLevel.Replace(" ", "_");
+                _studentSemester = student.Semester.Replace(" ", "_");
+                _studentDept = NMU.Platform.Components.Services.ArchiveCatalog.NormalizeDepartment(student.Department);
+            }
+
+            // Custom subjects mode: only show groups that belong to selected subjects,
+            // collecting from every level/semester the student registered in.
+            if (student?.CustomSubjectsMode == true && student.CustomSubjects != null && student.CustomSubjects.Count > 0)
+            {
+                _customMode = true;
+                _groupsInfo = await BuildCustomGroupsAsync(student.CustomSubjects);
+                _loading = false;
+                await InvokeAsync(StateHasChanged);
+                // YouTube merge already happened inside BuildCustomGroupsAsync, but
+                // revalidate in background for fresh channels.
+                _ = YouTubeService.CheckAndUpdateAsync(async (updated, _) =>
+                {
+                    _allYouTubeChannels = updated;
+                    MergeYouTubeIntoGroups();
+                    await InvokeAsync(StateHasChanged);
+                });
+                return;
+            }
+
+            // Fast path: render from the small cached group list (name + count), so
+            // the page paints immediately instead of waiting on the full archive list.
+            _groupsInfo = await VideosService.GetCachedGroupsInfoAsync(_studentLevel, _studentSemester);
+            if (_groupsInfo.Count == 0)
+                _groupsInfo = await VideosService.GetGroupsInfoAsync(_studentLevel, _studentSemester);
+
+            _groupsInfo = _groupsInfo.Where(g => NMU.Platform.Components.Services.ArchiveCatalog.IsVisibleForDepartment(g.Branch, _studentDept)).ToList();
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+
+            // Background: lecturer names + offline counts per subject + YouTube merge.
+            _ = RefreshDetailsAsync();
+
+            // Background revalidation: pick up newly added lectures without a cache clear.
+            _ = VideosService.CheckAndUpdateVideosAsync(_studentLevel, _studentSemester, updated =>
+            {
+                _groupsInfo = updated.Where(g => NMU.Platform.Components.Services.ArchiveCatalog.IsVisibleForDepartment(g.Branch, _studentDept)).ToList();
+                // Re-attach already-loaded YouTube channels to the refreshed groups.
+                RebuildYouTubeMap();
+                MergeYouTubeOnlyGroups();
+                SortGroups();
+                _ = InvokeAsync(StateHasChanged);
+            });
+
+            // Background revalidation for YouTube channels.
+            _ = YouTubeService.CheckAndUpdateAsync(async (updated, _) =>
+            {
+                _allYouTubeChannels = updated;
+                RebuildYouTubeMap();
+                MergeYouTubeOnlyGroups();
+                SortGroups();
+                await InvokeAsync(StateHasChanged);
+            });
+        }
+        catch
+        {
+            _error = true;
+            _loading = false;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task<List<VideoGroupInfo>> BuildCustomGroupsAsync(List<CustomSubjectSelection> selections)
+    {
+        var result = new List<VideoGroupInfo>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var lecMap = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var fullMap = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in selections.GroupBy(s => (s.Level, s.Semester)))
+        {
+            var files = await VideosService.GetFilesAsync(group.Key.Level, group.Key.Semester);
+            var groups = VideosService.GetGroups(files, group.Key.Level, group.Key.Semester);
+            var selectedNames = group.Select(s => s.Subject).ToList();
+
+            foreach (var g in groups)
+            {
+                var keep = selectedNames.Any(sName => SubjectMatcher.Matches(sName, g));
+                if (!keep) continue;
+                if (seen.Add(g))
+                {
+                    var lecs = VideosService.GetLecturersForGroup(files, group.Key.Level, group.Key.Semester, g);
+                    fullMap[g] = lecs;
+                    lecMap[g] = lecs;
+                    // Parse "CSE014 - ... .(ALL)" like the normal path does, so
+                    // cards get the same icon, code badge and clean title.
+                    NMU.Platform.Components.Services.ArchiveCatalog.ParseSubjectFolder(
+                        g, out var code, out var clean, out var branch);
+                    result.Add(new VideoGroupInfo
+                    {
+                        Name = g,
+                        Count = VideosService.GetFilesForGroup(files, group.Key.Level, group.Key.Semester, g).Count,
+                        Code = code,
+                        DisplayName = clean,
+                        Branch = branch
+                    });
+                }
+            }
+        }
+
+        _groupLecturers = lecMap;
+        _customGroupLecturers = fullMap;
+        _groupsInfo = result;
+
+        // Merge YouTube channels for the same custom selections.
+        try
+        {
+            _allYouTubeChannels = await YouTubeService.GetChannelsAsync();
+            RebuildYouTubeMap();
+            MergeYouTubeOnlyGroups();
+            SortGroups();
+            result = _groupsInfo;
+        }
+        catch { }
+
+        return result;
+    }
+
+    private string GetGroupLine(string groupFull)
+    {
+        if (_groupLecturers.TryGetValue(groupFull, out var list) && list.Count > 0)
+            return string.Join(", ", list);
+        if (_groupYouTube.TryGetValue(groupFull, out var yt) && yt.Count > 0)
+            return string.Join(", ", yt.Select(c => c.ChannelName));
+        return "Videos";
+    }
+
+    private void RebuildLecturerMap(List<VideoFile> files)
+    {
+        var map = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var f in files)
+        {
+            VideosService.ParseVideoPath(f.Name, out var subj, out var lec);
+            if (string.IsNullOrEmpty(subj)) subj = f.SubjectFullName;
+            if (string.IsNullOrEmpty(subj)) continue;
+            var lecturer = !string.IsNullOrEmpty(lec) ? lec : f.Lecturer;
+            if (string.IsNullOrWhiteSpace(lecturer)) continue;
+            if (!map.TryGetValue(subj, out var list)) { list = new List<string>(); map[subj] = list; }
+            if (!list.Contains(lecturer, StringComparer.Ordinal)) list.Add(lecturer);
+        }
+        _groupLecturers = map;
+    }
+
+    private string ResolveUrl(VideoFile file)
+    {
+        if (!string.IsNullOrEmpty(file.ArchiveId))
+            return NMU.Platform.Components.Services.ArchiveCatalog.GetDownloadUrl(file.ArchiveId, file.Name);
+        return VideosService.GetDownloadUrl(file.Name, _studentLevel, _studentSemester);
+    }
+
+    private async Task RefreshDetailsAsync()
+    {
+        try
+        {
+            var files = await VideosService.GetFilesAsync(_studentLevel, _studentSemester);
+            _allFiles = files;
+            RebuildLecturerMap(files);
+
+            // Offline video counts (native only; web streams without a media cache).
+            if (!Platform.IsWeb)
+            {
+                var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                foreach (var f in files)
+                {
+                    VideosService.ParseVideoPath(f.Name, out var subj, out _);
+                    if (string.IsNullOrEmpty(subj)) subj = f.SubjectFullName;
+                    if (string.IsNullOrEmpty(subj)) continue;
+                    var key = MediaCache.GetCacheKey(ResolveUrl(f));
+                    if (await MediaCache.IsCompleteAsync(key))
+                    {
+                        counts.TryGetValue(subj, out var c);
+                        counts[subj] = c + 1;
+                    }
+                }
+                _offlineCounts = counts;
+            }
+
+            await InvokeAsync(StateHasChanged);
+
+            // Merged YouTube sources for the same term.
+            try
+            {
+                _allYouTubeChannels = await YouTubeService.GetChannelsAsync();
+                RebuildYouTubeMap();
+                MergeYouTubeOnlyGroups();
+                SortGroups();
+            }
+            catch { }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch { }
+    }
+
+    private void Reload()
+    {
+        _error = false;
+        _loading = true;
+        StateHasChanged();
+        _ = LoadDataAsync();
+    }
+
+    // ---------- YouTube merge helpers ----------
+
+    private static string ChannelFolder(YouTubeChannel ch)
+    {
+        if (!string.IsNullOrEmpty(ch.SubjectFolder))
+            return ch.SubjectFolder;
+        if (!string.IsNullOrEmpty(ch.GroupKey) && ch.GroupKey.Contains("||", StringComparison.Ordinal))
+            return ch.GroupKey.Split(new[] { "||" }, StringSplitOptions.None)[0];
+        return ch.Subject ?? "";
+    }
+
+    private static bool IsChannelForGroup(YouTubeChannel ch, string groupName, string? groupDisplay)
+    {
+        var folder = ChannelFolder(ch);
+        if (string.IsNullOrWhiteSpace(folder)) return false;
+        if (string.Equals(folder.Trim(), groupName.Trim(), StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (SubjectMatcher.Matches(folder, groupName))
+            return true;
+        if (!string.IsNullOrEmpty(ch.Subject) && !string.IsNullOrEmpty(groupDisplay))
+        {
+            if (SubjectMatcher.Matches(ch.Subject, groupDisplay))
+                return true;
+        }
+        return false;
+    }
+
+    private void RebuildYouTubeMap()
+    {
+        var map = new Dictionary<string, List<YouTubeChannel>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var g in _groupsInfo)
+        {
+            var display = string.IsNullOrEmpty(g.DisplayName) ? g.Name : g.DisplayName;
+            var matched = _allYouTubeChannels
+                .Where(c => IsChannelForGroup(c, g.Name, display))
+                .OrderBy(c => c.ChannelName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (matched.Count > 0)
+                map[g.Name] = matched;
+        }
+        _groupYouTube = map;
+    }
+
+    private void MergeYouTubeOnlyGroups()
+    {
+        if (_allYouTubeChannels.Count == 0) return;
+        var assigned = new HashSet<YouTubeChannel>(_allYouTubeChannels.Where(c =>
+            _groupYouTube.Values.Any(list => list.Contains(c))));
+        var unassignedByFolder = _allYouTubeChannels
+            .Where(c => !assigned.Contains(c))
+            .GroupBy(ChannelFolder)
+            .ToList();
+
+        var existingNames = new HashSet<string>(_groupsInfo.Select(g => g.Name), StringComparer.OrdinalIgnoreCase);
+        var added = false;
+        foreach (var grp in unassignedByFolder)
+        {
+            var folder = grp.Key;
+            if (string.IsNullOrWhiteSpace(folder)) continue;
+            // Don't duplicate a subject that already exists under a fuzzy match.
+            if (existingNames.Contains(folder)) continue;
+            var alreadyCovered = _groupsInfo.Any(g => SubjectMatcher.Matches(folder, g.Name));
+            if (alreadyCovered)
+            {
+                // Attach to the fuzzy-matched groups instead of creating a new card.
+                foreach (var g in _groupsInfo.Where(g => SubjectMatcher.Matches(folder, g.Name)).ToList())
+                {
+                    if (!_groupYouTube.TryGetValue(g.Name, out var list))
+                    {
+                        list = new List<YouTubeChannel>();
+                        _groupYouTube[g.Name] = list;
+                    }
+                    foreach (var c in grp.OrderBy(c => c.ChannelName, StringComparer.OrdinalIgnoreCase))
+                    {
+                        if (!list.Contains(c)) list.Add(c);
+                    }
+                }
+                continue;
+            }
+
+            NMU.Platform.Components.Services.ArchiveCatalog.ParseSubjectFolder(
+                folder, out var code, out var clean, out var branch);
+            if (!_customMode && !NMU.Platform.Components.Services.ArchiveCatalog.IsVisibleForDepartment(branch, _studentDept))
+                continue;
+
+            var channels = grp.OrderBy(c => c.ChannelName, StringComparer.OrdinalIgnoreCase).ToList();
+            var totalVideos = channels.Sum(c => c.Videos.Count);
+            _groupsInfo.Add(new VideoGroupInfo
+            {
+                Name = folder,
+                Count = totalVideos,
+                Code = code,
+                DisplayName = string.IsNullOrEmpty(clean) ? folder : clean,
+                Branch = branch
+            });
+            _groupYouTube[folder] = channels;
+            existingNames.Add(folder);
+            added = true;
+        }
+        if (added) SortGroups();
+    }
+
+    private void MergeYouTubeIntoGroups()
+    {
+        RebuildYouTubeMap();
+        MergeYouTubeOnlyGroups();
+        SortGroups();
+    }
+
+    private void SortGroups()
+    {
+        _groupsInfo = _groupsInfo.OrderBy(g =>
+        {
+            var d = string.IsNullOrEmpty(g.DisplayName) ? g.Name : g.DisplayName;
+            return d;
+        }, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private List<YouTubeChannel> GetYouTubeForGroup(string group)
+    {
+        if (_groupYouTube.TryGetValue(group, out var cached) && cached.Count > 0)
+            return cached;
+        // Fallback: direct scan (covers groups added after the last rebuild).
+        var gInfo = _groupsInfo.FirstOrDefault(g => string.Equals(g.Name, group, StringComparison.OrdinalIgnoreCase));
+        var display = gInfo != null && !string.IsNullOrEmpty(gInfo.DisplayName) ? gInfo.DisplayName : group;
+        return _allYouTubeChannels
+            .Where(c => IsChannelForGroup(c, group, display))
+            .OrderBy(c => c.ChannelName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private async Task EnsureSourcesLoadedAsync(string group)
+    {
+        if (_allFiles.Count == 0 && !_customMode)
+        {
+            try
+            {
+                _allFiles = await VideosService.GetFilesAsync(_studentLevel, _studentSemester);
+                RebuildLecturerMap(_allFiles);
+            }
+            catch { }
+        }
+        if (_allYouTubeChannels.Count == 0)
+        {
+            try
+            {
+                _allYouTubeChannels = await YouTubeService.GetChannelsAsync();
+                RebuildYouTubeMap();
+                MergeYouTubeOnlyGroups();
+                SortGroups();
+            }
+            catch { }
+        }
+        else if (!_groupYouTube.ContainsKey(group))
+        {
+            RebuildYouTubeMap();
+        }
+    }
+
+    private async Task OpenGroupAsync(string group)
+    {
+        try
+        {
+            List<string> lecturers;
+            if (_customMode)
+            {
+                // Custom mode: lecturers come from the prebuilt map (may span many terms).
+                // YouTube-only subjects have no entry -> empty lecturer list.
+                if (_customGroupLecturers.TryGetValue(group, out var full))
+                    lecturers = new List<string>(full);
+                else if (_groupLecturers.TryGetValue(group, out var mappedCustom) && mappedCustom.Count > 0)
+                    lecturers = new List<string>(mappedCustom);
+                else
+                    lecturers = new List<string>();
+            }
+            else
+            {
+                if (_allFiles.Count == 0)
+                {
+                    _allFiles = await VideosService.GetFilesAsync(_studentLevel, _studentSemester);
+                    RebuildLecturerMap(_allFiles);
+                    await InvokeAsync(StateHasChanged);
+                }
+                lecturers = VideosService.GetFilesForGroup(_allFiles, _studentLevel, _studentSemester, group)
+                    .Select(f => f.Lecturer)
+                    .Where(l => !string.IsNullOrWhiteSpace(l))
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(l => l, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
+            await EnsureSourcesLoadedAsync(group);
+            // Re-read lecturers after ensure (custom map may have been rebuilt).
+            if (!_customMode)
+            {
+                var refreshed = VideosService.GetFilesForGroup(_allFiles, _studentLevel, _studentSemester, group)
+                    .Select(f => f.Lecturer)
+                    .Where(l => !string.IsNullOrWhiteSpace(l))
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(l => l, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                if (refreshed.Count > 0) lecturers = refreshed;
+                else if (_groupLecturers.TryGetValue(group, out var mapped) && mapped.Count > 0)
+                    lecturers = mapped;
+            }
+            else if (_groupLecturers.TryGetValue(group, out var customMapped) && customMapped.Count > lecturers.Count)
+            {
+                lecturers = new List<string>(customMapped);
+            }
+
+            var ytChannels = GetYouTubeForGroup(group);
+            var total = lecturers.Count + ytChannels.Count;
+
+            // Single source only: open it directly (lecturer -> recordings, YouTube -> channel).
+            if (total == 1)
+            {
+                if (lecturers.Count == 1)
+                    NavigateToGroup(group, lecturers[0]);
+                else
+                    OpenYouTubeChannel(ytChannels[0]);
+                return;
+            }
+
+            // Multiple sources (doctors + YouTube channels): let the student choose.
+            if (total > 1)
+            {
+                _dialogGroup = group;
+                _dialogLecturers = lecturers;
+                _dialogYouTube = ytChannels;
+                _dialogOpen = true;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            NavigateToGroup(group, lecturers.Count == 1 ? lecturers[0] : null);
+        }
+        catch
+        {
+            NavigateToGroup(group, null);
+        }
+    }
+
+    private void NavigateToGroup(string group, string? lecturer)
+    {
+        _dialogOpen = false;
+        var url = $"videos/{Uri.EscapeDataString(group)}";
+        if (!string.IsNullOrEmpty(lecturer))
+            url += $"?lecturer={Uri.EscapeDataString(lecturer)}";
+        Navigation.NavigateTo(url, replace: true);
+    }
+
+    private void OpenYouTubeChannel(YouTubeChannel channel)
+    {
+        _dialogOpen = false;
+        Navigation.NavigateTo($"youtube/{Uri.EscapeDataString(channel.GroupKey)}", replace: true);
+    }
+
+    private void PickDialogLecturer(string lecturer) => NavigateToGroup(_dialogGroup, lecturer);
+
+    private void PickDialogYouTube(YouTubeChannel channel) => OpenYouTubeChannel(channel);
+
+    private void CloseLecturerDialog()
+    {
+        _dialogOpen = false;
+        _dialogYouTube = new();
+    }
+
+    private void OnRefreshRequested() => Reload();
+
+    public void Dispose()
+    {
+        LayoutState.RefreshRequested -= OnRefreshRequested;
+    }
+}

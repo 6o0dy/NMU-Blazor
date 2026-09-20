@@ -60,15 +60,15 @@
 }
 
 /* ---------- Redesigned subject cards: fixed slots, button pinned bottom ----------
-   Shared by Study Materials and Recorded Lectures (same card system). */
+   Shared by Study Materials and Videos (same card system). */
 .materials-container .dev-card.mat-card,
-.recorded-container .dev-card.mat-card {
+.video-container .dev-card.mat-card {
     display: flex;
     flex-direction: column;
 }
 
 .materials-container .dev-card-top,
-.recorded-container .dev-card-top {
+.video-container .dev-card-top {
     flex: 0 0 auto;
     min-height: 2.25rem;
     align-items: center;
@@ -76,7 +76,7 @@
 }
 
 .materials-container .dev-card-icon,
-.recorded-container .dev-card-icon {
+.video-container .dev-card-icon {
     font-size: 2rem;
     line-height: 1;
     display: inline-flex;
@@ -85,13 +85,13 @@
 }
 
 .materials-container .mat-code,
-.recorded-container .mat-code {
+.video-container .mat-code {
     font-size: 0.62rem;
     padding: 2px 7px;
 }
 
 .materials-container .dev-card-title.mat-title,
-.recorded-container .dev-card-title.mat-title {
+.video-container .dev-card-title.mat-title {
     display: -webkit-box;
     min-height: 2.7em;
     max-height: 2.7em;
@@ -105,7 +105,7 @@
 }
 
 .materials-container .dev-card-desc.mat-sub,
-.recorded-container .dev-card-desc.mat-sub {
+.video-container .dev-card-desc.mat-sub {
     display: -webkit-box;
     min-height: 2.6em;
     max-height: 2.6em;
@@ -119,7 +119,7 @@
 }
 
 .materials-container .mat-offline,
-.recorded-container .mat-offline {
+.video-container .mat-offline {
     color: var(--correct);
     font-weight: 700;
     white-space: nowrap;
@@ -127,7 +127,7 @@
 
 /* ---------- Lecturer chips: each lecturer boxed separately ---------- */
 .materials-container .lec-chip,
-.recorded-container .lec-chip {
+.video-container .lec-chip {
     display: inline-block;
     border: 1px solid var(--border-color);
     background: var(--bg-surface-hover);
@@ -145,7 +145,7 @@
 }
 
 .materials-container .lec-chip-off,
-.recorded-container .lec-chip-off {
+.video-container .lec-chip-off {
     color: var(--correct);
     border-color: rgba(34, 197, 94, 0.35);
     background: rgba(34, 197, 94, 0.12);
@@ -153,7 +153,7 @@
 }
 
 .materials-container .btn-outlined.mat-open,
-.recorded-container .btn-outlined.mat-open {
+.video-container .btn-outlined.mat-open {
     width: 100%;
     margin-top: auto;
 }
@@ -166,7 +166,7 @@
     margin-bottom: 16px;
 }
 
-/* ---------- Legacy subject grid (still used by Recorded / Quizzes) ----------
+/* ---------- Legacy subject grid (still used by Videos / Quizzes) ----------
    Fluid columns: the count per row shrinks automatically as the screen
    narrows (4 -> 3 -> 2 -> 1) so cards never get squeezed or cut off. */
 .grid-view {

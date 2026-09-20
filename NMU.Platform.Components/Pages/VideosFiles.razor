@@ -1,7 +1,7 @@
-﻿@page "/recorded/{Group}"
+﻿@page "/videos/{Group}"
 @using NMU.Platform.Components.Models
 @implements IDisposable
-@inject RecordedService RecordedService
+@inject VideosService VideosService
 @inject StudentService StudentService
 @inject NavigationManager Navigation
 @inject NavigationState NavState
@@ -27,7 +27,7 @@ else if (_errorMsg != null)
 }
 else
 {
-    <div class="recorded-files">
+    <div class="video-files">
         @if (_filteredFiles.Count == 0)
         {
             <div style="text-align:center; color:#94a3b8; padding:20px;">
@@ -52,10 +52,10 @@ else
             @foreach (var file in _filteredFiles)
             {
                 var f = file;
-                <div class="recorded-card" @onclick="() => PlayFile(f)">
+                <div class="video-card" @onclick="() => PlayFile(f)">
                     @if (f.IsAudio)
                     {
-                        <div class="recorded-thumb audio-placeholder">
+                        <div class="video-thumb audio-placeholder">
                             <i class="fa-solid fa-music"></i>
                         </div>
                     }
@@ -63,33 +63,33 @@ else
                     {
                         var thumbArchive = !string.IsNullOrEmpty(f.ArchiveId) ? f.ArchiveId : NMU.Platform.Components.Services.ArchiveCatalog.GetArchiveId(_studentLevel, _studentSemester);
                         var thumbUrl = thumbArchive != null ? NMU.Platform.Components.Services.ArchiveCatalog.GetDownloadUrl(thumbArchive, f.ThumbName) : f.ThumbName;
-                        <img src="@thumbUrl" class="recorded-thumb" loading="lazy" />
+                        <img src="@thumbUrl" class="video-thumb" loading="lazy" />
                     }
                     else
                     {
-                        <div class="recorded-thumb audio-placeholder">
+                        <div class="video-thumb audio-placeholder">
                             <i class="fa-solid fa-video"></i>
                         </div>
                     }
-                    <div class="recorded-info">
-                        <div class="recorded-title" title="@f.DisplayName">@f.DisplayName</div>
-                        <div class="recorded-meta">
+                    <div class="video-info">
+                        <div class="video-title" title="@f.DisplayName">@f.DisplayName</div>
+                        <div class="video-meta">
                             <span class="badge @(f.IsAudio ? "badge-aud" : "badge-vid")">@(f.IsAudio ? "AUDIO" : "VIDEO")</span>
-                            <span class="recorded-sub">@f.SubFolder</span>
+                            <span class="video-sub">@f.SubFolder</span>
                         </div>
                     </div>
-                    <div class="recorded-dl" @onclick:stopPropagation @onclick="() => DownloadFile(f)">
+                    <div class="video-dl" @onclick:stopPropagation @onclick="() => DownloadFile(f)">
                         <i class="fa-solid fa-download"></i>
                     </div>
                     @{
                         var cacheIcon = _cacheStatus.GetValueOrDefault(f.Name) ?? "";
                         if (cacheIcon == "✓")
                         {
-                            <div class="recorded-cache-badge cached" title="Available offline">✓ Available Offline</div>
+                            <div class="video-cache-badge cached" title="Available offline">✓ Available Offline</div>
                         }
                         else if (cacheIcon == "⏳")
                         {
-                            <div class="recorded-cache-badge partial" title="Partially cached">⏳ Caching</div>
+                            <div class="video-cache-badge partial" title="Partially cached">⏳ Caching</div>
                         }
                     }
                 </div>
@@ -131,9 +131,9 @@ else
 
     private bool _loading = true;
     private string? _errorMsg;
-    private List<RecordedFile> _allFiles = new();
-    private List<RecordedFile> _allGroupFiles = new();
-    private List<RecordedFile> _filteredFiles = new();
+    private List<VideoFile> _allFiles = new();
+    private List<VideoFile> _allGroupFiles = new();
+    private List<VideoFile> _filteredFiles = new();
     private string _searchQuery = "";
     private string _studentLevel = "Level_1";
     private string _studentSemester = "First_Term";
@@ -228,13 +228,13 @@ else
                 }
             }
 
-            _allFiles = await RecordedService.GetFilesAsync(_studentLevel, _studentSemester);
+            _allFiles = await VideosService.GetFilesAsync(_studentLevel, _studentSemester);
 
             if (_allFiles.Count == 0)
                 _errorMsg = "No data received from server.";
             else
             {
-                _allGroupFiles = RecordedService.GetFilesForGroup(_allFiles, _studentLevel, _studentSemester, decodedGroup);
+                _allGroupFiles = VideosService.GetFilesForGroup(_allFiles, _studentLevel, _studentSemester, decodedGroup);
                 if (_allGroupFiles.Count == 0)
                     _errorMsg = $"No files found for \"{decodedGroup}\".";
                 else
@@ -263,7 +263,7 @@ else
                         {
                             // Multiple lecturers: ask first instead of mixing all files together.
                             _currentLecturer = "";
-                            _filteredFiles = new List<RecordedFile>();
+                            _filteredFiles = new List<VideoFile>();
                             _showLecturerDialog = true;
                         }
                         else
@@ -321,13 +321,13 @@ else
 
     private void ApplyFilter()
     {
-        IEnumerable<RecordedFile> query = _allGroupFiles;
+        IEnumerable<VideoFile> query = _allGroupFiles;
         if (!string.IsNullOrEmpty(_currentLecturer))
             query = query.Where(f => string.Equals(f.Lecturer, _currentLecturer, StringComparison.Ordinal));
         else if (_lecturers.Count > 1)
         {
             // Multi-lecturer subject with no selection yet: never mix files together.
-            _filteredFiles = new List<RecordedFile>();
+            _filteredFiles = new List<VideoFile>();
             return;
         }
         if (string.IsNullOrWhiteSpace(_searchQuery))
@@ -401,17 +401,17 @@ else
 
     /// <summary>Lecturer name without any parenthetical tag, e.g. "Dr. Nourhan (LAB)" -> "Dr. Nourhan".</summary>
     private static string LecturerDisplayName(string lecturer)
-        => RecordedService.SplitLecturerTag(lecturer).Name;
+        => VideosService.SplitLecturerTag(lecturer).Name;
 
     /// <summary>Parenthetical tag of a lecturer folder, e.g. "Dr. Nourhan (LAB)" -> "LAB".</summary>
     private static string LecturerTag(string lecturer)
-        => RecordedService.SplitLecturerTag(lecturer).Tag;
+        => VideosService.SplitLecturerTag(lecturer).Tag;
 
-    private string ResolveDownloadUrl(RecordedFile file)
+    private string ResolveDownloadUrl(VideoFile file)
     {
         if (!string.IsNullOrEmpty(file.ArchiveId))
             return NMU.Platform.Components.Services.ArchiveCatalog.GetDownloadUrl(file.ArchiveId, file.Name);
-        return RecordedService.GetDownloadUrl(file.Name, _studentLevel, _studentSemester);
+        return VideosService.GetDownloadUrl(file.Name, _studentLevel, _studentSemester);
     }
 
     private void Reload()
@@ -422,7 +422,7 @@ else
         _ = OnInitializedAsync();
     }
 
-    private void PlayFile(RecordedFile file)
+    private void PlayFile(VideoFile file)
     {
         var url = ResolveDownloadUrl(file);
         var name = file.DisplayName + (file.IsAudio ? ".mp3" : ".mp4");
@@ -432,10 +432,10 @@ else
         NavState.CurrentFileName = name;
         var encodedUrl = Uri.EscapeDataString(url);
         var encodedName = Uri.EscapeDataString(name);
-        Navigation.NavigateTo($"recorded/{Uri.EscapeDataString(Uri.UnescapeDataString(Group))}/player?url={encodedUrl}&name={encodedName}", replace: true);
+        Navigation.NavigateTo($"videos/{Uri.EscapeDataString(Uri.UnescapeDataString(Group))}/player?url={encodedUrl}&name={encodedName}", replace: true);
     }
 
-    private async Task DownloadFile(RecordedFile file)
+    private async Task DownloadFile(VideoFile file)
     {
         var url = ResolveDownloadUrl(file);
         var name = file.DisplayName + (file.IsAudio ? ".mp3" : ".mp4");

@@ -13,7 +13,7 @@ builder.Services.AddScoped<NavigationState>();
 builder.Services.AddScoped<LayoutState>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<MaterialsService>();
-builder.Services.AddScoped<RecordedService>();
+builder.Services.AddScoped<VideosService>();
 builder.Services.AddScoped<YouTubeService>();
 builder.Services.AddScoped<QuizService>();
 builder.Services.AddScoped<QuizStateService>();

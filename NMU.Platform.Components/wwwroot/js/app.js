@@ -189,13 +189,13 @@ window.nmuFunctions = {
     },
 
     // Auto marquee for file/video titles that overflow their slot (.file-name,
-    // .recorded-title). Only overflowing labels animate; short ones stay static.
+    // .video-title). Only overflowing labels animate; short ones stay static.
     // Safe with Blazor: the text node Blazor owns is moved (not replaced), so
     // later re-renders keep updating it inside the wrapper.
     nmuEnableMarquee: function () {
         if (window.__nmuMarqueeWired) return;
         window.__nmuMarqueeWired = true;
-        var SELECTOR = '.file-name, .recorded-title';
+        var SELECTOR = '.file-name, .video-title';
         var scheduled = false;
 
         function scan() {
@@ -956,7 +956,7 @@ window.nmuFunctions = {
         return false;
     },
 
-    _isRecordedMediaName: function (nm) {
+    _isVideoMediaName: function (nm) {
         if (!nm) return false;
         var l = nm.toLowerCase();
         if (l.endsWith('.ia.mp4')) return false;
@@ -1096,15 +1096,15 @@ window.nmuFunctions = {
         });
     },
 
-    // Same idea for the Records folders used by the recorded lectures pages.
+    // Same idea for the Records folders used by the videos pages.
     // New layout: Data/{Subject}/Records/{Lecturer}/*.{mp4|mp3|...}
     // Thumbs: {ArchiveId}.thumbs/Data/... (*.jpg)
-    getRecordedFiles: function (level, semester, force) {
+    getVideoFiles: function (level, semester, force) {
         var self = this;
         var arch = self.nmuGetArchiveId(level, semester);
         if (!arch) return Promise.resolve('');
-        var recCacheKey = 'rec_files_v3_' + level + '_' + semester;
-        return this.getCacheItem(recCacheKey).then(function (cached) {
+        var vidCacheKey = 'vid_files_v3_' + level + '_' + semester;
+        return this.getCacheItem(vidCacheKey).then(function (cached) {
             if (cached && !force) return cached;
             return self.ensureRawMetadata(arch, null, null, force).then(function (json) {
                 if (!json) return '';
@@ -1140,7 +1140,7 @@ window.nmuFunctions = {
                     var nm = f.name || '';
                     if (nm.indexOf('Data/') !== 0) continue;
                     if (nm.toLowerCase().indexOf('/records/') === -1) continue;
-                    if (!self._isRecordedMediaName(nm)) continue;
+                    if (!self._isVideoMediaName(nm)) continue;
                     var lower = nm.toLowerCase();
                     var fileNoExt = nm.slice(nm.lastIndexOf('/') + 1);
                     var dot = fileNoExt.lastIndexOf('.');
@@ -1165,7 +1165,7 @@ window.nmuFunctions = {
                     });
                 }
                 var result = JSON.stringify(out);
-                self.setCacheItem(recCacheKey, result);
+                self.setCacheItem(vidCacheKey, result);
                 return result;
             });
         }).catch(function () {

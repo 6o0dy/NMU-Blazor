@@ -61,7 +61,7 @@ public partial class VideoPlayer : IDisposable
         }
         if (string.IsNullOrEmpty(_fileUrl))
         {
-            Navigation.NavigateTo($"recorded/{Uri.EscapeDataString(_group)}", replace: true);
+            Navigation.NavigateTo($"videos/{Uri.EscapeDataString(_group)}", replace: true);
             return;
         }
         _isAudio = _fileName.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ||
@@ -652,7 +652,7 @@ public partial class VideoPlayer : IDisposable
         NavState.CurrentFileUrl = null;
         NavState.CurrentFileName = null;
         NavState.PageTitle = "NMU-CE & AIE";
-        Navigation.NavigateTo($"recorded/{Uri.EscapeDataString(_group)}", replace: true);
+        Navigation.NavigateTo($"videos/{Uri.EscapeDataString(_group)}", replace: true);
     }
 
     public void Dispose()

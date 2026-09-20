@@ -33,7 +33,7 @@
             <nav class="sidebar-nav">
                 <NavLink class="sidebar-nav-item" href="/" Match="NavLinkMatch.All" @onclick="CloseSidebar">🏠 Home</NavLink>
                 <NavLink class="sidebar-nav-item" href="/materials" Match="NavLinkMatch.Prefix" @onclick="CloseSidebar">📚 Study Materials</NavLink>
-                <NavLink class="sidebar-nav-item" href="/recorded" Match="NavLinkMatch.Prefix" @onclick="CloseSidebar">🎥 Recorded Lectures</NavLink>
+                <NavLink class="sidebar-nav-item" href="/videos" Match="NavLinkMatch.Prefix" @onclick="CloseSidebar"><span class="nav-ico-yt">🎥<i class="fa-brands fa-youtube nav-yt-badge"></i></span> Videos</NavLink>
                 <NavLink class="sidebar-nav-item" href="/quizzes" Match="NavLinkMatch.Prefix" @onclick="CloseSidebar">🧩 Quizzes &amp; Bank</NavLink>
                 @if (_showVirtualLab)
                 {
@@ -100,8 +100,8 @@
         <NavLink class="mobile-nav-btn" href="/materials" Match="NavLinkMatch.Prefix">
             <span>📚</span><span>Materials</span>
         </NavLink>
-        <NavLink class="mobile-nav-btn" href="/recorded" Match="NavLinkMatch.Prefix">
-            <span>🎥</span><span>Lectures</span>
+        <NavLink class="mobile-nav-btn" href="/videos" Match="NavLinkMatch.Prefix">
+            <span class="nav-ico-yt">🎥<i class="fa-brands fa-youtube nav-yt-badge"></i></span><span>Videos</span>
         </NavLink>
         <NavLink class="mobile-nav-btn" href="/quizzes" Match="NavLinkMatch.Prefix">
             <span>🧩</span><span>Quizzes</span>
@@ -320,10 +320,10 @@
             var level = student.AcademicLevel.Replace(" ", "_");
             var semester = student.Semester.Replace(" ", "_");
             // Download + parse the archive metadata ONCE in the background so opening
-            // Materials/Quizzes/Recorded is instant (this is a fast no-op once cached).
+            // Materials/Quizzes/Videos is instant (this is a fast no-op once cached).
             await JS.InvokeVoidAsync("nmuFunctions.prefetchSemesterFiles", level, semester);
-            // Also pre-parse + cache the recorded lectures list in the background.
-            await JS.InvokeVoidAsync("nmuFunctions.getRecordedFiles", level, semester);
+            // Also pre-parse + cache the videos list in the background.
+            await JS.InvokeVoidAsync("nmuFunctions.getVideoFiles", level, semester);
         }
         catch { }
     }

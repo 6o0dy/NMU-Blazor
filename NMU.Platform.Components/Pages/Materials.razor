@@ -103,7 +103,7 @@ else
                 @foreach (var lec in _dialogLecturers)
                 {
                     var l = lec;
-                    var split = NMU.Platform.Components.Services.RecordedService.SplitLecturerTag(l);
+                    var split = NMU.Platform.Components.Services.VideosService.SplitLecturerTag(l);
                     var clean = string.IsNullOrEmpty(split.Name) ? l : split.Name;
                     <div class="subject-check-card lec-pick" @onclick="() => PickDialogLecturer(l)">
                         <span class="subject-check-name" title="@l">@clean</span>

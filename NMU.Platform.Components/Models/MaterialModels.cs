@@ -87,7 +87,7 @@ public class SubjectCatalogEntry
 
 /// <summary>
 /// Matching helpers for subject names between content sources (PDF folders vs
-/// QUIZE json names vs recorded group folders), which are not always identical.
+/// QUIZE json names vs video group folders), which are not always identical.
 /// </summary>
 public static class SubjectMatcher
 {
@@ -199,7 +199,7 @@ public class YouTubeVideo
     public string VideoId { get; set; } = "";
 }
 
-public class RecordedFile
+public class VideoFile
 {
     public string Name { get; set; } = "";
     public long? Size { get; set; }
@@ -215,7 +215,7 @@ public class RecordedFile
     public string ArchiveId { get; set; } = "";
 }
 
-public class RecordedGroupInfo
+public class VideoGroupInfo
 {
     /// <summary>Full subject folder (routing key).</summary>
     public string Name { get; set; } = "";
