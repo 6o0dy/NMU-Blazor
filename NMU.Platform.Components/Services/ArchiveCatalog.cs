@@ -167,6 +167,34 @@ public static class ArchiveCatalog
         cleanName = rest;
     }
 
+    /// <summary>
+    /// Short "CODE - Clean name" label without the branch tag, e.g.
+    /// "CSE014 - Structured Programming.(ALL)" → "CSE014 - Structured Programming".
+    /// Used anywhere a selected subject folder is shown to the user.
+    /// </summary>
+    public static string ShortSubjectLabel(string? subjectFolder)
+    {
+        var (code, name) = SplitSubjectLabel(subjectFolder);
+        if (!string.IsNullOrEmpty(code) && !string.IsNullOrEmpty(name))
+            return $"{code} - {name}";
+        return name;
+    }
+
+    /// <summary>
+    /// Split a subject folder into (Code, CleanName) without the branch tag,
+    /// e.g. ("CSE014", "Structured Programming"). Name falls back to the
+    /// raw folder text when it has no code.
+    /// </summary>
+    public static (string Code, string Name) SplitSubjectLabel(string? subjectFolder)
+    {
+        if (string.IsNullOrWhiteSpace(subjectFolder)) return ("", "");
+        ParseSubjectFolder(subjectFolder, out var code, out var clean, out _);
+        clean = (clean ?? "").Replace("_", " ").Trim();
+        if (string.IsNullOrEmpty(clean))
+            clean = subjectFolder.Replace("_", " ").Trim();
+        return (code?.Trim() ?? "", clean);
+    }
+
     /// <summary>True when a subject with the given branch tag is visible for the student's department.</summary>
     public static bool IsVisibleForDepartment(string? branch, string? studentDept)
     {

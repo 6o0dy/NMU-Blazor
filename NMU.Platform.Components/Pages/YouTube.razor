@@ -24,6 +24,13 @@ else if (_error && _channels.Count == 0)
 else
 {
     <div class="yt-page">
+        @if (_customActive)
+        {
+            <div class="page-heading" style="margin-bottom:12px;">
+                <h2 style="margin:0;">▶️ YouTube Videos</h2>
+                <span class="code-tag">Custom • @_channels.Count channels</span>
+            </div>
+        }
         <div class="yt-grid">
             @if (_filteredChannels.Count == 0)
             {
@@ -33,9 +40,13 @@ else
             {
                 var c = ch;
                 <div class="yt-channel-card" @onclick="() => OpenChannel(c)">
-                    <img src="@c.AvatarUrl" class="yt-avatar" loading="lazy" />
+                    <img src="@c.AvatarUrl" class="yt-avatar" loading="lazy" onerror="nmuFunctions.ytImgFallback(this)" />
                     <div class="yt-channel-name">@c.ChannelName</div>
-                    <div class="yt-channel-meta">@c.Subject · @c.Videos.Count videos</div>
+                    <div class="yt-channel-meta">@c.Subject</div>
+                    <div class="yt-count-pill">
+                        <i class="fa-solid fa-circle-play"></i>
+                        <span>@c.Videos.Count videos</span>
+                    </div>
                 </div>
             }
         </div>
@@ -45,6 +56,7 @@ else
 @code {
     private bool _loading = true;
     private bool _error;
+    private bool _customActive;
     private List<YouTubeChannel> _channels = new();
     private List<YouTubeChannel> _filteredChannels = new();
     private string _searchQuery = "";
@@ -69,6 +81,8 @@ else
         try
         {
             _channels = await YouTubeService.GetChannelsAsync();
+            // Custom scoping proof: master list is bigger than what's shown.
+            _customActive = YouTubeService.Channels.Count > _channels.Count;
             ApplyFilter();
         }
         catch
@@ -79,6 +93,15 @@ else
 
         LayoutState.SearchBar = _searchBarFragment;
         LayoutState.NotifyStateChanged();
+
+        // Background: pick up newly published videos without a cache clear.
+        _ = YouTubeService.CheckAndUpdateAsync(async (updated, _) =>
+        {
+            _channels = updated;
+            _customActive = YouTubeService.Channels.Count > _channels.Count;
+            ApplyFilter();
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private void OnSearchInput(ChangeEventArgs e)

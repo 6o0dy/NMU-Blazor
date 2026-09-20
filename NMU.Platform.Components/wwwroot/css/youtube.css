@@ -92,6 +92,27 @@
     font-family: 'Fira Code', monospace;
 }
 
+/* Separate video-count pill under the subject line */
+.yt-count-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding: 4px 14px;
+    border-radius: 999px;
+    background: rgba(147, 26, 35, 0.15);
+    border: 1px solid rgba(147, 26, 35, 0.35);
+    color: var(--primary);
+    font-size: 11px;
+    font-family: 'Fira Code', monospace;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+.yt-count-pill i {
+    font-size: 12px;
+}
+
 /* ---------- Videos Grid ---------- */
 .yt-video-grid {
     display: grid;

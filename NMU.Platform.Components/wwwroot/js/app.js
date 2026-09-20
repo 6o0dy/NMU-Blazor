@@ -137,6 +137,21 @@ window.nmuFunctions = {
         window.open(url, '_blank', 'noopener');
     },
 
+    // YouTube thumbnail fallback chain: maxresdefault.jpg does NOT exist for
+    // every video (404). Step down until one loads: maxres -> sd -> hq -> mq.
+    // Usage: <img ... onerror="nmuFunctions.ytImgFallback(this)" />
+    ytImgFallback: function (img) {
+        if (!img || !img.src) return;
+        var order = ['maxresdefault', 'sddefault', 'hqdefault', 'mqdefault', 'default'];
+        for (var i = 0; i < order.length - 1; i++) {
+            if (img.src.indexOf('/' + order[i] + '.') !== -1) {
+                img.src = img.src.replace('/' + order[i] + '.', '/' + order[i + 1] + '.');
+                return;
+            }
+        }
+        try { img.onerror = null; } catch (e) { }
+    },
+
     // Hard-reload a URL without adding a browser history entry
     // (location.replace rewrites the current entry instead of pushing a new one).
     reloadWithoutHistory: function (url) {

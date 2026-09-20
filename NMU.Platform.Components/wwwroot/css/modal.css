@@ -92,6 +92,22 @@ input[type="text"], select {
 }
 .selected-subject-chip i { cursor: pointer; color: var(--primary); font-size: 11px; }
 
+/* Distinct subject-code pill inside the chip */
+.selected-subject-chip .chip-code {
+    font-family: 'Fira Code', monospace;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    color: #fff;
+    background: var(--primary);
+    border-radius: 8px;
+    padding: 1px 7px;
+}
+.selected-subject-chip .chip-name {
+    color: var(--text-primary);
+}
+
 /* ---------- Unified profile dialogs (Setup + My Data) ----------
    Responsive shell: fixed header, scrollable body, sticky actions.
    Organized in numbered sections with a 2-column academic grid. */

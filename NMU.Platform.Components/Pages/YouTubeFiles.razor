@@ -34,7 +34,7 @@ else
         {
             var v = vid;
             <div class="recorded-card" @onclick="() => PlayVideo(v)">
-                <img src="@v.Img" class="recorded-thumb" loading="lazy" />
+                <img src="@v.Img" class="recorded-thumb" loading="lazy" onerror="nmuFunctions.ytImgFallback(this)" />
                 <div class="recorded-info">
                     <div class="recorded-title" title="@v.Title">@v.Title</div>
                     <div class="recorded-meta">

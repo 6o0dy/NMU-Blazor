@@ -186,6 +186,8 @@ public class YouTubeChannel
     public string Subject { get; set; } = "";
     public string AvatarUrl { get; set; } = "";
     public string GroupKey { get; set; } = "";
+    /// <summary>Exact archive folder, e.g. "CSE014 - Structured Programming.(ALL)". Used to match custom subject selections.</summary>
+    public string? SubjectFolder { get; set; }
     public List<YouTubeVideo> Videos { get; set; } = new();
 }
 

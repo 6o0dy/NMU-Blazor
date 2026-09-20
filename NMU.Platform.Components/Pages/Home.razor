@@ -148,8 +148,13 @@
                                         <div class="selected-subjects-list">
                                             @foreach (var s in editSelectedSubjects.OrderBy(s => s.Level).ThenBy(s => s.Semester).ThenBy(s => s.Subject))
                                             {
+                                                var chip = NMU.Platform.Components.Services.ArchiveCatalog.SplitSubjectLabel(s.Subject);
                                                 <span class="selected-subject-chip">
-                                                    @s.Subject.Replace("_", " ")
+                                                    @if (!string.IsNullOrEmpty(chip.Code))
+                                                    {
+                                                        <span class="chip-code">@chip.Code</span>
+                                                    }
+                                                    <span class="chip-name">@chip.Name</span>
                                                     @if (isEditing)
                                                     {
                                                         <i class="fa-solid fa-xmark" @onclick="() => RemoveSubject(s)"></i>

@@ -90,7 +90,15 @@
                             <div class="selected-subjects-list">
                                 @foreach (var s in _selectedSubjects.OrderBy(s => s.Level).ThenBy(s => s.Semester).ThenBy(s => s.Subject))
                                 {
-                                    <span class="selected-subject-chip">@s.Subject.Replace("_", " ") <i class="fa-solid fa-xmark" @onclick="() => RemoveSubject(s)"></i></span>
+                                    var chip = NMU.Platform.Components.Services.ArchiveCatalog.SplitSubjectLabel(s.Subject);
+                                    <span class="selected-subject-chip">
+                                        @if (!string.IsNullOrEmpty(chip.Code))
+                                        {
+                                            <span class="chip-code">@chip.Code</span>
+                                        }
+                                        <span class="chip-name">@chip.Name</span>
+                                        <i class="fa-solid fa-xmark" @onclick="() => RemoveSubject(s)"></i>
+                                    </span>
                                 }
                             </div>
                         }
