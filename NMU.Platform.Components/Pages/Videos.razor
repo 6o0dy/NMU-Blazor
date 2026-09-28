@@ -7,6 +7,7 @@
 @inject NavigationManager Navigation
 @inject NavigationState NavState
 @inject LayoutState LayoutState
+@inject ToastService Toast
 @inject IJSRuntime JS
 @inject MediaCacheService MediaCache
 @inject IPlatformService Platform
@@ -32,14 +33,19 @@ else
     <div class="video-container">
         <div class="page-heading">
             <h2>🎥 Videos</h2>
-            @if (_customMode)
-            {
-                <span class="code-tag">Custom • @_groupsInfo.Count groups</span>
-            }
-            else
-            {
-                <span class="code-tag">@_studentLevel.Replace("_", " ") • @_studentSemester.Replace("_", " ")</span>
-            }
+            <span class="heading-side">
+                @if (_customMode)
+                {
+                    <span class="code-tag">Custom • @_groupsInfo.Count groups</span>
+                }
+                else
+                {
+                    <span class="code-tag">@_studentLevel.Replace("_", " ") • @_studentSemester.Replace("_", " ")</span>
+                }
+                <button class="refresh-btn" @onclick="RefreshNowAsync" disabled="@(_loading || _refreshing)" title="Check for new videos">
+                    <i class="fa-solid fa-rotate-right @(_refreshing ? "fa-spin" : "")"></i>
+                </button>
+            </span>
         </div>
 
         <div class="cards-grid">
@@ -212,6 +218,9 @@ else
                     MergeYouTubeIntoGroups();
                     await InvokeAsync(StateHasChanged);
                 });
+                // Revalidate every involved recordings archive (custom mode has
+                // no single term gate, so each term revalidates on its own).
+                _ = RefreshCustomWithRevalidationAsync(student.CustomSubjects);
                 return;
             }
 
@@ -231,11 +240,7 @@ else
             // Background revalidation: pick up newly added lectures without a cache clear.
             _ = VideosService.CheckAndUpdateVideosAsync(_studentLevel, _studentSemester, updated =>
             {
-                _groupsInfo = updated.Where(g => NMU.Platform.Components.Services.ArchiveCatalog.IsVisibleForDepartment(g.Branch, _studentDept)).ToList();
-                // Re-attach already-loaded YouTube channels to the refreshed groups.
-                RebuildYouTubeMap();
-                MergeYouTubeOnlyGroups();
-                SortGroups();
+                ApplyRefreshedGroups(updated);
                 _ = InvokeAsync(StateHasChanged);
             });
 
@@ -397,6 +402,89 @@ else
         _ = LoadDataAsync();
     }
 
+    /// <summary>
+    /// Manual refresh: bypasses the revalidation window and re-fetches right
+    /// now. Use after uploading new videos instead of waiting for the
+    /// background pass.
+    /// </summary>
+    private bool _refreshing;
+
+    private async Task RefreshNowAsync()
+    {
+        if (_refreshing || _loading) return;
+        _refreshing = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            if (_customMode)
+            {
+                var student = await StudentService.GetStudentAsync();
+                var selections = (student?.CustomSubjectsMode == true && student.CustomSubjects != null && student.CustomSubjects.Count > 0)
+                    ? student.CustomSubjects : null;
+                if (selections != null)
+                {
+                    foreach (var t in selections.GroupBy(s => (s.Level, s.Semester)))
+                    {
+                        try { await VideosService.GetFilesAsync(t.Key.Level, t.Key.Semester, force: true); } catch { }
+                    }
+                    _groupsInfo = await BuildCustomGroupsAsync(selections);
+                }
+            }
+            else
+            {
+                await VideosService.CheckAndUpdateVideosAsync(_studentLevel, _studentSemester,
+                    updated =>
+                    {
+                        ApplyRefreshedGroups(updated);
+                        _ = InvokeAsync(StateHasChanged);
+                    }, force: true);
+                await RefreshDetailsAsync();
+                // Also force-check YouTube channels (cached channels alone
+                // would miss newly added ones).
+                _ = YouTubeService.CheckAndUpdateAsync(async (updated, _) =>
+                {
+                    _allYouTubeChannels = updated;
+                    MergeYouTubeIntoGroups();
+                    await InvokeAsync(StateHasChanged);
+                });
+            }
+        }
+        finally
+        {
+            _refreshing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <summary>
+    /// Custom-mode background revalidation: re-check every involved archive
+    /// and rebuild the groups if anything changed (automatic primary path;
+    /// the manual refresh button is only the backup).
+    /// </summary>
+    private async Task RefreshCustomWithRevalidationAsync(List<CustomSubjectSelection> selections)
+    {
+        try
+        {
+            var changed = false;
+            foreach (var t in selections.GroupBy(s => (s.Level, s.Semester)))
+            {
+                try
+                {
+                    var refreshed = false;
+                    await VideosService.CheckAndUpdateVideosAsync(t.Key.Level, t.Key.Semester, _ => { refreshed = true; });
+                    if (refreshed) changed = true;
+                }
+                catch { }
+            }
+            if (changed)
+            {
+                _groupsInfo = await BuildCustomGroupsAsync(selections);
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch { }
+    }
+
     // ---------- YouTube merge helpers ----------
 
     private static string ChannelFolder(YouTubeChannel ch)
@@ -513,6 +601,38 @@ else
             var d = string.IsNullOrEmpty(g.DisplayName) ? g.Name : g.DisplayName;
             return d;
         }, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>
+    /// Applies a refreshed recordings-only group list without losing
+    /// YouTube-only subjects already on screen (the refreshed list has no
+    /// YouTube entries, and channels may not have loaded yet to re-merge).
+    /// </summary>
+    private void ApplyRefreshedGroups(List<VideoGroupInfo> updated)
+    {
+        var fresh = updated
+            .Where(g => NMU.Platform.Components.Services.ArchiveCatalog.IsVisibleForDepartment(g.Branch, _studentDept))
+            .ToList();
+        foreach (var g in _groupsInfo)
+        {
+            if (_groupYouTube.ContainsKey(g.Name)
+                && fresh.All(x => !string.Equals(x.Name, g.Name, StringComparison.OrdinalIgnoreCase)))
+                fresh.Add(g);
+        }
+        var oldNames = new HashSet<string>(_groupsInfo.Select(g => g.Name), StringComparer.OrdinalIgnoreCase);
+        _groupsInfo = fresh;
+        RebuildYouTubeMap();
+        MergeYouTubeOnlyGroups();
+        SortGroups();
+        // Prove the automatic path works: toast only when subjects were
+        // actually added (not on every background pass).
+        var added = _groupsInfo
+            .Where(g => !oldNames.Contains(g.Name))
+            .Select(g => string.IsNullOrEmpty(g.DisplayName) ? g.Name : g.DisplayName)
+            .Take(2)
+            .ToList();
+        if (added.Count > 0)
+            Toast.ShowToast($"فيديوهات جديدة: {string.Join("، ", added)}", ToastType.Success);
     }
 
     private List<YouTubeChannel> GetYouTubeForGroup(string group)

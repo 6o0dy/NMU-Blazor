@@ -83,6 +83,30 @@ public class MaterialsService
         await RefreshSubjectCatalogForcedAsync();
     }
 
+    /// <summary>
+    /// Signal-gated cross-archive catalog refresh for the custom-subjects
+    /// picker: checks every archive's cheap manifest signal in parallel and
+    /// rebuilds only when some archive reports change. All-confirm-unchanged
+    /// skips everything; unknown signals fall back to the once-per-session
+    /// rule (covers archives with no manifest file). Returns the fresh list,
+    /// or null when no rebuild was needed or possible.
+    /// </summary>
+    public async Task<List<SubjectCatalogEntry>?> CheckAndUpdateCatalogAsync()
+    {
+        try
+        {
+            var signals = await Task.WhenAll(
+                ArchiveCatalog.AllArchiveIds.Select(a => QuickChangedAsync(a)));
+            if (signals.All(s => s == false)) return null;
+            if (signals.All(s => s != true) && !CatalogSessionRefreshDue()) return null;
+            return await RefreshSubjectCatalogForcedAsync();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private static bool _catalogRefreshedThisSession;
 
     /// <summary>
@@ -170,29 +194,55 @@ public class MaterialsService
     /// Background revalidation for the materials subject list: sends a HEAD request to
     /// the archive metadata; only if it changed does it re-fetch and refresh the caches.
     /// </summary>
-    public async Task CheckAndUpdateMaterialsAsync(string level, string semester, Action<List<MaterialSubjectInfo>>? onSubjectsUpdated = null)
+    public async Task CheckAndUpdateMaterialsAsync(string level, string semester, Action<List<MaterialSubjectInfo>>? onSubjectsUpdated = null, bool force = false)
     {
         if (string.IsNullOrEmpty(level) || string.IsNullOrEmpty(semester)) return;
         try
         {
             var metaKey = MetaCacheKey(level, semester);
-            var check = await MetadataChangedAsync(metaKey);
-            if (check == null || !check.Value.changed) return;
-
-            _filesMemCache.TryRemove($"{level}_{semester}", out _);
-            // Force: bypass the persistent file-list caches so newly added
-            // archive files are actually picked up (not re-served stale).
-            var files = await GetFilesAsync(level, semester, force: true);
-            var subjects = BuildSubjectsInfo(files, level, semester);
-            if (subjects.Count > 0)
+            // Cheap signal first (bytes): server-confirmed unchanged skips
+            // everything; a reported change refreshes even inside the age gate.
+            if (!force)
             {
-                await _js.InvokeVoidAsync("nmuFunctions.safeSetItemBoth", SubjectsCacheKey(level, semester), JsonSerializer.Serialize(subjects));
-                await SaveMetaAsync(metaKey, check.Value);
-                // New subjects may exist -> rebuild the cross-archive catalog
-                // in the background for the custom-subjects picker.
-                _ = RefreshSubjectCatalogAsync();
-                onSubjectsUpdated?.Invoke(subjects);
+                var signal = await QuickChangedAsync(ArchiveCatalog.GetArchiveId(level, semester));
+                if (signal == false) return;
+                if (signal == null)
+                {
+                    var gate = await MetadataChangedAsync(metaKey);
+                    if (gate == null || !gate.Value.changed) return;
+                }
             }
+
+            // Automatic primary path: one unlucky fetch must not cost the whole
+            // visit, so transient failures retry a few times with backoff while
+            // the page is open (the manual refresh button stays only as backup).
+            List<MaterialSubjectInfo>? subjects = null;
+            for (var attempt = 0; attempt < 3 && subjects == null; attempt++)
+            {
+                if (attempt > 0)
+                {
+                    try { await Task.Delay(TimeSpan.FromSeconds(5 * attempt)); } catch { return; }
+                }
+                try
+                {
+                    _filesMemCache.TryRemove($"{level}_{semester}", out _);
+                    // Force: bypass the persistent file-list caches so newly added
+                    // archive files are actually picked up (not re-served stale).
+                    var files = await GetFilesAsync(level, semester, force: true);
+                    var built = BuildSubjectsInfo(files, level, semester);
+                    if (built.Count > 0) subjects = built;
+                }
+                catch { }
+            }
+            if (subjects == null || subjects.Count == 0) return;
+
+            await _js.InvokeVoidAsync("nmuFunctions.safeSetItemBoth", SubjectsCacheKey(level, semester), JsonSerializer.Serialize(subjects));
+            var refreshed = await MetadataChangedAsync(metaKey);
+            await SaveMetaAsync(metaKey, refreshed ?? (true, (long)subjects.Count, "", ""));
+            // New subjects may exist -> rebuild the cross-archive catalog
+            // in the background for the custom-subjects picker.
+            _ = RefreshSubjectCatalogAsync();
+            onSubjectsUpdated?.Invoke(subjects);
         }
         catch (Exception ex)
         {
@@ -209,19 +259,40 @@ public class MaterialsService
         try
         {
             var metaKey = MetaCacheKey(level, semester);
-            var check = await MetadataChangedAsync(metaKey);
-            if (check == null || !check.Value.changed) return;
-
-            _filesMemCache.TryRemove($"{level}_{semester}", out _);
-            // Force: bypass the persistent file-list caches (see above).
-            var files = await GetFilesAsync(level, semester, force: true);
-            var (_, subjectFiles) = GetFilesForSubject(files, level, semester, subject);
-            if (subjectFiles.Count > 0)
+            // Cheap signal first (see subject list above); unknown falls back
+            // to the age gate.
+            var fileSignal = await QuickChangedAsync(ArchiveCatalog.GetArchiveId(level, semester));
+            if (fileSignal == false) return;
+            if (fileSignal == null)
             {
-                await _js.InvokeVoidAsync("nmuFunctions.safeSetItemBoth", SubjectFilesCacheKey(level, semester, subject), JsonSerializer.Serialize(subjectFiles));
-                await SaveMetaAsync(metaKey, check.Value);
-                onUpdated?.Invoke(subjectFiles);
+                var fileGate = await MetadataChangedAsync(metaKey);
+                if (fileGate == null || !fileGate.Value.changed) return;
             }
+
+            // Same automatic retry policy as the subject list (see above).
+            List<MaterialFile>? subjectFiles = null;
+            for (var attempt = 0; attempt < 3 && subjectFiles == null; attempt++)
+            {
+                if (attempt > 0)
+                {
+                    try { await Task.Delay(TimeSpan.FromSeconds(5 * attempt)); } catch { return; }
+                }
+                try
+                {
+                    _filesMemCache.TryRemove($"{level}_{semester}", out _);
+                    // Force: bypass the persistent file-list caches (see above).
+                    var files = await GetFilesAsync(level, semester, force: true);
+                    var (_, built) = GetFilesForSubject(files, level, semester, subject);
+                    if (built.Count > 0) subjectFiles = built;
+                }
+                catch { }
+            }
+            if (subjectFiles == null || subjectFiles.Count == 0) return;
+
+            await _js.InvokeVoidAsync("nmuFunctions.safeSetItemBoth", SubjectFilesCacheKey(level, semester, subject), JsonSerializer.Serialize(subjectFiles));
+            var refreshedFiles = await MetadataChangedAsync(metaKey);
+            await SaveMetaAsync(metaKey, refreshedFiles ?? (true, (long)subjectFiles.Count, "", ""));
+            onUpdated?.Invoke(subjectFiles);
         }
         catch (Exception ex)
         {
@@ -229,11 +300,35 @@ public class MaterialsService
         }
     }
 
+    /// <summary>
+    /// Cheap freshness signal (bytes, not MBs): conditional GET on the
+    /// archive's tiny root manifest. True = server reports change,
+    /// False = server confirmed unchanged (HTTP 304), Null = unknown
+    /// (no manifest / error) -> the age gate decides.
+    /// </summary>
+    private async Task<bool?> QuickChangedAsync(string? archiveId)
+    {
+        if (string.IsNullOrEmpty(archiveId)) return null;
+        try
+        {
+            var json = await _js.InvokeAsync<string>("nmuFunctions.fetchManifestSig", archiveId);
+            if (string.IsNullOrEmpty(json)) return null;
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("state", out var s)) return null;
+            var state = s.GetString();
+            if (state == "same") return false;
+            if (state == "changed") return true;
+        }
+        catch { }
+        return null;
+    }
+
     private async Task<(bool changed, long length, string etag, string lastMod)?> MetadataChangedAsync(string metaKey)
     {
-        var online = await _js.InvokeAsync<bool>("nmuFunctions.isOnline");
-        if (!online) return null;
-
+        // NOTE: deliberately no navigator.onLine gate here — it misreports in
+        // some WebViews (false while online), which would silently disable all
+        // refreshes forever. A failed fetch below simply keeps the stale
+        // caches (Count > 0 guards) without saving a fresh timestamp.
         // archive.org's search index does not list the NMU.CE_* identifiers, so
         // no remote size signal exists. Freshness is decided by age instead:
         // at most one background refresh per RevalidateAfter window. This check

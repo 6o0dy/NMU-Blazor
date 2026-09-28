@@ -234,10 +234,12 @@ public class YouTubeService
         {
             var archiveId = ArchiveCatalog.GetArchiveId(level, semester);
             if (archiveId == null) return null;
+            // ?t= busts archive.org edge caches for freshly uploaded json.
+            var buster = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var urls = new[]
             {
-                $"https://archive.org/download/{archiveId}/Data/youtube_{archiveId}.json",
-                $"https://archive.org/download/{archiveId}/youtube_{archiveId}.json"
+                $"https://archive.org/download/{archiveId}/Data/youtube_{archiveId}.json?t={buster}",
+                $"https://archive.org/download/{archiveId}/youtube_{archiveId}.json?t={buster}"
             };
             foreach (var url in urls)
             {

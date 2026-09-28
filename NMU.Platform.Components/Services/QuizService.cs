@@ -156,25 +156,41 @@ public class QuizService
 
         try
         {
-            var online = await _js.InvokeAsync<bool>("nmuFunctions.isOnline");
-            if (!online) return;
-
+            // No navigator.onLine gate (misreports in some WebViews and would
+            // silently disable refreshes); fetch failures keep stale caches.
+            // Cheap signal first (bytes): server-confirmed unchanged skips
+            // everything; a reported change refreshes even inside the age gate.
             // archive.org's search index does not list the NMU.CE_* identifiers,
-            // so no remote size signal exists. Freshness is decided by age instead:
-            // at most one background refresh per RevalidateAfter window (no network
-            // call in this check itself).
-            if (!await IsRefreshDueAsync(metaKey)) return;
+            // so without the signal, freshness is decided by age instead:
+            // at most one background refresh per RevalidateAfter window (no
+            // network call in this check itself).
+            var quizSignal = await QuickChangedAsync(ArchiveCatalog.GetArchiveId(level, mappedSemester));
+            if (quizSignal == false) return;
+            if (quizSignal == null && !await IsRefreshDueAsync(metaKey)) return;
 
-            // Force: bypass the persistent quiz-file cache so newly added
-            // archive quizzes are actually picked up (not re-served stale).
-            var names = await GetQuizFileNamesAsync(level, mappedSemester, force: true);
-            if (names.Count == 0) return;
+            // Automatic primary path with retry on transient failures
+            // (same policy as Materials; manual refresh is only the backup).
+            List<string>? matchedFiles = null;
+            for (var attempt = 0; attempt < 3 && matchedFiles == null; attempt++)
+            {
+                if (attempt > 0)
+                {
+                    try { await Task.Delay(TimeSpan.FromSeconds(5 * attempt)); } catch { return; }
+                }
+                try
+                {
+                    // Force: bypass the persistent quiz-file cache so newly added
+                    // archive quizzes are actually picked up (not re-served stale).
+                    var names = await GetQuizFileNamesAsync(level, mappedSemester, force: true);
+                    var matched = names
+                        .Where(n => n.EndsWith(".json") && !n.EndsWith("order_config.json"))
+                        .ToList();
+                    if (matched.Count > 0) matchedFiles = matched;
+                }
+                catch { }
+            }
 
-            var matchedFiles = names
-                .Where(n => n.EndsWith(".json") && !n.EndsWith("order_config.json"))
-                .ToList();
-
-            if (matchedFiles.Count == 0) return;
+            if (matchedFiles == null || matchedFiles.Count == 0) return;
 
             var mappedArchiveId = ArchiveCatalog.GetArchiveId(level, mappedSemester);
             if (mappedArchiveId == null) return;
@@ -204,6 +220,29 @@ public class QuizService
         {
             _logger.LogDebug(ex, "CheckAndUpdateQuizListAsync error: {Message}", ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Cheap freshness signal (bytes, not MBs): conditional GET on the
+    /// archive's tiny root manifest. True = server reports change,
+    /// False = server confirmed unchanged (HTTP 304), Null = unknown
+    /// (no manifest / error) -> the age gate decides.
+    /// </summary>
+    private async Task<bool?> QuickChangedAsync(string? archiveId)
+    {
+        if (string.IsNullOrEmpty(archiveId)) return null;
+        try
+        {
+            var json = await _js.InvokeAsync<string>("nmuFunctions.fetchManifestSig", archiveId);
+            if (string.IsNullOrEmpty(json)) return null;
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("state", out var s)) return null;
+            var state = s.GetString();
+            if (state == "same") return false;
+            if (state == "changed") return true;
+        }
+        catch { }
+        return null;
     }
 
     /// <summary>

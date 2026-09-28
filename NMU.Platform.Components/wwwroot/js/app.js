@@ -932,7 +932,9 @@ window.nmuFunctions = {
         if (!force && self._rawMetaPromises[arch]) return self._rawMetaPromises[arch];
         var job = (force ? Promise.resolve('') : self.getRawMetadata(arch)).then(function (cached) {
             if (cached) return cached;
-            return self.fetchText('https://archive.org/metadata/' + arch).then(function (json) {
+            // ?t= busts archive.org edge caches (cache:'no-store' only bypasses
+            // the browser cache); unknown params are ignored by the API.
+            return self.fetchText('https://archive.org/metadata/' + arch + '?t=' + Date.now()).then(function (json) {
                 if (json) self.setRawMetadata(arch, json);
                 return json;
             });
@@ -942,6 +944,34 @@ window.nmuFunctions = {
             if (self._rawMetaPromises[arch] === job) self._rawMetaPromises[arch] = null;
         });
         return job;
+    },
+
+    // Cheap freshness signal for one archive (bytes, not MBs): conditional GET
+    // on the tiny root manifest. Returns {"state":"changed"|"same"|"unknown"}:
+    //   304               -> "same"    (server confirms nothing changed)
+    //   200               -> "changed" (saves the new Last-Modified for next time)
+    //   404 (no manifest)-> "unknown" (caller falls back to the age gate)
+    //   network error     -> "unknown"
+    // NOTE: the ?t= buster does NOT break the 304 (verified live): the CDN
+    // still honors If-Modified-Since on the busted URL.
+    fetchManifestSig: function (archiveId) {
+        var self = this;
+        if (!archiveId) return Promise.resolve(JSON.stringify({ state: 'unknown' }));
+        var sigKey = 'sig_manifest_' + archiveId;
+        function done(state) { return JSON.stringify({ state: state }); }
+        return self.getCacheItem(sigKey).then(function (sig) {
+            var headers = {};
+            if (sig) headers['If-Modified-Since'] = sig;
+            var url = 'https://archive.org/download/' + archiveId + '/Data/order_config.json?t=' + Date.now();
+            return fetch(url, { headers: headers, cache: 'no-store' }).then(function (r) {
+                if (r.status === 304) return done('same');
+                if (r.status === 404) return done('unknown');
+                if (!r.ok) return done('unknown');
+                var lm = r.headers.get('Last-Modified') || '';
+                var p = lm ? self.setCacheItem(sigKey, lm) : Promise.resolve();
+                return p.then(function () { return done('changed'); });
+            });
+        }).catch(function () { return done('unknown'); });
     },
 
     _isDerivativeName: function (nm) {

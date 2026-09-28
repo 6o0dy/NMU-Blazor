@@ -189,7 +189,12 @@
             <div class="subject-picker-card" @onclick:stopPropagation>
                 <div class="subject-picker-header">
                     <button class="btn-small-icon" @onclick="ClosePicker">&times;</button>
-                    <h3>Select Your Subjects @if (catalogUpdating) { <span class="updating-badge">جارٍ تحديث قائمة المواد...</span> }</h3>
+                    <h3>Select Your Subjects
+                        <button type="button" class="refresh-btn refresh-btn-small" @onclick="ForceRefreshCatalogAsync" disabled="@(catalogLoading || catalogUpdating)" title="Check for newly uploaded subjects">
+                            <i class="fa-solid fa-rotate-right @(catalogUpdating ? "fa-spin" : "")"></i>
+                        </button>
+                        @if (catalogUpdating) { <span class="updating-badge">جارٍ تحديث قائمة المواد...</span> }
+                    </h3>
                     <div class="search-wrapper">
                         <i class="fa-solid fa-magnifying-glass search-icon-inside"></i>
                         <input type="text" class="search-input" placeholder="Search subjects..."
@@ -393,29 +398,51 @@
     {
         searchQuery = "";
         showSubjectPicker = true;
-        var justLoaded = false;
         if (catalog.Count == 0)
         {
             catalogLoading = true;
             catalog = await MaterialsService.GetSubjectCatalogAsync();
             catalogLoading = false;
-            justLoaded = true;
         }
         BuildGroups();
         StateHasChanged();
-        // Background catalog refresh once per session on first picker open:
-        // instant cached list first, fresh merge when done.
-        if (!justLoaded)
-            _ = RefreshCatalogAsync();
+        // Signal-gated catalog check on EVERY picker open: instant cached list
+        // first, rebuild only when some archive reports new uploads.
+        _ = RefreshCatalogAsync();
     }
 
     private async Task RefreshCatalogAsync()
     {
         try
         {
-            if (!MaterialsService.CatalogSessionRefreshDue()) return;
             catalogUpdating = true;
             await InvokeAsync(StateHasChanged);
+            var fresh = await MaterialsService.CheckAndUpdateCatalogAsync();
+            if (fresh != null && fresh.Count > 0)
+            {
+                catalog = fresh;
+                BuildGroups();
+            }
+        }
+        catch { }
+        finally
+        {
+            catalogUpdating = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <summary>
+    /// Manual catalog refresh from the picker header: bypasses the once-per-
+    /// session rule and re-fetches right now (newly uploaded subjects).
+    /// </summary>
+    private async Task ForceRefreshCatalogAsync()
+    {
+        if (catalogLoading || catalogUpdating) return;
+        catalogUpdating = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
             var fresh = await MaterialsService.RefreshSubjectCatalogForcedAsync();
             if (fresh != null && fresh.Count > 0)
             {

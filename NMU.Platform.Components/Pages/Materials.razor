@@ -6,6 +6,7 @@
 @inject NavigationManager Navigation
 @inject NavigationState NavState
 @inject LayoutState LayoutState
+@inject ToastService Toast
 @inject IJSRuntime JS
 
 @if (_loading)
@@ -28,14 +29,19 @@ else
     <div class="materials-container">
 <div class="page-heading">
             <h2>📚 Study Materials</h2>
-            @if (_customMode)
-            {
-                <span class="code-tag">Custom • @_subjects.Count subjects</span>
-            }
-            else
-            {
-                <span class="code-tag">@_studentLevel.Replace("_", " ") • @_studentSemester.Replace("_", " ")</span>
-            }
+            <span class="heading-side">
+                @if (_customMode)
+                {
+                    <span class="code-tag">Custom • @_subjects.Count subjects</span>
+                }
+                else
+                {
+                    <span class="code-tag">@_studentLevel.Replace("_", " ") • @_studentSemester.Replace("_", " ")</span>
+                }
+                <button class="refresh-btn" @onclick="RefreshNowAsync" disabled="@(_loading || _refreshing)" title="Check for new materials">
+                    <i class="fa-solid fa-rotate-right @(_refreshing ? "fa-spin" : "")"></i>
+                </button>
+            </span>
         </div>
 
         <div class="cards-grid">
@@ -125,6 +131,7 @@ else
     private bool _loading = true;
     private bool _error;
     private bool _noData;
+    private bool _refreshing;
     private List<MaterialSubjectInfo> _subjects = new();
     private Dictionary<string, string> _subjectSources = new();
     private List<ArchiveFile> _allFiles = new();
@@ -204,8 +211,10 @@ else
                 _noData = _subjects.Count == 0;
                 _loading = false;
                 await InvokeAsync(StateHasChanged);
-                // Background: lecturers + offline badges per subject's own archive.
-                _ = RefreshCustomDetailsAsync();
+                // Background: lecturers + offline badges per subject's own archive,
+                // plus revalidation of every involved archive (custom mode has no
+                // single term gate, so each term revalidates on its own window).
+                _ = RefreshCustomWithRevalidationAsync();
                 return;
             }
 
@@ -223,23 +232,74 @@ else
             // Background: load the full file list + cached PDF keys to refresh offline badges.
             _ = RefreshDetailsAsync();
 
-            // Background revalidation (HEAD request), same as the quiz page.
+            // Background revalidation, same as the quiz page.
             _ = MaterialsService.CheckAndUpdateMaterialsAsync(_studentLevel, _studentSemester,
-                async subjects =>
-                {
-                    await InvokeAsync(() =>
-                    {
-                        _subjects = FilterByDepartment(subjects);
-                        _noData = _subjects.Count == 0;
-                        RefreshOfflineBadges();
-                        StateHasChanged();
-                    });
-                });
+                subjects => { _ = ApplyRefreshedSubjectsAsync(subjects); });
         }
         catch
         {
             _error = true;
             _loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private Task ApplyRefreshedSubjectsAsync(List<MaterialSubjectInfo> subjects)
+        => InvokeAsync(() =>
+        {
+            var oldNames = new HashSet<string>(_subjects.Select(s => s.Name), StringComparer.OrdinalIgnoreCase);
+            _subjects = FilterByDepartment(subjects);
+            _noData = _subjects.Count == 0;
+            RefreshOfflineBadges();
+            StateHasChanged();
+            // Prove the automatic path works: toast only when subjects were
+            // actually added (not on every background pass).
+            var added = _subjects
+                .Where(s => !oldNames.Contains(s.Name))
+                .Select(s => string.IsNullOrEmpty(s.DisplayName) ? s.Name : s.DisplayName)
+                .Take(2)
+                .ToList();
+            if (added.Count > 0)
+                Toast.ShowToast($"مواد جديدة: {string.Join("، ", added)}", ToastType.Success);
+        });
+
+    /// <summary>
+    /// Manual refresh: bypasses the revalidation window and re-fetches right
+    /// now. Use after uploading new materials instead of waiting for the
+    /// background pass.
+    /// </summary>
+    private async Task RefreshNowAsync()
+    {
+        if (_refreshing || _loading) return;
+        _refreshing = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            if (_customMode)
+            {
+                var student = await StudentService.GetStudentAsync();
+                var selections = (student?.CustomSubjectsMode == true && student.CustomSubjects != null && student.CustomSubjects.Count > 0)
+                    ? student.CustomSubjects
+                        .GroupBy(s => s.Subject, StringComparer.OrdinalIgnoreCase)
+                        .Select(g => g.First())
+                        .ToList()
+                    : _customSelections;
+                foreach (var t in selections.Select(s => (s.Level, s.Semester)).Distinct().ToList())
+                {
+                    try { await MaterialsService.GetFilesAsync(t.Level, t.Semester, force: true); } catch { }
+                }
+                _ = RefreshCustomDetailsAsync();
+            }
+            else
+            {
+                await MaterialsService.CheckAndUpdateMaterialsAsync(_studentLevel, _studentSemester,
+                    subjects => { _ = ApplyRefreshedSubjectsAsync(subjects); }, force: true);
+                await RefreshDetailsAsync();
+            }
+        }
+        finally
+        {
+            _refreshing = false;
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -316,6 +376,33 @@ else
             if (!list.Contains(lec, StringComparer.Ordinal)) list.Add(lec);
         }
         _subjectLecturers = map;
+    }
+
+    /// <summary>
+    /// Custom-mode background pass: fast cached details first, then revalidate
+    /// every involved archive and re-render if anything changed (automatic
+    /// primary path; the manual refresh button is only the backup).
+    /// </summary>
+    private async Task RefreshCustomWithRevalidationAsync()
+    {
+        await RefreshCustomDetailsAsync();
+        try
+        {
+            var terms = _customSelections.Select(s => (s.Level, s.Semester)).Distinct().ToList();
+            var changed = false;
+            foreach (var t in terms)
+            {
+                try
+                {
+                    var refreshed = false;
+                    await MaterialsService.CheckAndUpdateMaterialsAsync(t.Level, t.Semester, _ => { refreshed = true; });
+                    if (refreshed) changed = true;
+                }
+                catch { }
+            }
+            if (changed) await RefreshCustomDetailsAsync();
+        }
+        catch { }
     }
 
     /// <summary>

@@ -32,6 +32,54 @@
     margin: 0;
 }
 
+/* ---------- Manual refresh (bypasses the background revalidation window) ----------
+   Global .refresh-btn: used in page headings and in the custom-subjects
+   picker headers (Home manage modal + first-time setup). */
+.page-heading .heading-side {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-size: 0.85rem;
+    flex: 0 0 auto;
+}
+
+.refresh-btn:hover:not(:disabled) {
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+.refresh-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+/* Compact variant for picker header rows. */
+.refresh-btn-small {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    font-size: 0.7rem;
+}
+
+.subject-picker-header h3 .refresh-btn-small {
+    margin-inline-start: 6px;
+    vertical-align: middle;
+}
+
 /* ---------- Badge Pills ---------- */
 .badge {
     font-size: 0.75rem;

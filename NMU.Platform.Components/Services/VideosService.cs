@@ -184,40 +184,83 @@ public class VideosService
     /// re-fetch per RevalidateAfter window (no network call in the check itself,
     /// since archive.org's search index does not list the NMU.CE_* identifiers).
     /// </summary>
-    public async Task CheckAndUpdateVideosAsync(string level, string semester, Action<List<VideoGroupInfo>>? onGroupsUpdated = null)
+    public async Task CheckAndUpdateVideosAsync(string level, string semester, Action<List<VideoGroupInfo>>? onGroupsUpdated = null, bool force = false)
     {
         if (string.IsNullOrEmpty(level) || string.IsNullOrEmpty(semester)) return;
         try
         {
             var metaKey = $"{GroupsCacheVersion}meta_{level}_{semester}";
 
-            var online = await _js.InvokeAsync<bool>("nmuFunctions.isOnline");
-            if (!online) return;
-
-            if (!await IsRefreshDueAsync(metaKey)) return;
-
-            _filesMemCache.TryRemove($"{level}_{semester}", out _);
-            // Force: bypass the persistent videos-list cache so newly added
-            // archive videos are actually picked up (not re-served stale).
-            var files = await GetFilesAsync(level, semester, force: true);
-            var groups = GetGroups(files, level, semester);
-            var info = BuildGroupsInfo(files, level, semester, groups);
-
-            if (info.Count > 0)
+            // No navigator.onLine gate (misreports in some WebViews and would
+            // silently disable refreshes); fetch failures keep stale caches.
+            // Cheap signal first (bytes): server-confirmed unchanged skips
+            // everything; a reported change refreshes even inside the age gate.
+            if (!force)
             {
-                await _js.InvokeVoidAsync("nmuFunctions.safeSetItemBoth", GroupsCacheKey(level, semester), JsonSerializer.Serialize(info, CaseInsensitive));
-                await _js.InvokeVoidAsync("nmuFunctions.safeSetItem", metaKey, JsonSerializer.Serialize(new QuizMeta
-                {
-                    ContentLength = files.Count,
-                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-                }));
-                onGroupsUpdated?.Invoke(info);
+                var signal = await QuickChangedAsync(ArchiveCatalog.GetArchiveId(level, semester));
+                if (signal == false) return;
+                if (signal == null && !await IsRefreshDueAsync(metaKey)) return;
             }
+
+            // Automatic primary path with retry on transient failures
+            // (same policy as Materials; manual button is only the backup).
+            List<VideoGroupInfo>? info = null;
+            var fileCount = 0;
+            for (var attempt = 0; attempt < 3 && info == null; attempt++)
+            {
+                if (attempt > 0)
+                {
+                    try { await Task.Delay(TimeSpan.FromSeconds(5 * attempt)); } catch { return; }
+                }
+                try
+                {
+                    _filesMemCache.TryRemove($"{level}_{semester}", out _);
+                    // Force: bypass the persistent videos-list cache so newly added
+                    // archive videos are actually picked up (not re-served stale).
+                    var files = await GetFilesAsync(level, semester, force: true);
+                    var groups = GetGroups(files, level, semester);
+                    var built = BuildGroupsInfo(files, level, semester, groups);
+                    if (built.Count > 0) { info = built; fileCount = files.Count; }
+                }
+                catch { }
+            }
+            if (info == null || info.Count == 0) return;
+
+            await _js.InvokeVoidAsync("nmuFunctions.safeSetItemBoth", GroupsCacheKey(level, semester), JsonSerializer.Serialize(info, CaseInsensitive));
+            await _js.InvokeVoidAsync("nmuFunctions.safeSetItem", metaKey, JsonSerializer.Serialize(new QuizMeta
+            {
+                ContentLength = fileCount,
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            }));
+            onGroupsUpdated?.Invoke(info);
         }
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "CheckAndUpdateVideosAsync error: {Message}", ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Cheap freshness signal (bytes, not MBs): conditional GET on the
+    /// archive's tiny root manifest. True = server reports change,
+    /// False = server confirmed unchanged (HTTP 304), Null = unknown
+    /// (no manifest / error) -> the age gate decides.
+    /// </summary>
+    private async Task<bool?> QuickChangedAsync(string? archiveId)
+    {
+        if (string.IsNullOrEmpty(archiveId)) return null;
+        try
+        {
+            var json = await _js.InvokeAsync<string>("nmuFunctions.fetchManifestSig", archiveId);
+            if (string.IsNullOrEmpty(json)) return null;
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("state", out var s)) return null;
+            var state = s.GetString();
+            if (state == "same") return false;
+            if (state == "changed") return true;
+        }
+        catch { }
+        return null;
     }
 
     /// <summary>
