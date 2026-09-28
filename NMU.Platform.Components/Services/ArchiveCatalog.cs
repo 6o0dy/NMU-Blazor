@@ -98,6 +98,47 @@ public static class ArchiveCatalog
         return $"https://archive.org/download/{archiveId}/{encoded}";
     }
 
+    /// <summary>
+    /// Reorders items by an admin order_config.json list ({"order": [...]}).
+    /// Entries match by full archive path first, then by file name, so lists
+    /// saved from any folder level still apply. Items absent from the list
+    /// keep their relative order at the end. No-op when the order is empty.
+    /// </summary>
+    public static List<T> ApplyCustomOrder<T>(IEnumerable<T> items, Func<T, string?> fullPath, List<string>? order)
+    {
+        var list = items.ToList();
+        if (order == null || order.Count == 0 || list.Count < 2) return list;
+        var rank = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var i = 0; i < order.Count; i++)
+        {
+            var e = order[i];
+            if (string.IsNullOrEmpty(e) || rank.ContainsKey(e)) continue;
+            rank[e] = i;
+            var slash = e.LastIndexOf('/');
+            if (slash >= 0 && slash + 1 < e.Length)
+            {
+                var fn = e[(slash + 1)..];
+                if (!rank.ContainsKey(fn)) rank[fn] = i;
+            }
+        }
+        int RankOf(string? p)
+        {
+            if (string.IsNullOrEmpty(p)) return int.MaxValue;
+            if (rank.TryGetValue(p, out var r)) return r;
+            var s = p.LastIndexOf('/');
+            if (s >= 0 && s + 1 < p.Length && rank.TryGetValue(p[(s + 1)..], out r)) return r;
+            return int.MaxValue;
+        }
+        list.Sort((a, b) =>
+        {
+            var ra = RankOf(fullPath(a));
+            var rb = RankOf(fullPath(b));
+            if (ra != rb) return ra.CompareTo(rb);
+            return string.Compare(fullPath(a), fullPath(b), StringComparison.OrdinalIgnoreCase);
+        });
+        return list;
+    }
+
     public static string GetThumbsPrefix(string archiveId)
         => $"{archiveId}.thumbs/";
 

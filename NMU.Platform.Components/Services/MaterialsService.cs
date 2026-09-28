@@ -557,6 +557,25 @@ public class MaterialsService
         }
     }
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (long ts, List<string> order)> _orderCache = new();
+
+    /// <summary>
+    /// order_config.json for one directory, cached 5 minutes in memory so typing
+    /// in the search box does not fire a GET per keystroke. Shared by the
+    /// materials and videos pages (same {"order": [...]} contract as the admin).
+    /// </summary>
+    public async Task<List<string>> GetCachedDirOrderAsync(string dirPath, string? archiveId)
+    {
+        if (string.IsNullOrEmpty(dirPath) || string.IsNullOrEmpty(archiveId)) return new List<string>();
+        var key = $"{archiveId}|{dirPath}";
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        if (_orderCache.TryGetValue(key, out var hit) && now - hit.ts < 5 * 60 * 1000 && hit.order.Count > 0)
+            return hit.order;
+        var order = await GetFolderOrderAsync(dirPath, archiveId: archiveId);
+        if (order.Count > 0) _orderCache[key] = (now, order);
+        return order;
+    }
+
     public static string GetDownloadUrl(string filePath, string? level = null, string? semester = null, string? archiveId = null)
     {
         archiveId ??= (level != null && semester != null) ? ArchiveCatalog.GetArchiveId(level, semester) : null;

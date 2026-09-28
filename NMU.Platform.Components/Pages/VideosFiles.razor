@@ -2,6 +2,7 @@
 @using NMU.Platform.Components.Models
 @implements IDisposable
 @inject VideosService VideosService
+@inject NMU.Platform.Components.Services.MaterialsService MaterialsService
 @inject StudentService StudentService
 @inject NavigationManager Navigation
 @inject NavigationState NavState
@@ -339,6 +340,44 @@ else
             var q = _searchQuery.ToLower();
             _filteredFiles = query.Where(f => f.DisplayName.ToLower().Contains(q)).ToList();
         }
+        // Admin custom order (order_config.json): applied in background so first
+        // paint stays instant; the list snaps to the saved order when fetched.
+        _ = ApplyServerOrderAsync(_currentLecturer, _searchQuery);
+    }
+
+    private static string DirOfPath(string p)
+    {
+        var i = (p ?? "").LastIndexOf('/');
+        return i > 0 ? p[..(i + 1)] : "";
+    }
+
+    private async Task ApplyServerOrderAsync(string lecturer, string query)
+    {
+        try
+        {
+            if (_filteredFiles.Count < 2) return;
+            // Files may span subfolders: merge the order file of each containing
+            // directory (entries are full paths, so any level matches).
+            var dirs = _filteredFiles.Select(f => DirOfPath(f.Name))
+                .Where(d => !string.IsNullOrEmpty(d))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(d => d, StringComparer.Ordinal)
+                .Take(12)
+                .ToList();
+            if (dirs.Count == 0) return;
+            var aid = NMU.Platform.Components.Services.ArchiveCatalog.GetArchiveId(_studentLevel, _studentSemester);
+            var merged = new List<string>();
+            foreach (var d in dirs)
+                merged.AddRange(await MaterialsService.GetCachedDirOrderAsync(d, aid));
+            if (merged.Count == 0) return;
+            await InvokeAsync(() =>
+            {
+                if (lecturer != _currentLecturer || query != _searchQuery) return;
+                _filteredFiles = NMU.Platform.Components.Services.ArchiveCatalog.ApplyCustomOrder(_filteredFiles, f => f.Name, merged);
+                StateHasChanged();
+            });
+        }
+        catch { }
     }
 
     private void ToggleLecturerDropdown()

@@ -539,6 +539,36 @@ else
 
         _filteredFiles = filtered.OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase).ToList();
         StateHasChanged();
+        // Admin custom order (order_config.json): applied in background so first
+        // paint stays instant; the list snaps to the saved order when fetched.
+        _ = ApplyServerOrderAsync(_currentLecturer, _currentFolder, _searchQuery);
+    }
+
+    private static string DirOfPath(string p)
+    {
+        var i = (p ?? "").LastIndexOf('/');
+        return i > 0 ? p[..(i + 1)] : "";
+    }
+
+    private async Task ApplyServerOrderAsync(string lecturer, string folder, string query)
+    {
+        try
+        {
+            if (_filteredFiles.Count < 2) return;
+            var dir = DirOfPath(_filteredFiles[0].Path);
+            if (string.IsNullOrEmpty(dir)) return;
+            var aid = NMU.Platform.Components.Services.ArchiveCatalog.GetArchiveId(_studentLevel, _studentSemester);
+            var order = await MaterialsService.GetCachedDirOrderAsync(dir, aid);
+            if (order.Count == 0) return;
+            await InvokeAsync(() =>
+            {
+                if (lecturer != _currentLecturer || folder != _currentFolder || query != _searchQuery) return;
+                _filteredFiles = NMU.Platform.Components.Services.ArchiveCatalog.ApplyCustomOrder(_filteredFiles, f => f.Path, order);
+                StateHasChanged();
+                LayoutState.NotifyStateChanged();
+            });
+        }
+        catch { }
     }
 
     private async Task<bool> CheckOnlineAsync()
