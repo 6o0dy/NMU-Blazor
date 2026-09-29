@@ -150,6 +150,7 @@ public static class SubjectIcons
         ["LAN011"] = new(FA("pen-nib"), "color-arabic"),
         ["LAN021"] = new(FA("language"), "color-english"),
         ["LAN022"] = new(FA("spell-check"), "color-english"),
+        ["LAN114"] = new(FA("book-open-reader"), "color-english"),
         ["PSC101"] = new(FA("scale-balanced"), "color-english"),
     };
 
