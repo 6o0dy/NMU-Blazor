@@ -158,6 +158,37 @@ window.nmuFunctions = {
         window.location.replace(url || window.location.href);
     },
 
+    // Web app update: wipe the browser-cached app files (CacheStorage +
+    // service workers) and load a fresh copy. The ?v= query forces a fresh
+    // index.html from the host even when it was cached. User data in
+    // localStorage/IndexedDB is left untouched.
+    clearSiteCacheAndReload: function (version) {
+        var finished = false;
+        function go() {
+            if (finished) return;
+            finished = true;
+            try {
+                var u = window.location.pathname + (version ? ('?v=' + encodeURIComponent(version)) : '');
+                window.location.replace(u);
+            } catch (e) { window.location.reload(); }
+        }
+        try {
+            var jobs = [];
+            if (window.caches && caches.keys) {
+                jobs.push(caches.keys().then(function (ks) {
+                    return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+                }).catch(function () {}));
+            }
+            if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+                jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+                    return Promise.all(rs.map(function (r) { return r.unregister(); }));
+                }).catch(function () {}));
+            }
+            Promise.all(jobs).then(go, go);
+            setTimeout(go, 3000);
+        } catch (e) { go(); }
+    },
+
     // ---------- Theme (light / dark), persisted in localStorage ----------
     nmuThemeGet: function () {
         try {

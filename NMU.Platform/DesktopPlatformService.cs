@@ -6,6 +6,30 @@ namespace NMU.Platform;
 public class DesktopPlatformService : IPlatformService
 {
     public bool IsWeb => false;
+    public string PlatformKey
+    {
+        get
+        {
+            try
+            {
+                var p = Microsoft.Maui.Devices.DeviceInfo.Current.Platform;
+                if (p == Microsoft.Maui.Devices.DevicePlatform.Android) return "android";
+                if (p == Microsoft.Maui.Devices.DevicePlatform.iOS) return "ios";
+                if (p == Microsoft.Maui.Devices.DevicePlatform.WinUI) return "windows";
+                if (p == Microsoft.Maui.Devices.DevicePlatform.MacCatalyst) return "macos";
+            }
+            catch { }
+            return "";
+        }
+    }
+    public string AppVersion
+    {
+        get
+        {
+            try { return Microsoft.Maui.ApplicationModel.AppInfo.Current.VersionString ?? ""; }
+            catch { return ""; }
+        }
+    }
     public bool IsDesktop
     {
         get

@@ -4,6 +4,8 @@ public class DefaultPlatformService : IPlatformService
 {
     public bool IsDesktop => false;
     public bool IsWeb => true;
+    public string PlatformKey => "web";
+    public string AppVersion => "";
     public bool IsFullScreen => false;
     public event Action? FullScreenChanged { add { } remove { } }
     public Task DragMoveAsync() => Task.CompletedTask;

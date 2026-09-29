@@ -11,6 +11,10 @@ public interface IPlatformService
 {
     bool IsDesktop { get; }
     bool IsWeb { get; }
+    /// <summary>Update-config key: "android" | "ios" | "windows" | "macos" | "web".</summary>
+    string PlatformKey { get; }
+    /// <summary>Installed app version (e.g. "1.0"). Empty when unavailable (web).</summary>
+    string AppVersion { get; }
     bool IsFullScreen { get; }
     event Action? FullScreenChanged;
     Task DragMoveAsync();

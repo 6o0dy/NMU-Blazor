@@ -1,6 +1,7 @@
 @using NMU.Platform.Components.Services
 @using NMU.Platform.Components.Loading
 @using NMU.Platform.Components.Setup
+@using NMU.Platform.Components.Shared
 @using NMU.Platform.Components.Models
 @using Microsoft.JSInterop
 @implements IDisposable
@@ -14,6 +15,7 @@
 @inject NavigationState NavState
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject AppUpdateService AppUpdate
 
 <div class="app-shell" dir="ltr">
     @if (!NavState.IsFullScreen && !showLoading)
@@ -55,6 +57,16 @@
         @if (!NavState.HideHeader)
         {
             <Header />
+        }
+
+        @if (!NavState.IsFullScreen && !showLoading && !showSetup && ShowWebBanner)
+        {
+            <div class="update-banner" dir="rtl" lang="ar">
+                <span class="update-banner-icon">🚀</span>
+                <span class="update-banner-text">تحديث جديد متوفر (@_pendingUpdate!.Entry.Version) — حدث للحصول على آخر المميزات والإصلاحات</span>
+                <button class="update-banner-btn" @onclick="OnUpdateClicked">تحديث</button>
+                <button class="update-banner-dismiss" @onclick="HideWebBanner" aria-label="إغلاق">✕</button>
+            </div>
         }
 
         @if (showLoading)
@@ -119,6 +131,12 @@
     </div>
 }
 
+@if (ShowUpdateDialog)
+{
+    <UpdateDialog Info="_pendingUpdate" Force="_pendingUpdate!.Entry.Force" IsWeb="Platform.IsWeb"
+                  OnUpdate="OnUpdateClicked" OnLater="HideUpdateDialog" OnSkip="OnSkipUpdate" />
+}
+
 @code {
     private static bool _initialLoadDone;
     private bool showLoading;
@@ -128,6 +146,18 @@
     private string _toastMessage = "";
     private ToastType _toastType;
     private CancellationTokenSource? _toastCts;
+    private AppUpdateInfo? _pendingUpdate;
+    private bool _updateChecked;
+    private bool _updateDismissed;
+    private bool _webBannerDismissed;
+
+    // Native (or forced web) updates use the blocking dialog; optional web
+    // updates use the slim banner instead.
+    private bool ShowUpdateDialog => _pendingUpdate != null && !_updateDismissed
+        && (!Platform.IsWeb || _pendingUpdate.Entry.Force);
+
+    private bool ShowWebBanner => _pendingUpdate != null && !_pendingUpdate.Entry.Force
+        && Platform.IsWeb && !_updateDismissed && !_webBannerDismissed;
 
     private string GetToastIcon() => _toastType switch
     {
@@ -244,6 +274,7 @@
             {
                 showSetup = true;
             }
+            if (!showSetup) _ = CheckAppUpdateAsync();
             return;
         }
 
@@ -311,6 +342,7 @@
             showSetup = true;
         }
         StateHasChanged();
+        if (!showSetup) _ = CheckAppUpdateAsync();
     }
 
     private async Task PrefetchMaterialsAsync(NMU.Platform.Components.Models.StudentProfile student)
@@ -332,6 +364,7 @@
     {
         showSetup = false;
         StateHasChanged();
+        _ = CheckAppUpdateAsync();
     }
 
     private void OnFullScreenChanged() => StateHasChanged();
@@ -364,6 +397,63 @@
     private void HideToast()
     {
         _toastVisible = false;
+        StateHasChanged();
+    }
+
+    private async Task CheckAppUpdateAsync()
+    {
+        if (_updateChecked) return;
+        _updateChecked = true;
+        try
+        {
+            var info = await AppUpdate.CheckForUpdateAsync();
+            if (info != null)
+            {
+                _pendingUpdate = info;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch { }
+    }
+
+    private async Task OnUpdateClicked()
+    {
+        var info = _pendingUpdate;
+        if (info == null) return;
+        if (Platform.IsWeb)
+        {
+            await AppUpdate.ApplyWebUpdateAsync(info.Entry.Version);
+            return;
+        }
+        if (!string.IsNullOrWhiteSpace(info.Entry.Url))
+        {
+            try { await JS.InvokeVoidAsync("nmuFunctions.openExternal", info.Entry.Url); } catch { }
+        }
+        if (!info.Entry.Force)
+        {
+            _updateDismissed = true;
+            StateHasChanged();
+        }
+    }
+
+    private void HideUpdateDialog()
+    {
+        _updateDismissed = true;
+        StateHasChanged();
+    }
+
+    private void HideWebBanner()
+    {
+        _webBannerDismissed = true;
+        StateHasChanged();
+    }
+
+    private async Task OnSkipUpdate()
+    {
+        var info = _pendingUpdate;
+        if (info != null)
+            await AppUpdate.SkipVersionAsync(info.PlatformKey, info.Entry.Version);
+        _updateDismissed = true;
         StateHasChanged();
     }
 

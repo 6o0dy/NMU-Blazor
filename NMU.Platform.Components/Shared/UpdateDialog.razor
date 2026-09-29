@@ -1,0 +1,52 @@
+@using NMU.Platform.Components.Services
+
+@if (Info != null)
+{
+    <div class="update-overlay">
+        <div class="update-card" dir="rtl" lang="ar">
+            <div class="update-hero">
+                <span class="update-rocket">🚀</span>
+                @if (Force)
+                {
+                    <span class="update-force-badge">تحديث إلزامي</span>
+                }
+            </div>
+            <h3 class="update-title">تحديث جديد متوفر!</h3>
+            <div class="update-versions">
+                <span class="update-ver update-ver-old">@Info.Current</span>
+                <i class="fa-solid fa-arrow-right update-ver-arrow"></i>
+                <span class="update-ver update-ver-new">@Info.Entry.Version</span>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(Info.Entry.Notes))
+            {
+                <div class="update-notes">@Info.Entry.Notes</div>
+            }
+            <div class="update-actions">
+                @if (!string.IsNullOrWhiteSpace(Info.Entry.Url) || IsWeb)
+                {
+                    <button class="update-btn update-btn-primary" @onclick="OnUpdateClicked">
+                        <i class="fa-solid fa-download"></i> تحديث الآن
+                    </button>
+                }
+                @if (!Force)
+                {
+                    <button class="update-btn update-btn-ghost" @onclick="OnLaterClicked">لاحقًا</button>
+                    <button class="update-btn-link" @onclick="OnSkipClicked">تخطي هذا الإصدار</button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public AppUpdateInfo? Info { get; set; }
+    [Parameter] public bool Force { get; set; }
+    [Parameter] public bool IsWeb { get; set; }
+    [Parameter] public EventCallback OnUpdate { get; set; }
+    [Parameter] public EventCallback OnLater { get; set; }
+    [Parameter] public EventCallback OnSkip { get; set; }
+
+    private Task OnUpdateClicked() => OnUpdate.InvokeAsync();
+    private Task OnLaterClicked() => OnLater.InvokeAsync();
+    private Task OnSkipClicked() => OnSkip.InvokeAsync();
+}
