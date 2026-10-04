@@ -31,6 +31,11 @@ public class MaterialFile
     public long? Size { get; set; }
     /// <summary>Lecturer folder under Data/{Subject}/PDFs/{Lecturer}/... (new archive layout).</summary>
     public string Lecturer { get; set; } = "";
+    /// <summary>
+    /// Sub-folder inside Folder, e.g. the TA name in Data/{Subject}/PDFs/{Lecturer}/LAB/{TA}/*.pdf.
+    /// Empty when files sit directly in the Folder.
+    /// </summary>
+    public string SubFolder { get; set; } = "";
 }
 
 public class MaterialSubjectInfo

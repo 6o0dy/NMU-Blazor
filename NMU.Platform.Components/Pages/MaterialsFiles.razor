@@ -42,6 +42,12 @@ else
                     <br />
                     <button class="placeholder-btn" @onclick="OpenLecturerDialog">Choose Lecturer</button>
                 }
+                else if (_subFolders.Count > 1 && string.IsNullOrEmpty(_currentSubFolder))
+                {
+                    <div>Please select a TA to view @_currentFolder files.</div>
+                    <br />
+                    <button class="placeholder-btn" @onclick="OpenSubFolderDialog">Choose @_currentFolder Instructor</button>
+                }
                 else
                 {
                     <span>No PDF files found.</span>
@@ -72,6 +78,10 @@ else
                             @if (!string.IsNullOrEmpty(f.Folder) && f.Folder != "ROOT")
                             {
                                 <span class="badge badge-sky pdf-folder">@f.Folder.ToUpper()</span>
+                            }
+                            @if (!string.IsNullOrEmpty(f.SubFolder))
+                            {
+                                <span class="badge badge-sky pdf-folder" title="@f.SubFolder">@f.SubFolder</span>
                             }
                             <span class="file-size">@(f.Size.HasValue ? $"{(f.Size.Value / 1024.0 / 1024.0):F1} MB" : "? MB")</span>
                             @if (_lecturers.Count > 1 && !string.IsNullOrEmpty(f.Lecturer))
@@ -132,6 +142,28 @@ else
     </div>
 }
 
+@if (_showSubFolderDialog && !_loading && _errorMsg == null && string.IsNullOrEmpty(_currentSubFolder))
+{
+    <div class="subject-picker-overlay" @onclick="CloseSubFolderDialog">
+        <div class="subject-picker-card" @onclick:stopPropagation>
+            <div class="subject-picker-header">
+                <button class="btn-small-icon" @onclick="CloseSubFolderDialog">&times;</button>
+                <h3>Select @(_currentFolder.ToUpper()) Instructor</h3>
+            </div>
+            <div class="subject-picker-body">
+                @foreach (var sub in _subFolders)
+                {
+                    var s = sub;
+                    <div class="subject-check-card lec-pick" @onclick="() => PickSubFolder(s)">
+                        <span class="subject-check-name" title="@s">@s</span>
+                        <i class="fa-solid fa-chevron-right" style="color:var(--text-secondary);font-size:12px;"></i>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public string Subject { get; set; } = "";
 
@@ -152,6 +184,10 @@ else
     private bool _showLecturerDropdown;
     private bool _showLecturerDialog;
     private static readonly Dictionary<string, string> _lastLecturer = new();
+    private List<string> _subFolders = new();
+    private string _currentSubFolder = "";
+    private bool _showSubFolderDropdown;
+    private bool _showSubFolderDialog;
 
     private static string GetPdfCacheKey(string fileUrl)
     {
@@ -226,6 +262,31 @@ else
                                     @onclick="() => SelectFolderFromDropdown(f)">
                                 <i class="fa-solid @icon"></i>
                                 @f.ToUpper()
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        @if (_subFolders.Count > 1)
+        {
+            <div class="files-folder-dropdown show-desktop">
+                <button type="button" class="folder-dropdown-toggle @(_showSubFolderDropdown ? "open" : "")"
+                        @onclick="ToggleSubFolderDropdown">
+                    <i class="fa-solid fa-chalkboard-user"></i>
+                    <span class="folder-dropdown-current">@(string.IsNullOrEmpty(_currentSubFolder) ? "Select TA" : _currentSubFolder)</span>
+                    <i class="fa-solid fa-chevron-down"></i>
+                </button>
+                @if (_showSubFolderDropdown)
+                {
+                    <div class="folder-dropdown-menu" @onclick:stopPropagation>
+                        @foreach (var sub in _subFolders)
+                        {
+                            var s = sub;
+                            <button class="folder-dropdown-item @(s == _currentSubFolder ? "active" : "")"
+                                    @onclick="() => SelectSubFolderFromDropdown(s)">
+                                <i class="fa-solid fa-user"></i>
+                                @s
                             </button>
                         }
                     </div>
@@ -326,6 +387,9 @@ else
                     _currentLecturer = "";
                     _currentFolder = "";
                     _folders = new List<string>();
+                    _subFolders = new List<string>();
+                    _currentSubFolder = "";
+                    _showSubFolderDialog = false;
                     _filteredFiles = new List<MaterialFile>();
                     _showLecturerDialog = true;
                     LayoutState.BottomBar = null;
@@ -363,8 +427,49 @@ else
                             _lecturers = ComputeLecturers();
                             _filteredFiles = new List<MaterialFile>();
                         }
+                        else if (_showSubFolderDialog || (_subFolders.Count > 1 && string.IsNullOrEmpty(_currentSubFolder)))
+                        {
+                            // Still waiting for a TA choice: refresh the TA list
+                            // only, never auto-pick or mix TAs.
+                            _subFolders = ComputeSubFolders();
+                            _filteredFiles = new List<MaterialFile>();
+                            LayoutState.SearchBar = _searchBarFragment;
+                        }
                         else
-                            RebuildLecturerFolderState();
+                        {
+                            // Preserve the user's lecturer/folder/TA selection
+                            // across background refreshes when still valid.
+                            var prevLecturer = _currentLecturer;
+                            var prevFolder = _currentFolder;
+                            var prevSub = _currentSubFolder;
+                            _lecturers = ComputeLecturers();
+                            if (!_lecturers.Contains(prevLecturer, StringComparer.Ordinal))
+                            {
+                                RebuildLecturerFolderState();
+                            }
+                            else
+                            {
+                                _currentLecturer = prevLecturer;
+                                var subset = _allSubjectFiles.Where(f => string.Equals(f.Lecturer, _currentLecturer, StringComparison.Ordinal)).ToList();
+                                _folders = MaterialsService.GetFolderOrder(subset.Count > 0 ? subset : _allSubjectFiles);
+                                if (!_folders.Contains(prevFolder))
+                                {
+                                    _currentFolder = _folders.Count > 0 ? _folders[0] : "ROOT";
+                                    ResolveSubFolderState(forceDialogOnMulti: true);
+                                }
+                                else
+                                {
+                                    _currentFolder = prevFolder;
+                                    _currentSubFolder = prevSub;
+                                    RefreshSubFolderStatePreservingSelection();
+                                }
+                                ApplyFileFilter();
+                                LayoutState.SearchBar = _searchBarFragment;
+                                LayoutState.BottomBar = _folders.Count > 1 ? _bottomNavFragment : null;
+                            }
+                        }
+                        StateHasChanged();
+                        LayoutState.NotifyStateChanged();
                     });
                 });
         }
@@ -405,7 +510,11 @@ else
     private void ChangeFolder(string folder)
     {
         _currentFolder = folder;
+        // Smart TA behavior: entering a folder with >1 TA shows the dialog,
+        // a single TA opens directly, no TA shows files directly.
+        ResolveSubFolderState(forceDialogOnMulti: true);
         ApplyFileFilter();
+        LayoutState.SearchBar = _searchBarFragment;
         LayoutState.NotifyStateChanged();
     }
 
@@ -415,10 +524,51 @@ else
         var subset = _allSubjectFiles.Where(f => string.Equals(f.Lecturer, lecturer, StringComparison.Ordinal)).ToList();
         _folders = MaterialsService.GetFolderOrder(subset);
         _currentFolder = _folders.Count > 0 ? _folders[0] : "ROOT";
+        ResolveSubFolderState(forceDialogOnMulti: true);
         ApplyFileFilter();
         LayoutState.SearchBar = _searchBarFragment;
         LayoutState.BottomBar = _folders.Count > 1 ? _bottomNavFragment : null;
         LayoutState.NotifyStateChanged();
+    }
+
+    private List<string> ComputeSubFolders()
+    {
+        if (string.IsNullOrEmpty(_currentFolder))
+            return new List<string>();
+        return MaterialsService.GetSubFolders(_allSubjectFiles, _currentLecturer, _currentFolder);
+    }
+
+    /// <summary>
+    /// Smart Lab/TA routing: 0 sub-folders -> files directly, 1 -> auto-open it,
+    /// N -> dialog (when forceDialogOnMulti) or keep a still-valid selection.
+    /// Direct files (SubFolder == "") stay visible alongside any TA selection.
+    /// </summary>
+    private void ResolveSubFolderState(bool forceDialogOnMulti)
+    {
+        _subFolders = ComputeSubFolders();
+        _showSubFolderDropdown = false;
+        if (_subFolders.Count == 0)
+        {
+            _currentSubFolder = "";
+            _showSubFolderDialog = false;
+        }
+        else if (_subFolders.Count == 1)
+        {
+            _currentSubFolder = _subFolders[0];
+            _showSubFolderDialog = false;
+        }
+        else
+        {
+            if (forceDialogOnMulti || !_subFolders.Contains(_currentSubFolder, StringComparer.Ordinal))
+            {
+                _currentSubFolder = "";
+                _showSubFolderDialog = true;
+            }
+            else
+            {
+                _showSubFolderDialog = false;
+            }
+        }
     }
 
     private List<string> ComputeLecturers()
@@ -440,7 +590,43 @@ else
             : _allSubjectFiles.Where(f => string.Equals(f.Lecturer, _currentLecturer, StringComparison.Ordinal)).ToList();
         _folders = MaterialsService.GetFolderOrder(subset.Count > 0 ? subset : _allSubjectFiles);
         _currentFolder = _folders.Count > 0 ? _folders[0] : "ROOT";
+        // Initial paint: same smart rule (multi-TA -> dialog, single -> auto).
+        ResolveSubFolderState(forceDialogOnMulti: true);
+        // When a lecturer is still pending selection, never pre-open a TA dialog.
+        if (string.IsNullOrEmpty(_currentLecturer) && _lecturers.Count > 1)
+        {
+            _subFolders = new List<string>();
+            _currentSubFolder = "";
+            _showSubFolderDialog = false;
+        }
         ApplyFileFilter();
+    }
+
+    private void RefreshSubFolderStatePreservingSelection()
+    {
+        var prev = _currentSubFolder;
+        _subFolders = ComputeSubFolders();
+        if (_subFolders.Count == 0)
+        {
+            _currentSubFolder = "";
+            _showSubFolderDialog = false;
+        }
+        else if (_subFolders.Count == 1)
+        {
+            _currentSubFolder = _subFolders[0];
+            _showSubFolderDialog = false;
+        }
+        else if (!_subFolders.Contains(prev, StringComparer.Ordinal))
+        {
+            // New TA appeared (or removed): ask again instead of silently mixing.
+            _currentSubFolder = "";
+            _showSubFolderDialog = true;
+        }
+        else
+        {
+            _currentSubFolder = prev;
+            _showSubFolderDialog = false;
+        }
     }
 
     private void ToggleLecturerDropdown()
@@ -471,6 +657,41 @@ else
         _showLecturerDialog = false;
         RememberLecturer(lecturer);
         ChangeLecturer(lecturer);
+    }
+
+    private void ToggleSubFolderDropdown()
+    {
+        _showSubFolderDropdown = !_showSubFolderDropdown;
+        LayoutState.NotifyStateChanged();
+    }
+
+    private void SelectSubFolderFromDropdown(string sub)
+    {
+        _showSubFolderDropdown = false;
+        PickSubFolder(sub);
+    }
+
+    private void OpenSubFolderDialog()
+    {
+        if (_subFolders.Count > 0)
+            _showSubFolderDialog = true;
+    }
+
+    private void CloseSubFolderDialog()
+    {
+        // Keep files hidden until an explicit TA is picked (same as lecturers).
+        _showSubFolderDialog = false;
+        LayoutState.SearchBar = _searchBarFragment;
+    }
+
+    private void PickSubFolder(string sub)
+    {
+        _showSubFolderDialog = false;
+        _showSubFolderDropdown = false;
+        _currentSubFolder = sub;
+        ApplyFileFilter();
+        LayoutState.SearchBar = _searchBarFragment;
+        LayoutState.NotifyStateChanged();
     }
 
     private void RememberLecturer(string lecturer)
@@ -524,10 +745,20 @@ else
             _filteredFiles = new List<MaterialFile>();
             return;
         }
+        if (_subFolders.Count > 1 && string.IsNullOrEmpty(_currentSubFolder))
+        {
+            // Multi-TA folder (e.g. LAB) with no selection yet: never mix TAs together.
+            _filteredFiles = new List<MaterialFile>();
+            return;
+        }
 
         var filtered = _allSubjectFiles.Where(f =>
             (string.IsNullOrEmpty(_currentLecturer) || string.Equals(f.Lecturer, _currentLecturer, StringComparison.Ordinal)) &&
-            f.Folder == _currentFolder &&
+            string.Equals(f.Folder, _currentFolder, StringComparison.OrdinalIgnoreCase) &&
+            (string.IsNullOrEmpty(_currentSubFolder)
+                ? string.IsNullOrEmpty(f.SubFolder) || _subFolders.Count == 0
+                : string.Equals(f.SubFolder, _currentSubFolder, StringComparison.Ordinal)
+                    || string.IsNullOrEmpty(f.SubFolder)) &&
             f.Name.ToLower().EndsWith(".pdf") &&
             !f.Name.ToLower().EndsWith("_text.pdf")).ToList();
 
@@ -541,7 +772,7 @@ else
         StateHasChanged();
         // Admin custom order (order_config.json): applied in background so first
         // paint stays instant; the list snaps to the saved order when fetched.
-        _ = ApplyServerOrderAsync(_currentLecturer, _currentFolder, _searchQuery);
+        _ = ApplyServerOrderAsync(_currentLecturer, _currentFolder, _currentSubFolder, _searchQuery);
     }
 
     private static string DirOfPath(string p)
@@ -550,7 +781,7 @@ else
         return i > 0 ? p[..(i + 1)] : "";
     }
 
-    private async Task ApplyServerOrderAsync(string lecturer, string folder, string query)
+    private async Task ApplyServerOrderAsync(string lecturer, string folder, string subFolder, string query)
     {
         try
         {
@@ -562,7 +793,7 @@ else
             if (order.Count == 0) return;
             await InvokeAsync(() =>
             {
-                if (lecturer != _currentLecturer || folder != _currentFolder || query != _searchQuery) return;
+                if (lecturer != _currentLecturer || folder != _currentFolder || subFolder != _currentSubFolder || query != _searchQuery) return;
                 _filteredFiles = NMU.Platform.Components.Services.ArchiveCatalog.ApplyCustomOrder(_filteredFiles, f => f.Path, order);
                 StateHasChanged();
                 LayoutState.NotifyStateChanged();

@@ -55,6 +55,7 @@
     <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net10.0-android|AnyCPU'">
       <Debugger>Xamarin</Debugger>
       <AndroidKeyStore>False</AndroidKeyStore>
+      <EmbedAssembliesIntoApk>True</EmbedAssembliesIntoApk>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net10.0-android|AnyCPU'">
@@ -64,7 +65,7 @@
 
     <ItemGroup>
         <!-- App Icon -->
-        <MauiIcon Include="Resources\AppIcon\appicon.png" Color="#0a0a0f" ForegroundFile="Resources\AppIcon\appicon.png" />
+        <MauiIcon Include="Resources\AppIcon\appicon.png" Color="White" ForegroundFile="Resources\AppIcon\appicon_fg.png" />
 
         <!-- Splash Screen -->
         <MauiSplashScreen Include="Resources\AppIcon\appicon.png" Color="#0a0a0f" BaseSize="128,128" />

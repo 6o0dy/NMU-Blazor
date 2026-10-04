@@ -13,7 +13,7 @@ public class MaterialsService
     // Resolved via ArchiveCatalog.GetArchiveId(level, semester). No single ArchiveId anymore.
     private const string CacheVersion = "v70_newarch_semfiles_";
     private const string SubjectsCacheVersion = "v70_newarch_subjects_";
-    private const string SubjectFilesCacheVersion = "v70_newarch_subjectfiles_";
+    private const string SubjectFilesCacheVersion = "v71_newarch_subjectfiles_sub_";
 
     public MaterialsService(IJSRuntime js, ILogger<MaterialsService> logger)
     {
@@ -547,8 +547,10 @@ public class MaterialsService
 
     /// <summary>
     /// New layout: Data/{subject}/PDFs/{lecturer}/{folder}/*.pdf
-    /// subject is the FULL folder name (e.g. "CSE014 - Structured Programming.(ALL)").
-    /// Returns (folders across all lecturers, files with Lecturer populated).
+    /// with optional TA sub-folders: Data/{subject}/PDFs/{lecturer}/{folder}/{sub}/*.pdf
+    /// (e.g. .../LAB/{TA name}/*.pdf). subject is the FULL folder name
+    /// (e.g. "CSE014 - Structured Programming.(ALL)").
+    /// Returns (folders across all lecturers, files with Lecturer + SubFolder populated).
     /// </summary>
     public static (List<string> folders, List<MaterialFile> files) GetFilesForSubject(
         List<ArchiveFile> allFiles, string level, string semester, string subject)
@@ -562,12 +564,19 @@ public class MaterialsService
             if (!f.Name.StartsWith(prefix, StringComparison.Ordinal)) continue;
             if (!f.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
             if (f.Name.ToLowerInvariant().EndsWith("_text.pdf")) continue;
+            if (f.Name.EndsWith("order_config.json", StringComparison.OrdinalIgnoreCase)) continue;
             var rel = f.Name[prefix.Length..];
-            var parts = rel.Split('/');
+            var parts = rel.Split('/', StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length >= 3)
             {
                 var lecturer = parts[0];
                 var folder = parts[1];
+                // Anything between Folder and the file name is a TA / sub-folder:
+                // LAB/file.pdf -> "", LAB/TA/file.pdf -> "TA", LAB/A/B/file.pdf -> "A/B".
+                string sub = "";
+                if (parts.Length > 3)
+                    sub = string.Join("/", parts[2..^1]);
+                if (string.IsNullOrWhiteSpace(folder)) continue;
                 folderSet.Add(folder);
                 result.Add(new MaterialFile
                 {
@@ -575,6 +584,7 @@ public class MaterialsService
                     Path = f.Name,
                     Folder = folder,
                     Lecturer = lecturer,
+                    SubFolder = sub ?? "",
                     Size = f.Size
                 });
             }
@@ -587,6 +597,7 @@ public class MaterialsService
                     Path = f.Name,
                     Folder = "ROOT",
                     Lecturer = lecturer,
+                    SubFolder = "",
                     Size = f.Size
                 });
             }
@@ -632,6 +643,23 @@ public class MaterialsService
     {
         var subset = subjectFiles.Where(f => string.Equals(f.Lecturer, lecturer, StringComparison.Ordinal)).ToList();
         return GetFolderOrder(subset);
+    }
+
+    /// <summary>
+    /// Distinct TA / sub-folders inside a specific lecturer+folder, e.g. the TA names
+    /// in Data/{Subject}/PDFs/{Lecturer}/LAB/{TA}/*.pdf. Empty when files sit
+    /// directly in the folder.
+    /// </summary>
+    public static List<string> GetSubFolders(List<MaterialFile> subjectFiles, string lecturer, string folder)
+    {
+        return subjectFiles
+            .Where(f => string.Equals(f.Lecturer, lecturer, StringComparison.Ordinal)
+                     && string.Equals(f.Folder, folder, StringComparison.OrdinalIgnoreCase)
+                     && !string.IsNullOrWhiteSpace(f.SubFolder))
+            .Select(f => f.SubFolder)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     public async Task<List<string>> GetFolderOrderAsync(string dirPath, string? level = null, string? semester = null, string? archiveId = null)
