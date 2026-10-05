@@ -4,7 +4,7 @@
 ;   ISCC.exe WindowsSetup.iss /DAppVersion="1.0" /DSourceDir="C:\...\publish" /DOutDir="C:\...\release" /DOutBase="NMU-Platform-Setup-v1.0-x64"
 ; AppId must NEVER change (Windows uses it to detect upgrades and uninstalls).
 
-#define AppName "NMU Platform"
+#define AppName "NMU CE•AIE"
 #define AppPublisher "NMU"
 #ifndef AppVersion
   #define AppVersion "1.0"
@@ -37,7 +37,7 @@ OutputBaseFilename={#OutBase}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-UninstallDisplayIcon={app}\NMU.Platform.exe
+UninstallDisplayIcon={app}\NMU-CE-AIE.exe
 DisableProgramGroupPage=yes
 
 [Files]
@@ -46,17 +46,17 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 [UninstallDelete]
 ; WebView2 creates its data folder next to the exe at runtime - remove it so
 ; uninstall leaves nothing behind.
-Type: filesandordirs; Name: "{app}\NMU.Platform.exe.WebView2"
+Type: filesandordirs; Name: "{app}\NMU-CE-AIE.exe.WebView2"
 
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\NMU.Platform.exe"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\NMU.Platform.exe"; Tasks: desktopicon
+Name: "{autoprograms}\{#AppName}"; Filename: "{app}\NMU-CE-AIE.exe"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\NMU-CE-AIE.exe"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop icon"; Flags: unchecked
 
 [Run]
-Filename: "{app}\NMU.Platform.exe"; Description: "Launch NMU Platform"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\NMU-CE-AIE.exe"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 
 [Code]
 { Checks for the .NET 10 Desktop Runtime before installing. Students without

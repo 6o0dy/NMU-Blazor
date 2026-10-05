@@ -4,10 +4,10 @@
   One-click FINAL builds for the NMU student app — no Visual Studio clicking needed.
 .DESCRIPTION
   Builds (into ./release, version-stamped from the csproj):
-    - Android arm64 APK, signed with YOUR keystore    -> NMU-Platform-Android-vX-arm64.apk
-    - Android universal APK, signed with YOUR keystore -> NMU-Platform-Android-vX-universal.apk
+    - Android arm64 APK, signed with YOUR keystore    -> NMU-CE-AIE-Android-vX-arm64.apk
+    - Android universal APK, signed with YOUR keystore -> NMU-CE-AIE-Android-vX-universal.apk
       (emulators + old 32-bit + new devices)
-    - Windows x64 as ONE setup installer               -> NMU-Platform-Setup-vX-x64.exe
+    - Windows x64 as ONE setup installer               -> NMU-CE-AIE-Setup-vX-x64.exe
       (double-click install: Start Menu entry + uninstaller, no admin needed;
        requires Inno Setup 6 once on THIS machine; setup warns if the student
        PC lacks the .NET 10 Desktop Runtime)
@@ -179,14 +179,14 @@ if (-not $SkipAndroid) {
   Info "Signing as: $alias"
 
   Invoke-DotnetPublish "net10.0-android" "Android-APK-arm64" "Android arm64 APK"
-  Invoke-SignApk "NMU.Platform/bin/Release/net10.0-android/publish-arm64/com.companyname.nmu.platform.apk" `
-    (Join-Path $root "release/NMU-Platform-Android-v$ver-arm64.apk") $tools $ksPath $ksPass $alias $keyPass
-  Show-File "release/NMU-Platform-Android-v$ver-arm64.apk"
+  Invoke-SignApk "NMU.Platform/bin/Release/net10.0-android/publish-arm64/com.nmu.learn.apk" `
+    (Join-Path $root "release/NMU-CE-AIE-Android-v$ver-arm64.apk") $tools $ksPath $ksPass $alias $keyPass
+  Show-File "release/NMU-CE-AIE-Android-v$ver-arm64.apk"
 
   Invoke-DotnetPublish "net10.0-android" "Android-APK" "Android universal APK"
-  Invoke-SignApk "NMU.Platform/bin/Release/net10.0-android/publish/com.companyname.nmu.platform.apk" `
-    (Join-Path $root "release/NMU-Platform-Android-v$ver-universal.apk") $tools $ksPath $ksPass $alias $keyPass
-  Show-File "release/NMU-Platform-Android-v$ver-universal.apk"
+  Invoke-SignApk "NMU.Platform/bin/Release/net10.0-android/publish/com.nmu.learn.apk" `
+    (Join-Path $root "release/NMU-CE-AIE-Android-v$ver-universal.apk") $tools $ksPath $ksPass $alias $keyPass
+  Show-File "release/NMU-CE-AIE-Android-v$ver-universal.apk"
 
   $ksPass = $null; $keyPass = $null
 }
@@ -222,16 +222,22 @@ function Find-InnoSetup() {
 if (-not $SkipWindows) {
   Invoke-DotnetPublish "net10.0-windows10.0.19041.0" "Windows-Folder" "Windows x64 app folder"
   $appDir = Join-Path $root "NMU.Platform/bin/Release/net10.0-windows10.0.19041.0/publish"
-  $setupOut = Join-Path $root "release/NMU-Platform-Setup-v$ver-x64.exe"
+  # Tidy: collect the loose generated tile/splash/store images into Assets\
+  # (the unpackaged output ships no manifest referencing them, so plain
+  # moving is safe and the installer picks them up via recursesubdirs).
+  $assetsDir = Join-Path $appDir "Assets"
+  New-Item -ItemType Directory -Path $assetsDir -Force | Out-Null
+  Get-ChildItem -LiteralPath $appDir -Filter "appicon*" -File | Move-Item -Destination $assetsDir -Force
+  $setupOut = Join-Path $root "release/NMU-CE-AIE-Setup-v$ver-x64.exe"
   $iscc = Find-InnoSetup
   if ($null -eq $iscc) {
     Write-Host "[!!] NO SETUP INSTALLER THIS RUN: Inno Setup is not installed." -ForegroundColor Red
     Write-Host "     Install it once from https://jrsoftware.org/isdl.php (Next/Next/Install), then re-run." -ForegroundColor Red
     Warn "Fallback: shipping the app folder as a single .zip instead."
-    $zipPath = Join-Path $root "release/NMU-Platform-Windows-v$ver-x64.zip"
+    $zipPath = Join-Path $root "release/NMU-CE-AIE-Windows-v$ver-x64.zip"
     if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
     Compress-Archive -Path (Join-Path $appDir "*") -DestinationPath $zipPath
-    Show-File "release/NMU-Platform-Windows-v$ver-x64.zip"
+    Show-File "release/NMU-CE-AIE-Windows-v$ver-x64.zip"
     Info "Student unzips and runs NMU.Platform.exe (needs .NET 10 Desktop Runtime)."
   }
   else {
@@ -239,10 +245,10 @@ if (-not $SkipWindows) {
     $iss = Join-Path $root "NMU.Platform/Packaging/WindowsSetup.iss"
     $releaseAbs = Join-Path $root "release"
     $iconAbs = Join-Path $root "NMU.Platform/Packaging/appicon.ico"
-    & $iscc $iss /DAppVersion="$ver" /DSourceDir="$appDir" /DOutDir="$releaseAbs" /DOutBase="NMU-Platform-Setup-v$ver-x64" /DIconFile="$iconAbs"
+    & $iscc $iss /DAppVersion="$ver" /DSourceDir="$appDir" /DOutDir="$releaseAbs" /DOutBase="NMU-CE-AIE-Setup-v$ver-x64" /DIconFile="$iconAbs"
     if ($LASTEXITCODE -ne 0) { throw "Inno Setup compile failed (exit $LASTEXITCODE)." }
     if (-not (Test-Path -LiteralPath $setupOut)) { throw "Setup exe not produced: $setupOut" }
-    Show-File "release/NMU-Platform-Setup-v$ver-x64.exe"
+    Show-File "release/NMU-CE-AIE-Setup-v$ver-x64.exe"
     Info "Student double-clicks setup, installs (no admin), finds it in Start Menu."
   }
 }

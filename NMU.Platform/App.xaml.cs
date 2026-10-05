@@ -30,7 +30,7 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		var window = new Window(new MainPage()) { Title = "" };
+		var window = new Window(new MainPage()) { Title = "NMU CE•AIE" };
 
 		window.MinimumWidth = 415;
 		window.MinimumHeight = 700;
