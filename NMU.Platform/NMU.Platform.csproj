@@ -40,7 +40,7 @@
 
         <!-- App Identifier (must stay stable forever: changing it later
              orphans installed apps and breaks update continuity) -->
-        <ApplicationId>com.nmu.learn</ApplicationId>
+        <ApplicationId>nmu.ce.aie.app</ApplicationId>
 
         <!-- Versions -->
         <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
@@ -89,7 +89,10 @@
 
     <ItemGroup>
         <!-- App Icon -->
-        <MauiIcon Include="Resources\AppIcon\appicon.png" Color="White" ForegroundFile="Resources\AppIcon\appicon_fg.png" />
+        <!-- Android excluded: hand-placed floating-badge resources (system-
+             transparent background, no fill) live under Platforms/Android.
+             Everywhere else keeps the opaque white composition. -->
+        <MauiIcon Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'android'" Include="Resources\AppIcon\appicon.png" Color="Transparent" ForegroundFile="Resources\AppIcon\appicon_fg.png" />
 
         <!-- Splash Screen -->
         <MauiSplashScreen Include="Resources\AppIcon\appicon.png" Color="#0a0a0f" BaseSize="128,128" />

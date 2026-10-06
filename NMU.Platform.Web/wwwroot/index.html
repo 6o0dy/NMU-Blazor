@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#f3f7fb" />
     <meta name="color-scheme" content="light dark" />
     <script>
-        try { if (localStorage.getItem('nmu_theme') === 'dark') { document.documentElement.setAttribute('data-theme', 'dark'); } } catch (e) {}
+        try { if (localStorage.getItem('nmu_theme') !== 'light') { document.documentElement.setAttribute('data-theme', 'dark'); var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', '#0a1120'); } } catch (e) {}
     </script>
     <script>
         (function() {

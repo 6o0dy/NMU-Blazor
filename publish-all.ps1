@@ -179,12 +179,12 @@ if (-not $SkipAndroid) {
   Info "Signing as: $alias"
 
   Invoke-DotnetPublish "net10.0-android" "Android-APK-arm64" "Android arm64 APK"
-  Invoke-SignApk "NMU.Platform/bin/Release/net10.0-android/publish-arm64/com.nmu.learn.apk" `
+  Invoke-SignApk "NMU.Platform/bin/Release/net10.0-android/publish-arm64/nmu.ce.aie.app.apk" `
     (Join-Path $root "release/NMU-CE-AIE-Android-v$ver-arm64.apk") $tools $ksPath $ksPass $alias $keyPass
   Show-File "release/NMU-CE-AIE-Android-v$ver-arm64.apk"
 
   Invoke-DotnetPublish "net10.0-android" "Android-APK" "Android universal APK"
-  Invoke-SignApk "NMU.Platform/bin/Release/net10.0-android/publish/com.nmu.learn.apk" `
+  Invoke-SignApk "NMU.Platform/bin/Release/net10.0-android/publish/nmu.ce.aie.app.apk" `
     (Join-Path $root "release/NMU-CE-AIE-Android-v$ver-universal.apk") $tools $ksPath $ksPass $alias $keyPass
   Show-File "release/NMU-CE-AIE-Android-v$ver-universal.apk"
 

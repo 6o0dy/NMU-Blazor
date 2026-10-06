@@ -189,11 +189,12 @@ window.nmuFunctions = {
         } catch (e) { go(); }
     },
 
-    // ---------- Theme (light / dark), persisted in localStorage ----------
+    // ---------- Theme (dark is the default), persisted in localStorage ----------
+    // Only an explicit 'light' choice opts out; everything else is dark.
     nmuThemeGet: function () {
         try {
-            return localStorage.getItem('nmu_theme') === 'dark' ? 'dark' : 'light';
-        } catch (e) { return 'light'; }
+            return localStorage.getItem('nmu_theme') === 'light' ? 'light' : 'dark';
+        } catch (e) { return 'dark'; }
     },
 
     nmuThemeApply: function (theme) {
