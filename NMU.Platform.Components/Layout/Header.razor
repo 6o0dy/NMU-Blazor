@@ -1,4 +1,5 @@
 @using NMU.Platform.Components.Services
+@using NMU.Platform.Components.Shared
 @using Microsoft.JSInterop
 @implements IDisposable
 @inject FullscreenService FullscreenService
@@ -36,7 +37,7 @@
         </button>
         @if (Platform.IsWeb && IsHome)
         {
-            <button class="download-btn" @onclick="DownloadApp">
+            <button class="download-btn" @onclick="OpenDownloadDialog">
                 <span>Download App</span>
             </button>
         }
@@ -105,6 +106,11 @@
             </div>
         </div>
     </div>
+}
+
+@if (_showDownloadDialog)
+{
+    <DownloadDialog OnDownload="DownloadUrl" OnClose="CloseDownloadDialog" />
 }
 
 @code {
@@ -370,13 +376,19 @@
         StateHasChanged();
     }
 
-    private void DownloadApp()
+    private bool _showDownloadDialog;
+
+    private void OpenDownloadDialog() => _showDownloadDialog = true;
+
+    private void CloseDownloadDialog() => _showDownloadDialog = false;
+
+    private async Task DownloadUrl(string url)
     {
-        var url = "https://drive.google.com/uc?export=download&id=1PjC905nxFVN9LbdGov5gNtZyc7dqOmqs";
+        if (string.IsNullOrWhiteSpace(url)) return;
         if (Platform.IsDesktop)
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
         else
-            _ = JS.InvokeVoidAsync("nmuFunctions.openExternal", url);
+            await JS.InvokeVoidAsync("nmuFunctions.openExternal", url);
     }
 
     public void Dispose()

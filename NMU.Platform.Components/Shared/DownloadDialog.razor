@@ -1,0 +1,63 @@
+@* Fixed archive.org download links (no Firebase involved). *@
+
+<div class="update-overlay" @onclick="OnCloseClicked">
+    <div class="dl-card" dir="rtl" lang="ar" @onclick:stopPropagation>
+        <button class="dl-close" @onclick="OnCloseClicked" aria-label="إغلاق">✕</button>
+        <div class="dl-hero">
+            <span class="dl-hero-icon">📥</span>
+        </div>
+        <h3 class="dl-title">حمّل التطبيق</h3>
+        <p class="dl-sub">اختار النسخة المناسبة لجهازك</p>
+
+        <div class="dl-sections">
+            <div class="dl-section">
+                <div class="dl-section-head"><i class="fa-brands fa-android"></i><span>أندرويد</span></div>
+                <button class="dl-item" @onclick="() => DownloadClicked(AndroidUniversalUrl)">
+                    <span class="dl-item-info">
+                        <span class="dl-item-name">نسخة شاملة — كل الأجهزة والمحاكيات</span>
+                    </span>
+                    <span class="dl-dl-btn"><i class="fa-solid fa-download"></i> تحميل</span>
+                </button>
+                <button class="dl-item" @onclick="() => DownloadClicked(AndroidArm64Url)">
+                    <span class="dl-item-info">
+                        <span class="dl-item-name">نسخة arm64 — للموبايلات الحديثة (أخف)</span>
+                    </span>
+                    <span class="dl-dl-btn"><i class="fa-solid fa-download"></i> تحميل</span>
+                </button>
+            </div>
+
+            <div class="dl-section">
+                <div class="dl-section-head"><i class="fa-brands fa-windows"></i><span>ويندوز</span></div>
+                <button class="dl-item" @onclick="() => DownloadClicked(WindowsUrl)">
+                    <span class="dl-item-info">
+                        <span class="dl-item-name">نسخة الكمبيوتر — 64 بت فقط</span>
+                    </span>
+                    <span class="dl-dl-btn"><i class="fa-solid fa-download"></i> تحميل</span>
+                </button>
+            </div>
+
+            <div class="dl-section">
+                <div class="dl-section-head"><i class="fa-brands fa-apple"></i><span>آيفون</span></div>
+                <div class="dl-maintenance">🔧 تحت الصيانة</div>
+            </div>
+
+            <div class="dl-section">
+                <div class="dl-section-head"><i class="fa-solid fa-laptop"></i><span>ماك</span></div>
+                <div class="dl-maintenance">🔧 تحت الصيانة</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private const string AndroidUniversalUrl = "https://archive.org/download/NMU.CE_APPs/Android-universal/NMU-CE-AIE-Android-universal.apk";
+    private const string AndroidArm64Url = "https://archive.org/download/NMU.CE_APPs/Android-arm64/NMU-CE-AIE-Android-arm64.apk";
+    private const string WindowsUrl = "https://archive.org/download/NMU.CE_APPs/Windows-x64/NMU-CE-AIE-Setup-x64.exe";
+
+    [Parameter] public EventCallback<string> OnDownload { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private Task DownloadClicked(string url) => OnDownload.InvokeAsync(url);
+
+    private Task OnCloseClicked() => OnClose.InvokeAsync();
+}

@@ -15,6 +15,8 @@ public class AppUpdateEntry
     public bool Force { get; set; }
     /// <summary>Download URL of the new package (native only).</summary>
     public string Url { get; set; } = "";
+    /// <summary>Download URL of the arm64-only package (android, lighter).</summary>
+    public string UrlArm64 { get; set; } = "";
     /// <summary>Release notes shown in the dialog (admin free text).</summary>
     public string Notes { get; set; } = "";
 }
@@ -130,7 +132,11 @@ public class AppUpdateService
         try { await _js.InvokeVoidAsync("nmuFunctions.clearSiteCacheAndReload", version); } catch { }
     }
 
-    private async Task<AppUpdateEntry?> FetchEntryAsync(string platformKey)
+    /// <summary>
+    /// Loads the whole admin-published update node (per-platform entries).
+    /// Used by the download dialog. Returns null on any failure.
+    /// </summary>
+    public async Task<Dictionary<string, AppUpdateEntry>?> GetEntriesAsync()
     {
         try
         {
@@ -139,21 +145,28 @@ public class AppUpdateService
             using var response = await _http.SendAsync(request);
             if (!response.IsSuccessStatusCode) return null;
             var json = await response.Content.ReadAsStringAsync();
-            if (string.IsNullOrWhiteSpace(json) || json == "null") return null;
-            using var doc = JsonDocument.Parse(json);
-            foreach (var prop in doc.RootElement.EnumerateObject())
-            {
-                if (!string.Equals(prop.Name, platformKey, StringComparison.OrdinalIgnoreCase))
-                    continue;
-                try
-                {
-                    return JsonSerializer.Deserialize<AppUpdateEntry>(prop.Value.GetRawText(), CaseInsensitive);
-                }
-                catch
-                {
-                    return null;
-                }
-            }
+            if (string.IsNullOrWhiteSpace(json) || json == "null")
+                return new Dictionary<string, AppUpdateEntry>(StringComparer.OrdinalIgnoreCase);
+            // NOTE: dictionary keys deserialize case-sensitively, so rebuild
+            // with an OrdinalIgnoreCase comparer for safe lookups.
+            var parsed = JsonSerializer.Deserialize<Dictionary<string, AppUpdateEntry>>(json, CaseInsensitive);
+            return parsed == null
+                ? new Dictionary<string, AppUpdateEntry>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, AppUpdateEntry>(parsed, StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task<AppUpdateEntry?> FetchEntryAsync(string platformKey)
+    {
+        try
+        {
+            var all = await GetEntriesAsync();
+            if (all != null && all.TryGetValue(platformKey, out var entry))
+                return entry;
         }
         catch { }
         return null;
