@@ -648,34 +648,13 @@ else
             .ToList();
     }
 
-    private async Task EnsureSourcesLoadedAsync(string group)
-    {
-        if (_allFiles.Count == 0 && !_customMode)
-        {
-            try
-            {
-                _allFiles = await VideosService.GetFilesAsync(_studentLevel, _studentSemester);
-                RebuildLecturerMap(_allFiles);
-            }
-            catch { }
-        }
-        if (_allYouTubeChannels.Count == 0)
-        {
-            try
-            {
-                _allYouTubeChannels = await YouTubeService.GetChannelsAsync();
-                RebuildYouTubeMap();
-                MergeYouTubeOnlyGroups();
-                SortGroups();
-            }
-            catch { }
-        }
-        else if (!_groupYouTube.ContainsKey(group))
-        {
-            RebuildYouTubeMap();
-        }
-    }
-
+    /// <summary>
+    /// Opens a subject instantly from the already-loaded in-memory maps.
+    /// Never blocks the tap on network fetches (full video list / YouTube):
+    /// when the background details haven't finished yet, navigate straight to
+    /// the files page, which paints instantly from its own small cache and
+    /// resolves lecturers itself.
+    /// </summary>
     private async Task OpenGroupAsync(string group)
     {
         try
@@ -685,46 +664,20 @@ else
             {
                 // Custom mode: lecturers come from the prebuilt map (may span many terms).
                 // YouTube-only subjects have no entry -> empty lecturer list.
-                if (_customGroupLecturers.TryGetValue(group, out var full))
-                    lecturers = new List<string>(full);
-                else if (_groupLecturers.TryGetValue(group, out var mappedCustom) && mappedCustom.Count > 0)
-                    lecturers = new List<string>(mappedCustom);
-                else
-                    lecturers = new List<string>();
+                if (!_customGroupLecturers.TryGetValue(group, out var full) || full.Count == 0)
+                    _groupLecturers.TryGetValue(group, out full);
+                lecturers = full != null ? new List<string>(full) : new List<string>();
+            }
+            else if (!_groupLecturers.TryGetValue(group, out var mapped) || mapped.Count == 0)
+            {
+                // Details still loading in the background: go straight ahead
+                // instead of freezing the tap on a full-list fetch.
+                NavigateToGroup(group, null);
+                return;
             }
             else
             {
-                if (_allFiles.Count == 0)
-                {
-                    _allFiles = await VideosService.GetFilesAsync(_studentLevel, _studentSemester);
-                    RebuildLecturerMap(_allFiles);
-                    await InvokeAsync(StateHasChanged);
-                }
-                lecturers = VideosService.GetFilesForGroup(_allFiles, _studentLevel, _studentSemester, group)
-                    .Select(f => f.Lecturer)
-                    .Where(l => !string.IsNullOrWhiteSpace(l))
-                    .Distinct(StringComparer.Ordinal)
-                    .OrderBy(l => l, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-            }
-
-            await EnsureSourcesLoadedAsync(group);
-            // Re-read lecturers after ensure (custom map may have been rebuilt).
-            if (!_customMode)
-            {
-                var refreshed = VideosService.GetFilesForGroup(_allFiles, _studentLevel, _studentSemester, group)
-                    .Select(f => f.Lecturer)
-                    .Where(l => !string.IsNullOrWhiteSpace(l))
-                    .Distinct(StringComparer.Ordinal)
-                    .OrderBy(l => l, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-                if (refreshed.Count > 0) lecturers = refreshed;
-                else if (_groupLecturers.TryGetValue(group, out var mapped) && mapped.Count > 0)
-                    lecturers = mapped;
-            }
-            else if (_groupLecturers.TryGetValue(group, out var customMapped) && customMapped.Count > lecturers.Count)
-            {
-                lecturers = new List<string>(customMapped);
+                lecturers = new List<string>(mapped);
             }
 
             var ytChannels = GetYouTubeForGroup(group);
@@ -751,7 +704,9 @@ else
                 return;
             }
 
-            NavigateToGroup(group, lecturers.Count == 1 ? lecturers[0] : null);
+            // No source known yet (background details still running): navigate
+            // directly; the files page paints instantly and resolves lecturers.
+            NavigateToGroup(group, null);
         }
         catch
         {

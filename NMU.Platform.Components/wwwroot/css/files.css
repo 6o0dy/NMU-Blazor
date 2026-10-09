@@ -156,6 +156,22 @@
     letter-spacing: 0.4px;
 }
 
+/* Merged TA group pill: one compact badge instead of 3 long ones.
+   Icon + short names ("Manar • Khaled • Eman"), full names in title tooltip. */
+.ta-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ta-group i {
+    font-size: 0.6rem;
+    flex-shrink: 0;
+}
+
 .file-lecturer {
     color: var(--text-secondary);
     font-size: 0.72rem;
@@ -394,6 +410,56 @@
 .folder-dropdown-item.active {
     background: rgba(147, 26, 35, 0.1);
     color: var(--primary);
+}
+
+/* ---------- TA avatars: distinctive per-TA identity in picker rows ----------
+   Color is deterministic per name (ta-c0..ta-c7), so each TA is instantly
+   recognizable across the dialog, the dropdown and the file badges. */
+.ta-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    font-family: 'Cairo', sans-serif;
+    flex: 0 0 auto;
+    border: 1px solid;
+    letter-spacing: 0.3px;
+}
+
+.ta-avatar-sm {
+    width: 22px;
+    height: 22px;
+    font-size: 9px;
+}
+
+.ta-c0 { background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.4); }
+.ta-c1 { background: rgba(251, 146, 60, 0.15); color: #fb923c; border-color: rgba(251, 146, 60, 0.4); }
+.ta-c2 { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border-color: rgba(251, 191, 36, 0.4); }
+.ta-c3 { background: rgba(52, 211, 153, 0.15); color: #34d399; border-color: rgba(52, 211, 153, 0.4); }
+.ta-c4 { background: rgba(45, 212, 191, 0.15); color: #2dd4bf; border-color: rgba(45, 212, 191, 0.4); }
+.ta-c5 { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); }
+.ta-c6 { background: rgba(167, 139, 250, 0.15); color: #a78bfa; border-color: rgba(167, 139, 250, 0.4); }
+.ta-c7 { background: rgba(244, 114, 182, 0.15); color: #f472b6; border-color: rgba(244, 114, 182, 0.4); }
+
+/* ---------- Joint TA group: separate rows wrapped in one grey background ----------
+   Raw folders like "A,B" render as individual TA cards (same look as solo
+   rows) wrapped in a single grey container, so viewers see they form one group. */
+.joint-group {
+    background: rgba(148, 163, 184, 0.12);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 12px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.joint-group .joint-member-card {
+    margin: 0;
 }
 
 @media (max-width: 1023px) {

@@ -97,7 +97,10 @@ public class MaterialsService
         {
             var signals = await Task.WhenAll(
                 ArchiveCatalog.AllArchiveIds.Select(a => QuickChangedAsync(a)));
-            if (signals.All(s => s == false)) return null;
+            // NOTE: no all-false early return here: the per-archive signal watches
+            // one config file each, so "same" everywhere is NOT proof that no new
+            // subject was uploaded. Without a positive change report the
+            // once-per-session rule decides.
             if (signals.All(s => s != true) && !CatalogSessionRefreshDue()) return null;
             return await RefreshSubjectCatalogForcedAsync();
         }
@@ -200,13 +203,15 @@ public class MaterialsService
         try
         {
             var metaKey = MetaCacheKey(level, semester);
-            // Cheap signal first (bytes): server-confirmed unchanged skips
-            // everything; a reported change refreshes even inside the age gate.
+            // Cheap signal first (bytes): a positively reported change refreshes
+            // even inside the age gate. NOTE: the signal watches ONE config file
+            // (Data/order_config.json), NOT the archive contents, so "same" is
+            // NOT proof that nothing was uploaded -> only "changed" skips the
+            // age gate; anything else falls through to it.
             if (!force)
             {
                 var signal = await QuickChangedAsync(ArchiveCatalog.GetArchiveId(level, semester));
-                if (signal == false) return;
-                if (signal == null)
+                if (signal != true)
                 {
                     var gate = await MetadataChangedAsync(metaKey);
                     if (gate == null || !gate.Value.changed) return;
@@ -253,20 +258,23 @@ public class MaterialsService
     /// <summary>
     /// Background revalidation for a subject's file list.
     /// </summary>
-    public async Task CheckAndUpdateSubjectFilesAsync(string level, string semester, string subject, Action<List<MaterialFile>>? onUpdated = null)
+    public async Task CheckAndUpdateSubjectFilesAsync(string level, string semester, string subject, Action<List<MaterialFile>>? onUpdated = null, bool force = false)
     {
         if (string.IsNullOrEmpty(level) || string.IsNullOrEmpty(semester) || string.IsNullOrEmpty(subject)) return;
         try
         {
             var metaKey = MetaCacheKey(level, semester);
-            // Cheap signal first (see subject list above); unknown falls back
-            // to the age gate.
-            var fileSignal = await QuickChangedAsync(ArchiveCatalog.GetArchiveId(level, semester));
-            if (fileSignal == false) return;
-            if (fileSignal == null)
+            // Cheap signal first (see subject list above): only a positively
+            // reported change skips the age gate; "same"/unknown fall through
+            // to it, because the signal watches one config file, not uploads.
+            if (!force)
             {
-                var fileGate = await MetadataChangedAsync(metaKey);
-                if (fileGate == null || !fileGate.Value.changed) return;
+                var fileSignal = await QuickChangedAsync(ArchiveCatalog.GetArchiveId(level, semester));
+                if (fileSignal != true)
+                {
+                    var fileGate = await MetadataChangedAsync(metaKey);
+                    if (fileGate == null || !fileGate.Value.changed) return;
+                }
             }
 
             // Same automatic retry policy as the subject list (see above).
@@ -301,10 +309,11 @@ public class MaterialsService
     }
 
     /// <summary>
-    /// Cheap freshness signal (bytes, not MBs): conditional GET on the
-    /// archive's tiny root manifest. True = server reports change,
-    /// False = server confirmed unchanged (HTTP 304), Null = unknown
-    /// (no manifest / error) -> the age gate decides.
+    /// Cheap change hint (bytes, not MBs): conditional GET on ONE tiny config
+    /// file. True = that file positively changed (refresh at once).
+    /// False/Null = NO information about the archive contents (that file is
+    /// untouched by PDF uploads) -> the caller MUST consult the age gate,
+    /// never treat "same" as proof that nothing was uploaded.
     /// </summary>
     private async Task<bool?> QuickChangedAsync(string? archiveId)
     {
@@ -659,6 +668,57 @@ public class MaterialsService
             .Select(f => f.SubFolder)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex TaSplitRegex = new(
+        @"\s*(?:[,،&+]|\band\b)\s*",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase
+        | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>
+    /// Splits a joint TA folder into individual TA names.
+    /// Supports every separator admins use: "A,B", "A،B" (Arabic comma),
+    /// "A &amp; B", "A+B" and "A and B".
+    /// Single names ("Dr. Nourhan") return untouched as one entry.
+    /// </summary>
+    public static List<string> SplitTANames(string subFolder)
+    {
+        var result = new List<string>();
+        if (string.IsNullOrWhiteSpace(subFolder)) return result;
+        foreach (var part in TaSplitRegex.Split(subFolder))
+        {
+            var t = part.Trim();
+            if (!string.IsNullOrEmpty(t) && !result.Contains(t, StringComparer.Ordinal))
+                result.Add(t);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Distinct individual TAs across raw sub-folder strings, e.g.
+    /// ["A,B", "C"] -&gt; ["A", "B", "C"]. Order-stable (alphabetical).
+    /// </summary>
+    public static List<string> ExpandTANames(IEnumerable<string> rawSubFolders)
+    {
+        var result = new List<string>();
+        foreach (var raw in rawSubFolders)
+            foreach (var t in SplitTANames(raw))
+                if (!result.Contains(t, StringComparer.Ordinal))
+                    result.Add(t);
+        return result.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>
+    /// Raw sub-folders a TA participates in (exact token match), e.g. TA "B"
+    /// maps to both "B" and the joint folder "A,B". Files under any of them
+    /// belong to that TA's view.
+    /// </summary>
+    public static List<string> FoldersForTA(IEnumerable<string> rawSubFolders, string ta)
+    {
+        return rawSubFolders
+            .Where(r => SplitTANames(r).Contains(ta, StringComparer.Ordinal))
+            .Distinct(StringComparer.Ordinal)
             .ToList();
     }
 

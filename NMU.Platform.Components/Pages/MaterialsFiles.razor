@@ -42,11 +42,11 @@ else
                     <br />
                     <button class="placeholder-btn" @onclick="OpenLecturerDialog">Choose Lecturer</button>
                 }
-                else if (_subFolders.Count > 1 && string.IsNullOrEmpty(_currentSubFolder))
+                else if (SectionCount() > 1 && string.IsNullOrEmpty(_currentSubFolder))
                 {
-                    <div>Please select a TA to view @_currentFolder files.</div>
+                    <div>Please choose what to view in @_currentFolder.</div>
                     <br />
-                    <button class="placeholder-btn" @onclick="OpenSubFolderDialog">Choose @_currentFolder Instructor</button>
+                    <button class="placeholder-btn" @onclick="OpenSubFolderDialog">Choose @_currentFolder Content</button>
                 }
                 else
                 {
@@ -81,7 +81,18 @@ else
                             }
                             @if (!string.IsNullOrEmpty(f.SubFolder))
                             {
-                                <span class="badge badge-sky pdf-folder" title="@f.SubFolder">@f.SubFolder</span>
+                                var tas = NMU.Platform.Components.Services.MaterialsService.SplitTANames(f.SubFolder);
+                                if (tas.Count == 1)
+                                {
+                                    <span class="badge badge-sky pdf-folder ta-chip" title="@tas[0]">@ShortTAName(tas[0])</span>
+                                }
+                                else if (tas.Count > 1)
+                                {
+                                    <span class="badge badge-sky pdf-folder ta-group" title="@string.Join(" & ", tas)">
+                                        <i class="fa-solid fa-user-group"></i>
+                                        @string.Join(" • ", tas.Select(ShortTAName))
+                                    </span>
+                                }
                             }
                             <span class="file-size">@(f.Size.HasValue ? $"{(f.Size.Value / 1024.0 / 1024.0):F1} MB" : "? MB")</span>
                             @if (_lecturers.Count > 1 && !string.IsNullOrEmpty(f.Lecturer))
@@ -148,15 +159,39 @@ else
         <div class="subject-picker-card" @onclick:stopPropagation>
             <div class="subject-picker-header">
                 <button class="btn-small-icon" @onclick="CloseSubFolderDialog">&times;</button>
-                <h3>Select @(_currentFolder.ToUpper()) Instructor</h3>
+                <h3>Select @(_currentFolder.ToUpper()) Content</h3>
             </div>
             <div class="subject-picker-body">
-                @foreach (var sub in _subFolders)
+                @if (HasGeneralFiles())
                 {
-                    var s = sub;
-                    <div class="subject-check-card lec-pick" @onclick="() => PickSubFolder(s)">
-                        <span class="subject-check-name" title="@s">@s</span>
+                    <div class="subject-check-card lec-pick" @onclick="() => PickSubFolder(GeneralSection)">
+                        <span class="subject-check-icon"><i class="fa-solid fa-users"></i></span>
+                        <span class="subject-check-name">General</span>
                         <i class="fa-solid fa-chevron-right" style="color:var(--text-secondary);font-size:12px;"></i>
+                    </div>
+                }
+                @foreach (var t in SoloUngrouped())
+                {
+                    var name = t;
+                    <div class="subject-check-card lec-pick ta-pick" @onclick="() => PickSubFolder(name)">
+                        <span class="ta-avatar @TAAvatarClass(name)" title="@name">@TAInitials(name)</span>
+                        <span class="subject-check-name" title="@name">@name</span>
+                        <i class="fa-solid fa-chevron-right" style="color:var(--text-secondary);font-size:12px;"></i>
+                    </div>
+                }
+                @foreach (var grp in JointGroups())
+                {
+                    var members = NMU.Platform.Components.Services.MaterialsService.SplitTANames(grp);
+                    <div class="joint-group">
+                        @foreach (var m in members)
+                        {
+                            var t = m;
+                            <div class="subject-check-card lec-pick ta-pick joint-member-card" @onclick="() => PickSubFolder(t)">
+                                <span class="ta-avatar @TAAvatarClass(t)" title="@t">@TAInitials(t)</span>
+                                <span class="subject-check-name" title="@t">@t</span>
+                                <i class="fa-solid fa-chevron-right" style="color:var(--text-secondary);font-size:12px;"></i>
+                            </div>
+                        }
                     </div>
                 }
             </div>
@@ -185,9 +220,123 @@ else
     private bool _showLecturerDialog;
     private static readonly Dictionary<string, string> _lastLecturer = new();
     private List<string> _subFolders = new();
+    private List<string> _taNames = new();
     private string _currentSubFolder = "";
     private bool _showSubFolderDropdown;
     private bool _showSubFolderDialog;
+
+    /// <summary>
+    /// Explicit "General" section (loose files) when a folder also has TA
+    /// sub-folders. General is a full section of its own: one section total
+    /// opens directly, two or more force the choice dialog.
+    /// </summary>
+    private const string GeneralSection = "__general__";
+    private bool IsGeneralSelected => _currentSubFolder == GeneralSection;
+    private static string SubFolderDisplay(string s)
+    {
+        if (s == GeneralSection) return "General";
+        if (string.IsNullOrEmpty(s)) return s;
+        var parts = NMU.Platform.Components.Services.MaterialsService.SplitTANames(s);
+        return parts.Count > 1 ? string.Join(" & ", parts) : s;
+    }
+
+    /// <summary>
+    /// Raw joint folders ("A,B") shown as one grey group container.
+    /// Header selects the whole group (exact folder only);
+    /// inner rows select an individual TA (all folders they join).
+    /// </summary>
+    private List<string> JointGroups() =>
+        _subFolders.Where(r => NMU.Platform.Components.Services.MaterialsService.SplitTANames(r).Count > 1)
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+
+    private List<string> SoloRaws() =>
+        _subFolders.Where(r => NMU.Platform.Components.Services.MaterialsService.SplitTANames(r).Count == 1)
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+
+    private static bool IsJointRaw(string s) =>
+        NMU.Platform.Components.Services.MaterialsService.SplitTANames(s ?? "").Count > 1;
+
+    private int JointFileCount(string raw) =>
+        _allSubjectFiles.Count(f =>
+            string.Equals(f.Lecturer, _currentLecturer, StringComparison.Ordinal) &&
+            string.Equals(f.Folder, _currentFolder, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(f.SubFolder, raw, StringComparison.Ordinal));
+
+    /// <summary>
+    /// Solo TAs that are NOT part of any joint group (shown as plain rows).
+    /// TAs inside a joint group are shown only inside the grey wrapper,
+    /// so no TA appears twice.
+    /// </summary>
+    private List<string> SoloUngrouped()
+    {
+        var inJoint = new HashSet<string>(JointGroups()
+            .SelectMany(r => NMU.Platform.Components.Services.MaterialsService.SplitTANames(r)),
+            StringComparer.Ordinal);
+        return SoloRaws()
+            .Select(r => NMU.Platform.Components.Services.MaterialsService.SplitTANames(r).FirstOrDefault() ?? r)
+            .Where(t => !inJoint.Contains(t, StringComparer.Ordinal))
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>
+    /// Raw sub-folders a TA participates in (joint folders like "A,B" count
+    /// for every listed TA). Files under any of them belong to that TA's view.
+    /// </summary>
+    private List<string> FoldersForTA(string ta) =>
+        NMU.Platform.Components.Services.MaterialsService.FoldersForTA(_subFolders, ta);
+
+    /// <summary>Avatar initials, skipping titles: "Eng. Manar Ashraf" -> "MA".</summary>
+    private static string TAInitials(string ta)
+    {
+        if (string.IsNullOrWhiteSpace(ta)) return "?";
+        var titles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { "eng", "dr", "mr", "ms", "mrs" };
+        var words = ta.Split(new[] { ' ', '.', '\t' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => !titles.Contains(w.Trim('.', ' '))).ToList();
+        if (words.Count == 0) return "?";
+        var first = char.ToUpperInvariant(words[0][0]).ToString();
+        return words.Count == 1 ? first : first + char.ToUpperInvariant(words[1][0]);
+    }
+
+    /// <summary>Short first name, skipping titles: "Eng. Manar Ashraf" -> "Manar".</summary>
+    private static string ShortTAName(string ta)
+    {
+        if (string.IsNullOrWhiteSpace(ta)) return ta ?? "";
+        var titles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { "eng", "dr", "mr", "ms", "mrs" };
+        var words = ta.Split(new[] { ' ', '.', '\t' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => !titles.Contains(w.Trim('.', ' '))).ToList();
+        return words.Count == 0 ? ta.Trim() : words[0].Trim();
+    }
+
+    /// <summary>Deterministic avatar color per TA name.</summary>
+    private static string TAAvatarClass(string ta)
+    {
+        string[] palette = { "ta-c0", "ta-c1", "ta-c2", "ta-c3", "ta-c4", "ta-c5", "ta-c6", "ta-c7" };
+        unchecked
+        {
+            int h = 0;
+            foreach (var c in ta ?? "") h = h * 31 + c;
+            return palette[(h & 0x7fffffff) % palette.Length];
+        }
+    }
+
+    /// <summary>True when loose (general) files exist in the current lecturer+folder.</summary>
+    private bool HasGeneralFiles() => _allSubjectFiles.Any(f =>
+        string.Equals(f.Lecturer, _currentLecturer, StringComparison.Ordinal) &&
+        string.Equals(f.Folder, _currentFolder, StringComparison.OrdinalIgnoreCase) &&
+        string.IsNullOrEmpty(f.SubFolder));
+
+    /// <summary>Total selectable sections: individual TAs + General (if present).
+    /// Joint folders ("A,B") expand, so each TA is its own option.</summary>
+    private int SectionCount() => _taNames.Count + (HasGeneralFiles() ? 1 : 0);
+
+    /// <summary>Rebuilds raw folders + expanded individual TA options together.</summary>
+    private void RecomputeTAOptions()
+    {
+        _subFolders = ComputeSubFolders();
+        _taNames = NMU.Platform.Components.Services.MaterialsService.ExpandTANames(_subFolders);
+    }
 
     private static string GetPdfCacheKey(string fileUrl)
     {
@@ -268,25 +417,33 @@ else
                 }
             </div>
         }
-        @if (_subFolders.Count > 1)
+        @if (SectionCount() > 1)
         {
             <div class="files-folder-dropdown show-desktop">
                 <button type="button" class="folder-dropdown-toggle @(_showSubFolderDropdown ? "open" : "")"
                         @onclick="ToggleSubFolderDropdown">
                     <i class="fa-solid fa-chalkboard-user"></i>
-                    <span class="folder-dropdown-current">@(string.IsNullOrEmpty(_currentSubFolder) ? "Select TA" : _currentSubFolder)</span>
+                    <span class="folder-dropdown-current">@(string.IsNullOrEmpty(_currentSubFolder) ? "Select content" : SubFolderDisplay(_currentSubFolder))</span>
                     <i class="fa-solid fa-chevron-down"></i>
                 </button>
                 @if (_showSubFolderDropdown)
                 {
                     <div class="folder-dropdown-menu" @onclick:stopPropagation>
-                        @foreach (var sub in _subFolders)
+                        @if (HasGeneralFiles())
                         {
-                            var s = sub;
-                            <button class="folder-dropdown-item @(s == _currentSubFolder ? "active" : "")"
-                                    @onclick="() => SelectSubFolderFromDropdown(s)">
-                                <i class="fa-solid fa-user"></i>
-                                @s
+                            <button class="folder-dropdown-item @(IsGeneralSelected ? "active" : "")"
+                                    @onclick="() => SelectSubFolderFromDropdown(GeneralSection)">
+                                <i class="fa-solid fa-users"></i>
+                                General
+                            </button>
+                        }
+                        @foreach (var ta in _taNames)
+                        {
+                            var t = ta;
+                            <button class="folder-dropdown-item @(t == _currentSubFolder ? "active" : "")"
+                                    @onclick="() => SelectSubFolderFromDropdown(t)">
+                                <span class="ta-avatar ta-avatar-sm @TAAvatarClass(t)">@TAInitials(t)</span>
+                                @t
                             </button>
                         }
                     </div>
@@ -330,7 +487,12 @@ else
         _ = LoadDataAsync();
     }
 
-    private async Task LoadDataAsync()
+    /// <summary>
+    /// Manual refresh (header button / retry) forces a fresh metadata fetch,
+    /// bypassing the revalidation window: use right after uploading new
+    /// folders/files instead of waiting for the background pass.
+    /// </summary>
+    private async Task LoadDataAsync(bool forceRefresh = false)
     {
         _errorMsg = null;
         try
@@ -388,6 +550,7 @@ else
                     _currentFolder = "";
                     _folders = new List<string>();
                     _subFolders = new List<string>();
+                    _taNames = new List<string>();
                     _currentSubFolder = "";
                     _showSubFolderDialog = false;
                     _filteredFiles = new List<MaterialFile>();
@@ -427,11 +590,11 @@ else
                             _lecturers = ComputeLecturers();
                             _filteredFiles = new List<MaterialFile>();
                         }
-                        else if (_showSubFolderDialog || (_subFolders.Count > 1 && string.IsNullOrEmpty(_currentSubFolder)))
+                        else if (_showSubFolderDialog || (SectionCount() > 1 && string.IsNullOrEmpty(_currentSubFolder)))
                         {
                             // Still waiting for a TA choice: refresh the TA list
                             // only, never auto-pick or mix TAs.
-                            _subFolders = ComputeSubFolders();
+                            RecomputeTAOptions();
                             _filteredFiles = new List<MaterialFile>();
                             LayoutState.SearchBar = _searchBarFragment;
                         }
@@ -471,7 +634,7 @@ else
                         StateHasChanged();
                         LayoutState.NotifyStateChanged();
                     });
-                });
+                }, force: forceRefresh);
         }
         catch (Exception ex)
         {
@@ -504,14 +667,14 @@ else
         _loading = true;
         _errorMsg = null;
         StateHasChanged();
-        _ = LoadDataAsync();
+        _ = LoadDataAsync(forceRefresh: true);
     }
 
     private void ChangeFolder(string folder)
     {
         _currentFolder = folder;
-        // Smart TA behavior: entering a folder with >1 TA shows the dialog,
-        // a single TA opens directly, no TA shows files directly.
+        // Smart section behavior: a single section (general alone or one TA
+        // alone) opens directly, 2+ sections (general and/or TAs) ask first.
         ResolveSubFolderState(forceDialogOnMulti: true);
         ApplyFileFilter();
         LayoutState.SearchBar = _searchBarFragment;
@@ -539,35 +702,36 @@ else
     }
 
     /// <summary>
-    /// Smart Lab/TA routing: 0 sub-folders -> files directly, 1 -> auto-open it,
-    /// N -> dialog (when forceDialogOnMulti) or keep a still-valid selection.
-    /// Direct files (SubFolder == "") stay visible alongside any TA selection.
+    /// Smart Lab/TA routing, General counts as a full section:
+    /// 1 total section (general alone or one TA alone) -> open directly,
+    /// 2+ sections (e.g. general + TA, or several TAs) -> choice dialog.
+    /// A selection always shows ONLY its own files (no general/TA mixing).
     /// </summary>
     private void ResolveSubFolderState(bool forceDialogOnMulti)
     {
-        _subFolders = ComputeSubFolders();
+        RecomputeTAOptions();
         _showSubFolderDropdown = false;
-        if (_subFolders.Count == 0)
+        var hasGeneral = HasGeneralFiles();
+        var total = _taNames.Count + (hasGeneral ? 1 : 0);
+        if (total <= 1)
         {
-            _currentSubFolder = "";
+            _currentSubFolder = hasGeneral ? GeneralSection : (_taNames.Count == 1 ? _taNames[0] : "");
             _showSubFolderDialog = false;
         }
-        else if (_subFolders.Count == 1)
+        else if ((IsGeneralSelected && hasGeneral)
+            || (!IsGeneralSelected && (_taNames.Contains(_currentSubFolder, StringComparer.Ordinal)
+                || _subFolders.Contains(_currentSubFolder, StringComparer.Ordinal))))
         {
-            _currentSubFolder = _subFolders[0];
             _showSubFolderDialog = false;
+        }
+        else if (forceDialogOnMulti)
+        {
+            _currentSubFolder = "";
+            _showSubFolderDialog = true;
         }
         else
         {
-            if (forceDialogOnMulti || !_subFolders.Contains(_currentSubFolder, StringComparer.Ordinal))
-            {
-                _currentSubFolder = "";
-                _showSubFolderDialog = true;
-            }
-            else
-            {
-                _showSubFolderDialog = false;
-            }
+            _showSubFolderDialog = false;
         }
     }
 
@@ -596,6 +760,7 @@ else
         if (string.IsNullOrEmpty(_currentLecturer) && _lecturers.Count > 1)
         {
             _subFolders = new List<string>();
+            _taNames = new List<string>();
             _currentSubFolder = "";
             _showSubFolderDialog = false;
         }
@@ -605,27 +770,27 @@ else
     private void RefreshSubFolderStatePreservingSelection()
     {
         var prev = _currentSubFolder;
-        _subFolders = ComputeSubFolders();
-        if (_subFolders.Count == 0)
+        var wasGeneral = prev == GeneralSection;
+        RecomputeTAOptions();
+        var hasGeneral = HasGeneralFiles();
+        var total = _taNames.Count + (hasGeneral ? 1 : 0);
+        if (total <= 1)
         {
-            _currentSubFolder = "";
+            _currentSubFolder = hasGeneral ? GeneralSection : (_taNames.Count == 1 ? _taNames[0] : "");
             _showSubFolderDialog = false;
         }
-        else if (_subFolders.Count == 1)
-        {
-            _currentSubFolder = _subFolders[0];
-            _showSubFolderDialog = false;
-        }
-        else if (!_subFolders.Contains(prev, StringComparer.Ordinal))
-        {
-            // New TA appeared (or removed): ask again instead of silently mixing.
-            _currentSubFolder = "";
-            _showSubFolderDialog = true;
-        }
-        else
+        else if ((wasGeneral && hasGeneral)
+            || (!wasGeneral && (_taNames.Contains(prev, StringComparer.Ordinal)
+                || _subFolders.Contains(prev, StringComparer.Ordinal))))
         {
             _currentSubFolder = prev;
             _showSubFolderDialog = false;
+        }
+        else
+        {
+            // New section appeared (or removed): ask again instead of silently mixing.
+            _currentSubFolder = "";
+            _showSubFolderDialog = true;
         }
     }
 
@@ -673,13 +838,13 @@ else
 
     private void OpenSubFolderDialog()
     {
-        if (_subFolders.Count > 0)
+        if (SectionCount() > 1)
             _showSubFolderDialog = true;
     }
 
     private void CloseSubFolderDialog()
     {
-        // Keep files hidden until an explicit TA is picked (same as lecturers).
+        // Keep files hidden until an explicit choice is picked (same as lecturers).
         _showSubFolderDialog = false;
         LayoutState.SearchBar = _searchBarFragment;
     }
@@ -745,20 +910,29 @@ else
             _filteredFiles = new List<MaterialFile>();
             return;
         }
-        if (_subFolders.Count > 1 && string.IsNullOrEmpty(_currentSubFolder))
+        if (SectionCount() > 1 && string.IsNullOrEmpty(_currentSubFolder))
         {
-            // Multi-TA folder (e.g. LAB) with no selection yet: never mix TAs together.
+            // Multiple sections (general and/or TAs) with no selection yet:
+            // show nothing until the user picks one (never mix sections).
             _filteredFiles = new List<MaterialFile>();
             return;
         }
 
+        // Group selection ("A,B") shows ONLY that exact joint folder;
+        // individual TA shows every folder they participate in (solo + joints).
+        // General shows only loose files.
+        var isJointGroup = !IsGeneralSelected && IsJointRaw(_currentSubFolder);
+        var taFolders = (IsGeneralSelected || string.IsNullOrEmpty(_currentSubFolder) || isJointGroup)
+            ? null
+            : new HashSet<string>(FoldersForTA(_currentSubFolder), StringComparer.Ordinal);
         var filtered = _allSubjectFiles.Where(f =>
             (string.IsNullOrEmpty(_currentLecturer) || string.Equals(f.Lecturer, _currentLecturer, StringComparison.Ordinal)) &&
             string.Equals(f.Folder, _currentFolder, StringComparison.OrdinalIgnoreCase) &&
-            (string.IsNullOrEmpty(_currentSubFolder)
-                ? string.IsNullOrEmpty(f.SubFolder) || _subFolders.Count == 0
-                : string.Equals(f.SubFolder, _currentSubFolder, StringComparison.Ordinal)
-                    || string.IsNullOrEmpty(f.SubFolder)) &&
+            (IsGeneralSelected
+                ? string.IsNullOrEmpty(f.SubFolder)
+                : isJointGroup
+                    ? string.Equals(f.SubFolder, _currentSubFolder, StringComparison.Ordinal)
+                    : taFolders!.Contains(f.SubFolder)) &&
             f.Name.ToLower().EndsWith(".pdf") &&
             !f.Name.ToLower().EndsWith("_text.pdf")).ToList();
 

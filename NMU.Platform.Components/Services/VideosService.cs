@@ -11,6 +11,7 @@ public class VideosService
     private readonly ILogger<VideosService> _logger;
     private const string CacheVersion = "v70_newarch_videos_";
     private const string GroupsCacheVersion = "v70_newarch_videogroups_";
+    private const string GroupFilesCacheVersion = "v71_newarch_videogroupfiles_";
 
     public VideosService(IJSRuntime js, ILogger<VideosService> logger)
     {
@@ -179,6 +180,101 @@ public class VideosService
     private static string GroupsCacheKey(string level, string semester)
         => $"{GroupsCacheVersion}{level}_{semester}";
 
+    private static string GroupFilesCacheKey(string level, string semester, string group)
+        => $"{GroupFilesCacheVersion}{level}_{semester}_{group}";
+
+    private static string GroupFilesMetaKey(string level, string semester)
+        => $"{GroupsCacheVersion}meta_{level}_{semester}";
+
+    /// <summary>
+    /// Small cached per-group file list: opening a subject paints from a few KB
+    /// instead of parsing the whole semester video list first.
+    /// </summary>
+    public async Task<List<VideoFile>> GetCachedGroupFilesAsync(string level, string semester, string group)
+    {
+        try
+        {
+            var cached = await _js.InvokeAsync<string>("nmuFunctions.safeGetItem", GroupFilesCacheKey(level, semester, group));
+            if (!string.IsNullOrEmpty(cached))
+            {
+                var parsed = JsonSerializer.Deserialize<List<VideoFile>>(cached, CaseInsensitive);
+                if (parsed != null && parsed.Count > 0)
+                    return parsed;
+            }
+        }
+        catch { }
+        return new List<VideoFile>();
+    }
+
+    /// <summary>
+    /// Per-group files with instant paint: returns the small cached group list,
+    /// falling back to filtering the full semester list (and caching the result).
+    /// </summary>
+    public async Task<List<VideoFile>> GetGroupFilesAsync(string level, string semester, string group)
+    {
+        var cached = await GetCachedGroupFilesAsync(level, semester, group);
+        if (cached.Count > 0)
+        {
+            _ = CheckAndUpdateGroupFilesAsync(level, semester, group);
+            return cached;
+        }
+
+        var files = await GetFilesAsync(level, semester);
+        var grouped = GetFilesForGroup(files, level, semester, group);
+        if (grouped.Count > 0)
+            await _js.InvokeVoidAsync("nmuFunctions.safeSetItemBoth", GroupFilesCacheKey(level, semester, group), JsonSerializer.Serialize(grouped, CaseInsensitive));
+        return grouped;
+    }
+
+    /// <summary>
+    /// Background revalidation for one group's file list: same signal + age-gate
+    /// policy as the groups list, so newly uploaded recordings appear without a
+    /// cache clear. Manual refresh passes force:true to skip the gates.
+    /// </summary>
+    public async Task CheckAndUpdateGroupFilesAsync(string level, string semester, string group, Action<List<VideoFile>>? onUpdated = null, bool force = false)
+    {
+        if (string.IsNullOrEmpty(level) || string.IsNullOrEmpty(semester) || string.IsNullOrEmpty(group)) return;
+        try
+        {
+            var metaKey = GroupFilesMetaKey(level, semester);
+            if (!force)
+            {
+                var signal = await QuickChangedAsync(ArchiveCatalog.GetArchiveId(level, semester));
+                if (signal != true && !await IsRefreshDueAsync(metaKey)) return;
+            }
+
+            List<VideoFile>? grouped = null;
+            for (var attempt = 0; attempt < 3 && grouped == null; attempt++)
+            {
+                if (attempt > 0)
+                {
+                    try { await Task.Delay(TimeSpan.FromSeconds(5 * attempt)); } catch { return; }
+                }
+                try
+                {
+                    _filesMemCache.TryRemove($"{level}_{semester}", out _);
+                    var files = await GetFilesAsync(level, semester, force: true);
+                    var built = GetFilesForGroup(files, level, semester, group);
+                    if (built.Count > 0) grouped = built;
+                }
+                catch { }
+            }
+            if (grouped == null || grouped.Count == 0) return;
+
+            await _js.InvokeVoidAsync("nmuFunctions.safeSetItemBoth", GroupFilesCacheKey(level, semester, group), JsonSerializer.Serialize(grouped, CaseInsensitive));
+            await _js.InvokeVoidAsync("nmuFunctions.safeSetItem", metaKey, JsonSerializer.Serialize(new QuizMeta
+            {
+                ContentLength = grouped.Count,
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            }));
+            onUpdated?.Invoke(grouped);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "CheckAndUpdateGroupFilesAsync error: {Message}", ex.Message);
+        }
+    }
+
     /// <summary>
     /// Background revalidation for the videos groups: at most one
     /// re-fetch per RevalidateAfter window (no network call in the check itself,
@@ -193,13 +289,14 @@ public class VideosService
 
             // No navigator.onLine gate (misreports in some WebViews and would
             // silently disable refreshes); fetch failures keep stale caches.
-            // Cheap signal first (bytes): server-confirmed unchanged skips
-            // everything; a reported change refreshes even inside the age gate.
+            // Cheap signal first (bytes): a positively reported change refreshes
+            // even inside the age gate. NOTE: the signal watches ONE config file,
+            // NOT the archive contents, so "same" is NOT proof that nothing was
+            // uploaded -> only "changed" skips the age gate; otherwise it decides.
             if (!force)
             {
                 var signal = await QuickChangedAsync(ArchiveCatalog.GetArchiveId(level, semester));
-                if (signal == false) return;
-                if (signal == null && !await IsRefreshDueAsync(metaKey)) return;
+                if (signal != true && !await IsRefreshDueAsync(metaKey)) return;
             }
 
             // Automatic primary path with retry on transient failures
@@ -241,10 +338,11 @@ public class VideosService
     }
 
     /// <summary>
-    /// Cheap freshness signal (bytes, not MBs): conditional GET on the
-    /// archive's tiny root manifest. True = server reports change,
-    /// False = server confirmed unchanged (HTTP 304), Null = unknown
-    /// (no manifest / error) -> the age gate decides.
+    /// Cheap change hint (bytes, not MBs): conditional GET on ONE tiny config
+    /// file. True = that file positively changed (refresh at once).
+    /// False/Null = NO information about the archive contents (that file is
+    /// untouched by video uploads) -> the caller MUST consult the age gate,
+    /// never treat "same" as proof that nothing was uploaded.
     /// </summary>
     private async Task<bool?> QuickChangedAsync(string? archiveId)
     {

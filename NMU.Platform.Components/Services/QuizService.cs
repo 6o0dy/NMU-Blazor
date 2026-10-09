@@ -158,15 +158,16 @@ public class QuizService
         {
             // No navigator.onLine gate (misreports in some WebViews and would
             // silently disable refreshes); fetch failures keep stale caches.
-            // Cheap signal first (bytes): server-confirmed unchanged skips
-            // everything; a reported change refreshes even inside the age gate.
+            // Cheap signal first (bytes): a positively reported change refreshes
+            // even inside the age gate. NOTE: the signal watches ONE config file,
+            // NOT the archive contents, so "same" is NOT proof that nothing was
+            // uploaded -> only "changed" skips the age gate.
             // archive.org's search index does not list the NMU.CE_* identifiers,
-            // so without the signal, freshness is decided by age instead:
+            // so without a positive signal, freshness is decided by age instead:
             // at most one background refresh per RevalidateAfter window (no
             // network call in this check itself).
             var quizSignal = await QuickChangedAsync(ArchiveCatalog.GetArchiveId(level, mappedSemester));
-            if (quizSignal == false) return;
-            if (quizSignal == null && !await IsRefreshDueAsync(metaKey)) return;
+            if (quizSignal != true && !await IsRefreshDueAsync(metaKey)) return;
 
             // Automatic primary path with retry on transient failures
             // (same policy as Materials; manual refresh is only the backup).
@@ -223,10 +224,11 @@ public class QuizService
     }
 
     /// <summary>
-    /// Cheap freshness signal (bytes, not MBs): conditional GET on the
-    /// archive's tiny root manifest. True = server reports change,
-    /// False = server confirmed unchanged (HTTP 304), Null = unknown
-    /// (no manifest / error) -> the age gate decides.
+    /// Cheap change hint (bytes, not MBs): conditional GET on ONE tiny config
+    /// file. True = that file positively changed (refresh at once).
+    /// False/Null = NO information about the archive contents (that file is
+    /// untouched by quiz uploads) -> the caller MUST consult the age gate,
+    /// never treat "same" as proof that nothing was uploaded.
     /// </summary>
     private async Task<bool?> QuickChangedAsync(string? archiveId)
     {

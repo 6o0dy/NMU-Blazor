@@ -199,13 +199,27 @@ else
     {
         LayoutState.StateChanged += OnLayoutStateChanged;
         LayoutState.RefreshRequested += OnRefreshRequested;
+        LayoutState.SearchBar = _searchBarFragment;
+        LayoutState.NotifyStateChanged();
     }
 
     protected override async Task OnInitializedAsync()
     {
+        var decoded = Uri.UnescapeDataString(Group);
+        NMU.Platform.Components.Services.ArchiveCatalog.ParseSubjectFolder(decoded, out _, out var cleanTitle, out _);
+        NavState.PageTitle = string.IsNullOrEmpty(cleanTitle) ? decoded.Replace("_", " ") : cleanTitle;
+        // Return immediately so the router paints the page (loading state) without
+        // freezing the previous page; all data loading happens in the background.
+        _ = LoadDataAsync();
+    }
+
+    /// <summary>
+    /// Manual refresh (header button / retry) forces a fresh metadata fetch,
+    /// bypassing the revalidation window: use right after new uploads.
+    /// </summary>
+    private async Task LoadDataAsync(bool forceRefresh = false)
+    {
         var decodedGroup = Uri.UnescapeDataString(Group);
-        NMU.Platform.Components.Services.ArchiveCatalog.ParseSubjectFolder(decodedGroup, out _, out var cleanTitle, out _);
-        NavState.PageTitle = string.IsNullOrEmpty(cleanTitle) ? decodedGroup.Replace("_", " ") : cleanTitle;
         _errorMsg = null;
         try
         {
@@ -229,17 +243,16 @@ else
                 }
             }
 
-            _allFiles = await VideosService.GetFilesAsync(_studentLevel, _studentSemester);
+            // Fast path: small cached per-group list (a few KB) instead of the full
+            // semester video list, so the page paints immediately.
+            _allGroupFiles = await VideosService.GetCachedGroupFilesAsync(_studentLevel, _studentSemester, decodedGroup);
+            if (_allGroupFiles.Count == 0)
+                _allGroupFiles = await VideosService.GetGroupFilesAsync(_studentLevel, _studentSemester, decodedGroup);
 
-            if (_allFiles.Count == 0)
-                _errorMsg = "No data received from server.";
+            if (_allGroupFiles.Count == 0)
+                _errorMsg = $"No files found for \"{decodedGroup}\".";
             else
             {
-                _allGroupFiles = VideosService.GetFilesForGroup(_allFiles, _studentLevel, _studentSemester, decodedGroup);
-                if (_allGroupFiles.Count == 0)
-                    _errorMsg = $"No files found for \"{decodedGroup}\".";
-                else
-                {
                     _lecturers = _allGroupFiles.Select(f => f.Lecturer)
                         .Where(l => !string.IsNullOrWhiteSpace(l))
                         .Distinct(StringComparer.Ordinal)
@@ -275,9 +288,10 @@ else
                             ApplyFilter();
                         }
                     }
-                }
             }
 
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
             LayoutState.SearchBar = _searchBarFragment;
             LayoutState.NotifyStateChanged();
 
@@ -286,12 +300,52 @@ else
                 _ = RefreshAllCacheStatuses();
                 _ = MediaCache.WarmUpAsync();
             }
+
+            // Background revalidation: newly uploaded recordings appear without a
+            // cache clear; the lecturer choice is preserved when still valid.
+            var bgLevel = _studentLevel;
+            var bgSemester = _studentSemester;
+            var bgGroup = decodedGroup;
+            _ = VideosService.CheckAndUpdateGroupFilesAsync(bgLevel, bgSemester, bgGroup,
+                async updated =>
+                {
+                    await InvokeAsync(() =>
+                    {
+                        _allGroupFiles = updated;
+                        var prevLecturer = _currentLecturer;
+                        _lecturers = updated.Select(f => f.Lecturer)
+                            .Where(l => !string.IsNullOrWhiteSpace(l))
+                            .Distinct(StringComparer.Ordinal)
+                            .OrderBy(l => l, StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+                        if (_lecturers.Count > 1 && !_lecturers.Contains(prevLecturer, StringComparer.Ordinal))
+                        {
+                            // Lecturer set changed: ask again instead of mixing.
+                            _currentLecturer = "";
+                            _filteredFiles = new List<VideoFile>();
+                            _showLecturerDialog = true;
+                        }
+                        else
+                        {
+                            if (string.IsNullOrEmpty(prevLecturer) && _lecturers.Count == 1)
+                                _currentLecturer = _lecturers[0];
+                            else
+                                _currentLecturer = prevLecturer;
+                            _showLecturerDialog = false;
+                            ApplyFilter();
+                        }
+                        LayoutState.SearchBar = _searchBarFragment;
+                        StateHasChanged();
+                        LayoutState.NotifyStateChanged();
+                    });
+                }, force: forceRefresh);
         }
         catch (Exception ex)
         {
             _errorMsg = $"Error: {ex.Message}";
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
-        _loading = false;
     }
 
     private async Task RefreshAllCacheStatuses()
@@ -458,7 +512,7 @@ else
         _loading = true;
         _errorMsg = null;
         StateHasChanged();
-        _ = OnInitializedAsync();
+        _ = LoadDataAsync(forceRefresh: true);
     }
 
     private void PlayFile(VideoFile file)
