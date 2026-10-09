@@ -427,7 +427,16 @@
         }
         if (!string.IsNullOrWhiteSpace(info.Entry.Url))
         {
-            try { await JS.InvokeVoidAsync("nmuFunctions.openExternal", info.Entry.Url); } catch { }
+            // Native browser first (WebView window.open mishandles APK binaries);
+            // fall back to a new tab, and surface a toast if nothing worked.
+            var opened = false;
+            try { opened = await Platform.OpenExternalAsync(info.Entry.Url); } catch { }
+            if (!opened)
+            {
+                try { await JS.InvokeVoidAsync("nmuFunctions.openExternal", info.Entry.Url); opened = true; } catch { }
+            }
+            if (!opened)
+                Toast.ShowToast("تعذر فتح رابط التحديث", ToastType.Error);
         }
         if (!info.Entry.Force)
         {

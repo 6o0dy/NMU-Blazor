@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.InteropServices;
 using NMU.Platform.Components.Services;
 
@@ -26,9 +27,47 @@ public class DesktopPlatformService : IPlatformService
     {
         get
         {
-            try { return Microsoft.Maui.ApplicationModel.AppInfo.Current.VersionString ?? ""; }
-            catch { return ""; }
+            // AppInfo is wrong on unpackaged Windows (stale default, unaware of
+            // the build), which used to make the update dialog reappear forever
+            // after updating. Prefer the build-stamped assembly version whenever
+            // the two sources disagree.
+            string? fromAppInfo = null;
+            try { fromAppInfo = NormalizeVersion(Microsoft.Maui.ApplicationModel.AppInfo.Current.VersionString); }
+            catch { }
+            string? fromAssembly = null;
+            try
+            {
+                var entry = System.Reflection.Assembly.GetEntryAssembly();
+                var informational = entry?.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+                fromAssembly = NormalizeVersion(!string.IsNullOrWhiteSpace(informational)
+                    ? informational.Split('+')[0]
+                    : entry?.GetName().Version?.ToString());
+            }
+            catch { }
+            if (!string.IsNullOrEmpty(fromAssembly) &&
+                !string.Equals(fromAssembly, fromAppInfo, StringComparison.OrdinalIgnoreCase))
+                return fromAssembly;
+            return fromAppInfo ?? fromAssembly ?? "";
         }
+    }
+
+    /// <summary>"1.1.0.0" -&gt; "1.1" so build-stamped and display versions compare cleanly.</summary>
+    private static string? NormalizeVersion(string? v)
+    {
+        if (string.IsNullOrWhiteSpace(v)) return null;
+        v = v.Trim().TrimStart('v', 'V');
+        var parts = v.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return null;
+        var end = parts.Length;
+        while (end > 1)
+        {
+            var last = parts[end - 1].Trim();
+            if (last.Trim('0') == string.Empty && last.All(char.IsDigit))
+                end--;
+            else
+                break;
+        }
+        return string.Join(".", parts.Take(end));
     }
     public bool IsDesktop
     {
@@ -183,6 +222,53 @@ public class DesktopPlatformService : IPlatformService
 #endif
         return Task.CompletedTask;
     }
+    /// <summary>
+    /// Opens a URL in the system browser, outside the app WebView.
+    /// update/download links must never go through window.open inside the
+    /// WebView: it mishandles binary downloads (APK) and freezes/crashes the
+    /// app on some devices.
+    /// </summary>
+    public async Task<bool> OpenExternalAsync(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return false;
+#if ANDROID
+        try
+        {
+            var intent = new Android.Content.Intent(
+                Android.Content.Intent.ActionView,
+                Android.Net.Uri.Parse(url));
+            intent.AddFlags(Android.Content.ActivityFlags.NewTask);
+            Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.StartActivity(intent);
+            return true;
+        }
+        catch { return false; }
+#elif IOS
+        try
+        {
+            var nsUrl = Foundation.NSUrl.FromString(url);
+            if (nsUrl == null) return false;
+            return await UIKit.UIApplication.SharedApplication.OpenUrlAsync(nsUrl, new UIKit.UIOpenUrlOptions());
+        }
+        catch { return false; }
+#elif MACCATALYST
+        try
+        {
+            var nsUrl = Foundation.NSUrl.FromString(url);
+            if (nsUrl == null) return false;
+            return AppKit.NSWorkspace.SharedWorkspace.OpenUrl(nsUrl);
+        }
+        catch { return false; }
+#elif WINDOWS
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+            return true;
+        }
+        catch { return false; }
+#else
+        return false;
+#endif
+    }
     public async Task<DownloadResult> DownloadFileAsync(string url, string fileName)
     {
 #if ANDROID
@@ -194,6 +280,7 @@ public class DesktopPlatformService : IPlatformService
                 ".mp4" or ".mkv" or ".webm" => "video/*",
                 ".mp3" or ".wav" or ".m4a" => "audio/*",
                 ".pdf" => "application/pdf",
+                ".apk" => "application/vnd.android.package-archive",
                 _ => "*/*"
             };
 
@@ -205,12 +292,16 @@ public class DesktopPlatformService : IPlatformService
             var resultUri = await MainActivity.StartSaveFileIntent(intent);
             if (resultUri == null) return DownloadResult.Cancelled;
 
+            // Stream directly to storage: buffering a whole APK/video with
+            // GetByteArrayAsync used to OOM-kill the app on phones.
             using var client = new HttpClient();
-            var bytes = await client.GetByteArrayAsync(url);
+            using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+            using var netStream = await response.Content.ReadAsStreamAsync();
 
             using var stream = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.ContentResolver?.OpenOutputStream(resultUri);
             if (stream == null) return DownloadResult.Error;
-            await stream.WriteAsync(bytes, 0, bytes.Length);
+            await netStream.CopyToAsync(stream);
 
             return DownloadResult.Success;
         }
@@ -218,11 +309,15 @@ public class DesktopPlatformService : IPlatformService
 #elif IOS
         try
         {
+            // Stream to disk instead of buffering the whole file in RAM.
             using var client = new HttpClient();
-            var bytes = await client.GetByteArrayAsync(url);
+            using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
 
             var tempPath = Path.Combine(FileSystem.CacheDirectory, fileName ?? "document.pdf");
-            await File.WriteAllBytesAsync(tempPath, bytes);
+            using var fileStream = File.OpenWrite(tempPath);
+            using var netStream = await response.Content.ReadAsStreamAsync();
+            await netStream.CopyToAsync(fileStream);
 
             var urlObj = Foundation.NSUrl.FromFilename(tempPath);
             var picker = new UIKit.UIDocumentPickerViewController(
@@ -261,6 +356,7 @@ public class DesktopPlatformService : IPlatformService
                 ".mp4" or ".mkv" or ".webm" => "video/*",
                 ".mp3" or ".wav" or ".m4a" => "audio/*",
                 ".pdf" => "application/pdf",
+                ".apk" => "application/vnd.android.package-archive",
                 _ => "*/*"
             };
 

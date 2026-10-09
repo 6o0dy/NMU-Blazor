@@ -385,10 +385,15 @@
     private async Task DownloadUrl(string url)
     {
         if (string.IsNullOrWhiteSpace(url)) return;
-        if (Platform.IsDesktop)
-            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
-        else
-            await JS.InvokeVoidAsync("nmuFunctions.openExternal", url);
+        try
+        {
+            if (await Platform.OpenExternalAsync(url)) return;
+        }
+        catch { }
+        if (!Platform.IsDesktop)
+        {
+            try { await JS.InvokeVoidAsync("nmuFunctions.openExternal", url); } catch { }
+        }
     }
 
     public void Dispose()

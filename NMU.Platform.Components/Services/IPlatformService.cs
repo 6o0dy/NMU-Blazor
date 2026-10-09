@@ -23,6 +23,9 @@ public interface IPlatformService
     Task MinimizeAsync();
     Task CloseAsync();
     Task OpenPdfAsync(byte[] pdfData, string fileName);
+    /// <summary>Opens a URL in the system browser, outside the app WebView.
+    /// Returns false when it could not be opened (caller should fall back).</summary>
+    Task<bool> OpenExternalAsync(string url);
     Task<DownloadResult> DownloadFileAsync(string url, string fileName);
     Task<DownloadResult> SaveFileAsync(byte[] data, string fileName);
 }

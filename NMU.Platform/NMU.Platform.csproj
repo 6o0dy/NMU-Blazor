@@ -42,9 +42,15 @@
              orphans installed apps and breaks update continuity) -->
         <ApplicationId>nmu.ce.aie.app</ApplicationId>
 
-        <!-- Versions -->
+        <!-- Versions: bump ONLY ApplicationDisplayVersion per release.
+             <Version> mirrors it into the assembly/file version, because
+             unpackaged Windows reports a stale default from AppInfo and the
+             app must read the real build-stamped version instead (otherwise
+             the update dialog reappears forever after updating).
+             ApplicationVersion (Android versionCode) must also keep increasing. -->
         <ApplicationDisplayVersion>1.1</ApplicationDisplayVersion>
         <ApplicationVersion>2</ApplicationVersion>
+        <Version>$(ApplicationDisplayVersion)</Version>
 
         <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
         <WindowsPackageType>None</WindowsPackageType>

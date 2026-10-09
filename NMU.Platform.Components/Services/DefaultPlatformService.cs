@@ -14,6 +14,7 @@ public class DefaultPlatformService : IPlatformService
     public Task MinimizeAsync() => Task.CompletedTask;
     public Task CloseAsync() => Task.CompletedTask;
     public Task OpenPdfAsync(byte[] pdfData, string fileName) => Task.CompletedTask;
+    public Task<bool> OpenExternalAsync(string url) => Task.FromResult(false);
     public Task<DownloadResult> DownloadFileAsync(string url, string fileName) => Task.FromResult(DownloadResult.Error);
     public Task<DownloadResult> SaveFileAsync(byte[] data, string fileName) => Task.FromResult(DownloadResult.Error);
 }
