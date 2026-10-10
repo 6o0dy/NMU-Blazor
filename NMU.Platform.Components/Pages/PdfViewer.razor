@@ -8,6 +8,8 @@
 @inject IPlatformService Platform
 @inject ToastService Toast
 
+<SeoHead Title="PDF Viewer | NMU-CE & AIE" Description="عارض ملفات PDF على منصة NMU-CE & AIE." Path="@($"/materials/{Subject}/viewer")" NoIndex />
+
 <div class="viewer-page">
     <div id="pdf-loading-overlay" style="opacity: @(_showLoader ? "1" : "0"); display: @(_showLoader ? "flex" : "none");">
         <div class="spinner-view"></div>

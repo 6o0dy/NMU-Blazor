@@ -1,14 +1,22 @@
 <!DOCTYPE html>
-<html>
+<html lang="ar" dir="ltr">
 <head>
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, follow" />
   <title>NMU-CE &amp; AIE</title>
   <script>
-    var path = location.pathname.replace(/^\/NMU-Blazor\/?/, '/');
-    var search = location.search;
-    var hash = location.hash;
-    location.replace('/NMU-Blazor/?redirect=' + encodeURIComponent(path + search + hash));
+    // SPA fallback: hand the deep link back to index.html via ?redirect=
+    // (index.html restores it with history.replaceState, no extra redirect).
+    (function () {
+      var path = location.pathname + location.search + location.hash;
+      location.replace('/?redirect=' + encodeURIComponent(path));
+    })();
   </script>
 </head>
-<body></body>
+<body>
+  <noscript>
+    <p>NMU-CE &amp; AIE — فعّل JavaScript لتشغيل المنصة. <a href="/">الصفحة الرئيسية</a></p>
+  </noscript>
+</body>
 </html>

@@ -2,6 +2,8 @@
 @inject NavigationManager Navigation
 @inject NavigationState NavState
 
+<SeoHead Title="Virtual Lab Experiment | NMU-CE & AIE" Description="تجربة المعمل الافتراضي على منصة NMU-CE & AIE." Path="@("/laboratory/" + Title + "/viewer")" NoIndex />
+
 <div class="lab-viewer">
     <div class="lab-viewer-header">
         <button class="lab-viewer-close" @onclick="Close">

@@ -6,6 +6,8 @@
 @inject LayoutState LayoutState
 @inject IJSRuntime JS
 
+<SeoHead Title="Quiz Mode | NMU-CE & AIE" Description="وضع الامتحان التفاعلي على منصة NMU-CE & AIE." Path="@($"/quizzes/{Subject}/play")" NoIndex />
+
 @if (_isNavigatingToResult)
 {
     return;

@@ -11,6 +11,8 @@
 @inject HttpClient Http
 @inject IPlatformService Platform
 
+<SeoHead Title="@($"{Subject.Replace("_", " ")} Materials | NMU-CE & AIE")" Description="ملفات ومحاضرات PDF الخاصة بالمادة مع معاينة مباشرة وتحميل للمذاكرة أوفلاين على منصة NMU-CE & AIE." Path="@($"/materials/{Subject}")" />
+
 @if (_loading)
 {
     <div class="loading-state">

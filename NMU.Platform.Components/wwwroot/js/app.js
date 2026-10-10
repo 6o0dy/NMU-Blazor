@@ -158,6 +158,19 @@ window.nmuFunctions = {
         window.location.replace(url || window.location.href);
     },
 
+    // 404 "back" button: go to the previous page when there is one,
+    // otherwise fall back to the given home URL (direct visits / new tabs
+    // have no app history, and history.back() would do nothing there).
+    goBackOrHome: function (homeUrl) {
+        try {
+            if (window.history && window.history.length > 1) {
+                window.history.back();
+                return;
+            }
+        } catch (e) { }
+        window.location.replace(homeUrl || '/');
+    },
+
     // Web app update: wipe the browser-cached app files (CacheStorage +
     // service workers) and load a fresh copy. The ?v= query forces a fresh
     // index.html from the host even when it was cached. User data in

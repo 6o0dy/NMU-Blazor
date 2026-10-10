@@ -7,6 +7,8 @@
 @inject QuizStateService QuizState
 @inject LayoutState LayoutState
 @inject IJSRuntime JS
+
+<SeoHead Title="@($"{Subject.Replace("_", " ")} Quizzes | NMU-CE & AIE")" Description="كويزات وبنك أسئلة المادة: تدريب تفاعلي مع شرح الإجابات ووضع امتحان حقيقي بمؤقت." Path="@($"/quizzes/{Subject}")" />
 @if (_loading)
 {
     <div class="loading-state">

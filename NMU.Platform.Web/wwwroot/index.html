@@ -1,13 +1,86 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="ltr">
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>NMU-CE &amp; AIE</title>
+    <title>NMU-CE &amp; AIE | منصة مذاكرة هندسة الحاسوب والذكاء الاصطناعي</title>
     <base href="/" />
+    <meta name="description" content="NMU-CE &amp; AIE — منصة مذاكرة لطلاب هندسة الحاسوب (CE) وهندسة الذكاء الاصطناعي (AIE): محاضرات وملفات PDF، فيديوهات شرح، بنك أسئلة وكويزات تفاعلية، ومعمل افتراضي." />
+    <meta name="keywords" content="NMU, هندسة الحاسوب, هندسة الذكاء الاصطناعي, CE, AIE, مذاكرة, محاضرات, ملفات PDF, بنك أسئلة, كويزات, فيديوهات شرح, معمل افتراضي, Study Materials, Quizzes, Virtual Lab" />
+    <meta name="author" content="NMU-CE &amp; AIE" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="googlebot" content="index, follow" />
+    <link rel="canonical" href="https://www.nmu-ce.giize.com/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="NMU-CE &amp; AIE" />
+    <meta property="og:title" content="NMU-CE &amp; AIE | منصة مذاكرة هندسة الحاسوب والذكاء الاصطناعي" />
+    <meta property="og:description" content="محاضرات وملفات PDF، فيديوهات شرح، بنك أسئلة وكويزات تفاعلية، ومعمل افتراضي لطلاب هندسة الحاسوب CE وهندسة الذكاء الاصطناعي AIE." />
+    <meta property="og:url" content="https://www.nmu-ce.giize.com/" />
+    <meta property="og:image" content="https://www.nmu-ce.giize.com/_content/NMU.Platform.Components/logo.png" />
+    <meta property="og:locale" content="ar_EG" />
+    <meta property="og:locale:alternate" content="en_US" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="NMU-CE &amp; AIE | منصة مذاكرة هندسة الحاسوب والذكاء الاصطناعي" />
+    <meta name="twitter:description" content="محاضرات وملفات PDF، فيديوهات شرح، بنك أسئلة وكويزات تفاعلية، ومعمل افتراضي لطلاب CE و AIE." />
+    <meta name="twitter:image" content="https://www.nmu-ce.giize.com/_content/NMU.Platform.Components/logo.png" />
+
+    <!-- Structured data: WebSite + Organization + WebApplication + sections -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "WebSite",
+                "name": "NMU-CE & AIE",
+                "alternateName": "NMU CE AIE",
+                "url": "https://www.nmu-ce.giize.com/",
+                "inLanguage": ["ar", "en"]
+            },
+            {
+                "@type": "Organization",
+                "name": "NMU-CE & AIE",
+                "url": "https://www.nmu-ce.giize.com/",
+                "logo": "https://www.nmu-ce.giize.com/_content/NMU.Platform.Components/logo.png"
+            },
+            {
+                "@type": "WebApplication",
+                "name": "NMU-CE & AIE",
+                "applicationCategory": "EducationalApplication",
+                "operatingSystem": "Any",
+                "browserRequirements": "Requires JavaScript",
+                "url": "https://www.nmu-ce.giize.com/",
+                "offers": { "@type": "Offer", "price": "0" }
+            },
+            {
+                "@type": "ItemList",
+                "name": "NMU-CE & AIE sections",
+                "itemListElement": [
+                    { "@type": "SiteNavigationElement", "position": 1, "name": "Study Materials", "url": "https://www.nmu-ce.giize.com/materials" },
+                    { "@type": "SiteNavigationElement", "position": 2, "name": "Videos", "url": "https://www.nmu-ce.giize.com/videos" },
+                    { "@type": "SiteNavigationElement", "position": 3, "name": "Quizzes & Question Bank", "url": "https://www.nmu-ce.giize.com/quizzes" },
+                    { "@type": "SiteNavigationElement", "position": 4, "name": "Virtual Lab", "url": "https://www.nmu-ce.giize.com/laboratory" },
+                    { "@type": "SiteNavigationElement", "position": 5, "name": "YouTube Explanations", "url": "https://www.nmu-ce.giize.com/youtube" },
+                    { "@type": "SiteNavigationElement", "position": 6, "name": "Feedback", "url": "https://www.nmu-ce.giize.com/feedback" }
+                ]
+            }
+        ]
+    }
+    </script>
+
     <meta name="theme-color" content="#f3f7fb" />
     <meta name="color-scheme" content="light dark" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="NMU-CE &amp; AIE" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+    <link rel="dns-prefetch" href="https://archive.org" />
     <script>
         try { if (localStorage.getItem('nmu_theme') !== 'light') { document.documentElement.setAttribute('data-theme', 'dark'); var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', '#0a1120'); } } catch (e) {}
     </script>
@@ -41,10 +114,12 @@
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/quiz.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/quiz-blazor.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/welcome.css" />
+    <link rel="stylesheet" href="_content/NMU.Platform.Components/css/notfound.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/lib/prism/themes/prism-tomorrow.min.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/lib/prism/plugins/line-numbers/prism-line-numbers.min.css" />
     <link rel="stylesheet" href="NMU.Platform.Web.styles.css" />
-    <link rel="icon" href="favicon.ico">
+    <link rel="icon" href="favicon.ico" />
+    <link rel="apple-touch-icon" href="favicon.ico" />
 
     <style>
         #loading-placeholder {
@@ -52,11 +127,24 @@
             display: flex; flex-direction: column;
             justify-content: center; align-items: center;
             background: #0f172a; z-index: 9999;
+            padding: 24px; text-align: center;
         }
         #loading-placeholder img { width: 80px; height: 80px; margin-bottom: 20px; }
-        #loading-placeholder span {
+        #loading-placeholder h1 {
             font-family: 'Cairo', sans-serif; font-size: 22px;
-            font-weight: 800; color: #0ea5e9;
+            font-weight: 800; color: #0ea5e9; margin: 0 0 8px;
+        }
+        #loading-placeholder p {
+            font-family: 'Cairo', sans-serif; font-size: 14px;
+            color: #94a3b8; max-width: 520px; margin: 0 0 16px;
+        }
+        #loading-placeholder nav ul {
+            list-style: none; padding: 0; margin: 0;
+            display: flex; gap: 16px; flex-wrap: wrap; justify-content: center;
+        }
+        #loading-placeholder nav a {
+            font-family: 'Cairo', sans-serif; font-size: 13px;
+            color: #38bdf8; text-decoration: none;
         }
     </style>
 
@@ -76,10 +164,36 @@
 <body>
     <div id="app">
         <div id="loading-placeholder">
-            <img src="_content/NMU.Platform.Components/logo.png" alt="NMU-CE &amp; AIE" />
-            <span>NMU-CE &amp; AIE</span>
+            <img src="_content/NMU.Platform.Components/logo.png" alt="NMU-CE &amp; AIE logo" />
+            <h1>NMU-CE &amp; AIE</h1>
+            <p>منصة مذاكرة لطلاب هندسة الحاسوب (CE) وهندسة الذكاء الاصطناعي (AIE): محاضرات وملفات PDF، فيديوهات شرح، بنك أسئلة وكويزات تفاعلية، ومعمل افتراضي.</p>
+            <nav aria-label="NMU-CE &amp; AIE sections">
+                <ul>
+                    <li><a href="/materials">Study Materials</a></li>
+                    <li><a href="/videos">Videos</a></li>
+                    <li><a href="/quizzes">Quizzes &amp; Bank</a></li>
+                    <li><a href="/laboratory">Virtual Lab</a></li>
+                    <li><a href="/youtube">YouTube</a></li>
+                    <li><a href="/feedback">Feedback</a></li>
+                </ul>
+            </nav>
         </div>
     </div>
+
+    <noscript>
+        <div style="max-width:640px;margin:40px auto;padding:24px;font-family:sans-serif;text-align:center;">
+            <h1>NMU-CE &amp; AIE</h1>
+            <p>منصة مذاكرة لطلاب هندسة الحاسوب (CE) وهندسة الذكاء الاصطناعي (AIE): محاضرات وملفات PDF، فيديوهات شرح، بنك أسئلة وكويزات تفاعلية، ومعمل افتراضي. فعّل JavaScript في المتصفح لتشغيل المنصة.</p>
+            <ul style="list-style:none;padding:0;">
+                <li><a href="/materials">Study Materials</a></li>
+                <li><a href="/videos">Videos</a></li>
+                <li><a href="/quizzes">Quizzes &amp; Bank</a></li>
+                <li><a href="/laboratory">Virtual Lab</a></li>
+                <li><a href="/youtube">YouTube</a></li>
+                <li><a href="/feedback">Feedback</a></li>
+            </ul>
+        </div>
+    </noscript>
 
     <script src="_content/NMU.Platform.Components/lib/pako/pako.min.js"></script>
     <script src="_content/NMU.Platform.Components/lib/d3/d3.min.js"></script>
@@ -89,7 +203,7 @@
     <script src="_content/NMU.Platform.Components/lib/prism/prism.min.js"></script>
     <script src="_content/NMU.Platform.Components/lib/prism/plugins/line-numbers/prism-line-numbers.min.js"></script>
     <script src="_content/NMU.Platform.Components/lib/prism/components/prism-csharp.min.js"></script>
-    <script src="_content/NMU.Platform.Components/js/app.js?v=20260810-2"></script>
+    <script src="_content/NMU.Platform.Components/js/app.js?v=20261010-1"></script>
     <script src="_content/NMU.Platform.Components/js/videoPlayer.js"></script>
     <script src="_content/NMU.Platform.Components/js/youtubePlayer.js"></script>
     <script src="_content/NMU.Platform.Components/js/quiz-interop.js"></script>

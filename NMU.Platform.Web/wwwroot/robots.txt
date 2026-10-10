@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Interactive / thin-content app screens: keep them out of the index
+Disallow: /*/viewer
+Disallow: /*/player
+Disallow: /*/play
+Disallow: /*/result
+Disallow: /*?*
+
+Sitemap: https://www.nmu-ce.giize.com/sitemap.xml

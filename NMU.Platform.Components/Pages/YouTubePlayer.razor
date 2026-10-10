@@ -4,6 +4,8 @@
 @inject IJSRuntime JS
 @implements IDisposable
 
+<SeoHead Title="YouTube Player | NMU-CE & AIE" Description="مشغل شروحات يوتيوب على منصة NMU-CE & AIE." Path="@($"/youtube/{Channel}/player")" NoIndex />
+
 @* Same look & controls as the regular video player (vp-* design system).
    The engine is still the chromeless YouTube IFrame API: no YouTube UI of
    any kind is touchable — only OUR controls below. *@

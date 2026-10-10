@@ -6,6 +6,8 @@
 @inject NavigationManager Navigation
 @inject YouTubeService YouTubeService
 
+<SeoHead Title="YouTube Explanations | NMU-CE & AIE" Description="شروحات يوتيوب مختارة لمواد هندسة الحاسوب والذكاء الاصطناعي منظمة حسب القناة والمادة." Path="/youtube" />
+
 @if (_loading)
 {
     <div class="loading-state">
@@ -40,7 +42,7 @@ else
             {
                 var c = ch;
                 <div class="yt-channel-card" @onclick="() => OpenChannel(c)">
-                    <img src="@c.AvatarUrl" class="yt-avatar" loading="lazy" onerror="nmuFunctions.ytImgFallback(this)" />
+                    <img src="@c.AvatarUrl" class="yt-avatar" loading="lazy" alt="@c.ChannelName" onerror="nmuFunctions.ytImgFallback(this)" />
                     <div class="yt-channel-name">@c.ChannelName</div>
                     <div class="yt-channel-meta">@c.Subject</div>
                     <div class="yt-count-pill">

@@ -1,0 +1,40 @@
+@using Microsoft.AspNetCore.Components.Web
+
+<PageTitle>@Title</PageTitle>
+<HeadContent>
+    <meta name="description" content="@Description" />
+    @if (NoIndex)
+    {
+        <meta name="robots" content="noindex, nofollow" />
+    }
+    <link rel="canonical" href="@CanonicalUrl" />
+    <meta property="og:type" content="@Type" />
+    <meta property="og:site_name" content="NMU-CE &amp; AIE" />
+    <meta property="og:title" content="@Title" />
+    <meta property="og:description" content="@Description" />
+    <meta property="og:url" content="@CanonicalUrl" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="@Title" />
+    <meta name="twitter:description" content="@Description" />
+</HeadContent>
+
+@code {
+    private const string SiteUrl = "https://www.nmu-ce.giize.com";
+
+    /// <summary>Full document title, e.g. "Study Materials | NMU-CE &amp; AIE".</summary>
+    [Parameter, EditorRequired] public string Title { get; set; } = "NMU-CE & AIE";
+
+    /// <summary>Page-specific meta description.</summary>
+    [Parameter] public string Description { get; set; } = "NMU-CE & AIE — منصة مذاكرة لطلاب هندسة الحاسوب (CE) وهندسة الذكاء الاصطناعي (AIE): محاضرات وملفات PDF، فيديوهات شرح، بنك أسئلة وكويزات تفاعلية، ومعمل افتراضي.";
+
+    /// <summary>Canonical path, e.g. "/materials". Absolute canonical URL is built from it.</summary>
+    [Parameter] public string Path { get; set; } = "/";
+
+    /// <summary>Viewer / player / result screens: keep them out of the search index.</summary>
+    [Parameter] public bool NoIndex { get; set; }
+
+    /// <summary>Open Graph type, defaults to "website".</summary>
+    [Parameter] public string Type { get; set; } = "website";
+
+    private string CanonicalUrl => SiteUrl + Path;
+}

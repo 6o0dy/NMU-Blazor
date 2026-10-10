@@ -7,6 +7,8 @@
 @inject IJSRuntime JS
 @inject YouTubeService YouTubeService
 
+<SeoHead Title="YouTube Channel Videos | NMU-CE & AIE" Description="فيديوهات شرح يوتيوب مختارة ومنظمة حسب القناة والمادة على منصة NMU-CE & AIE." Path="@($"/youtube/{Channel}")" />
+
 @if (_loading)
 {
     <div class="loading-state">
@@ -34,7 +36,7 @@ else
         {
             var v = vid;
             <div class="video-card" @onclick="() => PlayVideo(v)">
-                <img src="@v.Img" class="video-thumb" loading="lazy" onerror="nmuFunctions.ytImgFallback(this)" />
+                <img src="@v.Img" class="video-thumb" loading="lazy" alt="@v.Title" onerror="nmuFunctions.ytImgFallback(this)" />
                 <div class="video-info">
                     <div class="video-title" title="@v.Title">@v.Title</div>
                     <div class="video-meta">

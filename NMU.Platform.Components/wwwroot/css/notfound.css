@@ -1,0 +1,211 @@
+/* 404 — Not Found screen (NMU-CE & AIE) */
+
+/* The layout wraps pages in .scroll-frame > .page-container (max 800px,
+   centered). For the 404, break the container out to the full available
+   width so the background fills edge-to-edge; the content itself stays
+   centered via .nf-page. */
+.page-container:has(> .nf-wrap) {
+    min-height: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+.nf-wrap {
+    position: relative;
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 70vh;
+    padding: 40px 16px;
+}
+
+/* Plain left/right anchoring (no viewport-unit or transform tricks) so the
+   washes always span the entire available width and fade vertically. */
+.nf-wash {
+    position: absolute;
+    left: 0;
+    right: 0;
+    pointer-events: none;
+}
+
+.nf-wash-top {
+    top: 0;
+    height: 380px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 22%, transparent), transparent);
+}
+
+.nf-wash-bottom {
+    bottom: 0;
+    height: 300px;
+    background: linear-gradient(0deg, color-mix(in srgb, #0ea5e9 15%, transparent), transparent);
+}
+
+/* Soft centered glow behind the content for depth. */
+.nf-glow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(620px, 92vw);
+    aspect-ratio: 1;
+    background: radial-gradient(circle, color-mix(in srgb, var(--primary) 13%, transparent) 0%, transparent 65%);
+    pointer-events: none;
+}
+
+.nf-page {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+    text-align: center;
+    animation: nf-enter 0.55s ease both;
+}
+
+@keyframes nf-enter {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.nf-illus {
+    width: 150px;
+    height: 150px;
+    margin: 0 auto 8px;
+    animation: nf-float 4s ease-in-out infinite;
+}
+
+@keyframes nf-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+}
+
+.nf-code {
+    margin: 0;
+    font-size: clamp(72px, 18vw, 120px);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 2px;
+    background: linear-gradient(135deg, var(--primary) 15%, #fb923c 85%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    filter: drop-shadow(0 12px 28px color-mix(in srgb, var(--primary) 30%, transparent));
+}
+
+.nf-title {
+    margin: 10px 0 6px;
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--text-primary);
+    text-wrap: balance;
+}
+
+.nf-sub {
+    margin: 0 auto 6px;
+    max-width: 420px;
+    font-size: 15px;
+    line-height: 1.9;
+    color: var(--text-secondary);
+    text-wrap: balance;
+}
+
+.nf-path-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 10px 0 2px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.nf-path-label {
+    white-space: nowrap;
+}
+
+.nf-path {
+    display: inline-block;
+    direction: ltr;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+    font-family: 'Fira Code', monospace;
+    font-size: 13px;
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    border: 1px dashed var(--primary);
+    border-radius: 8px;
+    padding: 2px 10px;
+}
+
+.nf-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 22px;
+}
+
+.nf-actions .btn-sky,
+.nf-actions .btn-outlined {
+    min-width: 150px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.nf-links {
+    margin-top: 24px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border-color, rgba(148, 163, 184, 0.25));
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.nf-links-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.nf-chip {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: var(--bg-surface-hover);
+    border: 1px solid var(--border-color, rgba(148, 163, 184, 0.25));
+    border-radius: 999px;
+    padding: 6px 16px;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.nf-chip:hover {
+    transform: translateY(-2px);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nf-page,
+    .nf-illus {
+        animation: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .nf-wrap {
+        padding: 32px 16px;
+    }
+
+    .nf-actions .btn-sky,
+    .nf-actions .btn-outlined {
+        flex: 1 1 100%;
+    }
+}

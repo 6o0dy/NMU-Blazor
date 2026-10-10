@@ -11,6 +11,8 @@
 @inject MediaCacheService MediaCache
 @inject IServiceProvider Services
 
+<SeoHead Title="Video Player | NMU-CE & AIE" Description="مشغل الفيديو على منصة NMU-CE & AIE." Path="@($"/videos/{Group}/player")" NoIndex />
+
 <div class="vp-root @(_idle ? "idle" : "")" id="vp-body"
      @onmousemove="OnActivity" @ontouchstart="OnActivity">
     <div class="vp-player-wrapper @(_isAudio ? "audio-mode" : "")" id="vp-player-wrapper"

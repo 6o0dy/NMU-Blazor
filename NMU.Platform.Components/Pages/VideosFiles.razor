@@ -11,6 +11,8 @@
 @inject IPlatformService Platform
 @inject MediaCacheService MediaCache
 
+<SeoHead Title="@($"{Group.Replace("_", " ")} Videos | NMU-CE & AIE")" Description="فيديوهات شرح المادة: تسجيلات الدكاترة وشروحات يوتيوب مع مشاهدة مباشرة وتحميل للمشاهدة أوفلاين." Path="@($"/videos/{Group}")" />
+
 @if (_loading)
 {
     <div class="loading-state">
@@ -64,7 +66,7 @@ else
                     {
                         var thumbArchive = !string.IsNullOrEmpty(f.ArchiveId) ? f.ArchiveId : NMU.Platform.Components.Services.ArchiveCatalog.GetArchiveId(_studentLevel, _studentSemester);
                         var thumbUrl = thumbArchive != null ? NMU.Platform.Components.Services.ArchiveCatalog.GetDownloadUrl(thumbArchive, f.ThumbName) : f.ThumbName;
-                        <img src="@thumbUrl" class="video-thumb" loading="lazy" />
+                        <img src="@thumbUrl" class="video-thumb" loading="lazy" alt="@f.DisplayName" />
                     }
                     else
                     {
