@@ -9,4 +9,3 @@ Disallow: /*/result
 Disallow: /*?*
 
 Sitemap: https://www.nmu-ce.giize.com/sitemap.xml
-Agentmap: https://www.nmu-ce.giize.com/.well-known/ai-catalog.json
