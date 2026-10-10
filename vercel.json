@@ -27,6 +27,13 @@
       ]
     },
     {
+      "source": "/.well-known/ai-catalog.json",
+      "headers": [
+        { "key": "Content-Type", "value": "application/ai-catalog+json" },
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
+    },
+    {
       "source": "/logo.png",
       "headers": [
         { "key": "Content-Type", "value": "image/png" },

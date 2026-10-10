@@ -12,6 +12,7 @@
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="googlebot" content="index, follow" />
     <link rel="canonical" href="https://www.nmu-ce.giize.com/" />
+    <link rel="ai-catalog" href="/.well-known/ai-catalog.json" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
@@ -1622,16 +1623,37 @@ input[type="text"], select {
             }
             window.MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] }, svg: { fontCache: 'global' } };
             // MathJax (600KB+) is only needed inside quiz/material pages, so fetch it
-            // after the initial load instead of racing the app boot for bandwidth.
-            // Quiz pages re-typeset on every render, so even a fast navigation
-            // right after boot heals itself once the library arrives.
-            var loadMathJax = function () { ls('https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js'); };
-            var scheduleMathJax = function () {
-                if ('requestIdleCallback' in window) { requestIdleCallback(loadMathJax, { timeout: 5000 }); }
-                else { setTimeout(loadMathJax, 2500); }
+            // after the app has booted (placeholder replaced) instead of racing
+            // the WebAssembly download for bandwidth. Quiz pages re-typeset on
+            // every render, so even a fast first navigation heals itself.
+            var mathJaxLoaded = false;
+            var loadMathJax = function () {
+                if (mathJaxLoaded) return;
+                mathJaxLoaded = true;
+                ls('https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js');
             };
-            if (document.readyState === 'complete') { scheduleMathJax(); }
-            else { window.addEventListener('load', scheduleMathJax); }
+            var scheduleMathJax = function () {
+                if ('requestIdleCallback' in window) { requestIdleCallback(loadMathJax, { timeout: 8000 }); }
+                else { setTimeout(loadMathJax, 3000); }
+            };
+            try {
+                var mathJaxBooted = false;
+                var mathJaxObs = null;
+                var onAppBooted = function () {
+                    if (mathJaxBooted) return;
+                    mathJaxBooted = true;
+                    try { if (mathJaxObs) mathJaxObs.disconnect(); } catch (e) {}
+                    scheduleMathJax();
+                };
+                var appRoot = document.getElementById('app');
+                if (appRoot) {
+                    mathJaxObs = new MutationObserver(function () {
+                        if (!document.getElementById('loading-placeholder')) { onAppBooted(); }
+                    });
+                    mathJaxObs.observe(appRoot, { childList: true, subtree: true });
+                }
+                setTimeout(onAppBooted, 15000);
+            } catch (e) { scheduleMathJax(); }
         })();
     </script>
 </head>

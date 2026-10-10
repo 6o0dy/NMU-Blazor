@@ -1,0 +1,95 @@
+{
+  "specVersion": "1.0",
+  "host": {
+    "displayName": "NMU-CE & AIE",
+    "identifier": "did:web:www.nmu-ce.giize.com",
+    "documentationUrl": "https://www.nmu-ce.giize.com/",
+    "logoUrl": "https://www.nmu-ce.giize.com/logo.png"
+  },
+  "entries": [
+    {
+      "identifier": "urn:air:nmu-ce.giize.com:site:materials",
+      "displayName": "Study Materials",
+      "type": "text/html",
+      "url": "https://www.nmu-ce.giize.com/materials",
+      "description": "Lectures and PDF study materials for Computer Engineering and AI Engineering subjects, organized by level and semester.",
+      "tags": ["study", "lectures", "pdf", "materials"],
+      "representativeQueries": [
+        "Where can I find lecture PDFs for my subjects?",
+        "Show study materials for Level 2 Semester 1"
+      ],
+      "version": "1.0",
+      "updatedAt": "2026-10-10T00:00:00Z"
+    },
+    {
+      "identifier": "urn:air:nmu-ce.giize.com:site:videos",
+      "displayName": "Videos",
+      "type": "text/html",
+      "url": "https://www.nmu-ce.giize.com/videos",
+      "description": "Video explanations for CE and AIE subjects: lecturer recordings and curated YouTube explanations in one place.",
+      "tags": ["videos", "explanations", "lectures"],
+      "representativeQueries": [
+        "Where are the video explanations for my subjects?",
+        "Find doctor recordings and YouTube explanations"
+      ],
+      "version": "1.0",
+      "updatedAt": "2026-10-10T00:00:00Z"
+    },
+    {
+      "identifier": "urn:air:nmu-ce.giize.com:site:quizzes",
+      "displayName": "Quizzes & Question Bank",
+      "type": "text/html",
+      "url": "https://www.nmu-ce.giize.com/quizzes",
+      "description": "Interactive quizzes and a question bank with answer explanations and a timed real-exam mode.",
+      "tags": ["quizzes", "exams", "practice", "questions"],
+      "representativeQueries": [
+        "How can I practice quizzes with answer explanations?",
+        "Start a timed exam-mode quiz"
+      ],
+      "version": "1.0",
+      "updatedAt": "2026-10-10T00:00:00Z"
+    },
+    {
+      "identifier": "urn:air:nmu-ce.giize.com:site:laboratory",
+      "displayName": "Virtual Lab",
+      "type": "text/html",
+      "url": "https://www.nmu-ce.giize.com/laboratory",
+      "description": "Interactive virtual laboratory with live simulations of electricity and circuits experiments.",
+      "tags": ["lab", "simulations", "circuits", "experiments"],
+      "representativeQueries": [
+        "Where is the virtual lab for circuits experiments?",
+        "Run an interactive electricity simulation"
+      ],
+      "version": "1.0",
+      "updatedAt": "2026-10-10T00:00:00Z"
+    },
+    {
+      "identifier": "urn:air:nmu-ce.giize.com:site:youtube",
+      "displayName": "YouTube Explanations",
+      "type": "text/html",
+      "url": "https://www.nmu-ce.giize.com/youtube",
+      "description": "Curated YouTube explanation channels for CE and AIE subjects, organized by channel and subject.",
+      "tags": ["youtube", "channels", "explanations"],
+      "representativeQueries": [
+        "Which YouTube channels explain my subjects?",
+        "Browse curated YouTube explanations by subject"
+      ],
+      "version": "1.0",
+      "updatedAt": "2026-10-10T00:00:00Z"
+    },
+    {
+      "identifier": "urn:air:nmu-ce.giize.com:site:feedback",
+      "displayName": "Feedback",
+      "type": "text/html",
+      "url": "https://www.nmu-ce.giize.com/feedback",
+      "description": "Feedback and suggestion form for improving the NMU-CE & AIE study platform.",
+      "tags": ["feedback", "contact", "suggestions"],
+      "representativeQueries": [
+        "How can I send feedback about the platform?",
+        "Where is the suggestion form?"
+      ],
+      "version": "1.0",
+      "updatedAt": "2026-10-10T00:00:00Z"
+    }
+  ]
+}
