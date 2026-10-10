@@ -1,0 +1,19 @@
+# NMU-CE & AIE
+
+> Study platform for Computer Engineering (CE) and Artificial Intelligence
+> Engineering (AIE) students: lectures and PDF materials, video explanations,
+> interactive quizzes with a question bank, and a virtual lab.
+
+The app is a client-rendered single-page application and requires JavaScript.
+Main sections (all crawlable entry points, content loads after boot):
+
+- [Home](https://www.nmu-ce.giize.com/): study hub and student profile.
+- [Study Materials](https://www.nmu-ce.giize.com/materials): lectures and PDF files per level and semester.
+- [Videos](https://www.nmu-ce.giize.com/videos): lecturer recordings and curated YouTube explanations.
+- [Quizzes & Question Bank](https://www.nmu-ce.giize.com/quizzes): practice quizzes with answer explanations and timed exam mode.
+- [Virtual Lab](https://www.nmu-ce.giize.com/laboratory): interactive electricity and circuits simulations.
+- [YouTube Explanations](https://www.nmu-ce.giize.com/youtube): curated channels organized by subject.
+- [Feedback](https://www.nmu-ce.giize.com/feedback): suggestions and contact form.
+
+Machine-readable index: [sitemap.xml](https://www.nmu-ce.giize.com/sitemap.xml)
+Crawl rules: [robots.txt](https://www.nmu-ce.giize.com/robots.txt)

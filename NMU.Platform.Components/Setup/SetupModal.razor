@@ -12,7 +12,7 @@
             <div class="profile-head">
                 @if (Platform.IsDesktop)
                 {
-                    <button class="profile-close" @onclick="CloseApp">&times;</button>
+                    <button class="profile-close" @onclick="CloseApp" aria-label="إغلاق">&times;</button>
                 }
                 <div class="profile-eyebrow">Student Profile</div>
                 <h2>The Information</h2>
@@ -22,16 +22,16 @@
                 <div class="profile-section">
                     <div class="profile-section-title"><span class="step-num">1</span> Personal</div>
                     <div class="field-group">
-                        <label>Your Name</label>
-                        <input type="text" placeholder="Enter Your Name Here..." @bind="studentName" />
+                        <label for="setup-name">Your Name</label>
+                        <input type="text" id="setup-name" placeholder="Enter Your Name Here..." @bind="studentName" />
                     </div>
                 </div>
                 <div class="profile-section">
                     <div class="profile-section-title"><span class="step-num">2</span> Academic</div>
                     <div class="profile-grid">
                         <div class="field-group">
-                            <label>Academic Level</label>
-                            <select @bind="academicLevel">
+                            <label for="setup-level">Academic Level</label>
+                            <select id="setup-level" @bind="academicLevel">
                                 <option value="Level 1">Level 1</option>
                                 <option value="Level 2">Level 2</option>
                                 <option value="Level 3">Level 3</option>
@@ -40,8 +40,8 @@
                             </select>
                         </div>
                         <div class="field-group">
-                            <label>Department</label>
-                            <select @bind="department">
+                            <label for="setup-dept">Department</label>
+                            <select id="setup-dept" @bind="department">
                                 <option value="AIE">AIE - AI Engineering</option>
                                 <option value="CE">CE - Computer Engineering</option>
                             </select>
@@ -119,7 +119,7 @@
         <div class="subject-picker-overlay" dir="ltr" lang="en" @onclick="ClosePicker">
             <div class="subject-picker-card" @onclick:stopPropagation>
                 <div class="subject-picker-header">
-                    <button class="btn-small-icon" @onclick="ClosePicker">&times;</button>
+                    <button class="btn-small-icon" @onclick="ClosePicker" aria-label="إغلاق">&times;</button>
                     <h3>Select Your Subjects
                         <button type="button" class="refresh-btn refresh-btn-small" @onclick="ForceRefreshCatalogAsync" disabled="@(_catalogLoading || _catalogUpdating)" title="Check for newly uploaded subjects">
                             <i class="fa-solid fa-rotate-right @(_catalogUpdating ? "fa-spin" : "")"></i>

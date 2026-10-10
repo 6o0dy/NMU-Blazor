@@ -171,6 +171,19 @@ window.nmuFunctions = {
         window.location.replace(homeUrl || '/');
     },
 
+    // 404 "back" button: go to the previous page when there is one,
+    // otherwise fall back to the given home URL (direct visits / new tabs
+    // have no app history, and history.back() would do nothing there).
+    goBackOrHome: function (homeUrl) {
+        try {
+            if (window.history && window.history.length > 1) {
+                window.history.back();
+                return;
+            }
+        } catch (e) { }
+        window.location.replace(homeUrl || '/');
+    },
+
     // Web app update: wipe the browser-cached app files (CacheStorage +
     // service workers) and load a fresh copy. The ?v= query forces a fresh
     // index.html from the host even when it was cached. User data in
@@ -478,9 +491,25 @@ window.nmuFunctions = {
 
     _pdfJsReady: null,
 
+    // PDF.js is heavy (~300KB) and only needed in the PDF viewer, so it is
+    // fetched on first use instead of blocking the initial page load.
+    // In native apps the library is preloaded globally, so this resolves
+    // instantly there and behavior is unchanged.
     _ensurePdfJs: function () {
         if (window.pdfjsLib) return Promise.resolve();
-        return Promise.reject();
+        if (this._pdfJsReady) return this._pdfJsReady;
+        var self = this;
+        this._pdfJsReady = new Promise(function (resolve, reject) {
+            var s = document.createElement('script');
+            s.src = '_content/NMU.Platform.Components/lib/pdf.min.js';
+            s.onload = function () {
+                try { pdfjsLib.GlobalWorkerOptions.workerSrc = null; } catch (e) { }
+                resolve();
+            };
+            s.onerror = function () { self._pdfJsReady = null; reject(new Error('pdf.js load failed')); };
+            document.head.appendChild(s);
+        });
+        return this._pdfJsReady;
     },
 
     renderPdfWithPdfJs: function (base64) {

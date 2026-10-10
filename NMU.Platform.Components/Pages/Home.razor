@@ -71,7 +71,7 @@
         <div class="profile-overlay" dir="ltr" id="manage-modal">
             <div class="profile-card">
                 <div class="profile-head">
-                    <button class="profile-close" @onclick="CloseManageModal">&times;</button>
+                    <button class="profile-close" @onclick="CloseManageModal" aria-label="إغلاق">&times;</button>
                     <div class="profile-eyebrow">Student Profile</div>
                     <h2>Your Information</h2>
                     <p class="sub">@(isEditing ? "Update your data below." : "View your saved data.")</p>
@@ -80,7 +80,7 @@
                     <div class="profile-section">
                         <div class="profile-section-title"><span class="step-num">1</span> Personal</div>
                         <div class="field-group">
-                            <label>Your Name</label>
+                            <label for="edit-name">Your Name</label>
                             <input type="text" id="edit-name" @bind="editName" disabled="@(!isEditing)" placeholder="Enter name" />
                         </div>
                     </div>
@@ -89,7 +89,7 @@
                         <div class="profile-section-title"><span class="step-num">2</span> Academic</div>
                         <div class="profile-grid">
                             <div class="field-group">
-                                <label>Academic Level</label>
+                                <label for="edit-year">Academic Level</label>
                                 <select id="edit-year" @bind="editYear" disabled="@(!isEditing)">
                                     <option value="Level 1">Level 1</option>
                                     <option value="Level 2">Level 2</option>
@@ -100,7 +100,7 @@
                             </div>
 
                             <div class="field-group">
-                                <label>Department</label>
+                                <label for="edit-dept">Department</label>
                                 <select id="edit-dept" @bind="editDept" disabled="@(!isEditing)">
                                     <option value="AIE">AIE - AI Engineering</option>
                                     <option value="CE">CE - Computer Engineering</option>
@@ -190,7 +190,7 @@
         <div class="subject-picker-overlay" dir="ltr" lang="en" @onclick="ClosePicker">
             <div class="subject-picker-card" @onclick:stopPropagation>
                 <div class="subject-picker-header">
-                    <button class="btn-small-icon" @onclick="ClosePicker">&times;</button>
+                    <button class="btn-small-icon" @onclick="ClosePicker" aria-label="إغلاق">&times;</button>
                     <h3>Select Your Subjects
                         <button type="button" class="refresh-btn refresh-btn-small" @onclick="ForceRefreshCatalogAsync" disabled="@(catalogLoading || catalogUpdating)" title="Check for newly uploaded subjects">
                             <i class="fa-solid fa-rotate-right @(catalogUpdating ? "fa-spin" : "")"></i>
@@ -269,7 +269,7 @@
         <div class="profile-overlay">
             <div class="profile-card" style="max-width:400px;">
                 <div class="profile-head">
-                    <button class="profile-close" @onclick="CloseCacheModal">&times;</button>
+                    <button class="profile-close" @onclick="CloseCacheModal" aria-label="إغلاق">&times;</button>
                     <div class="profile-eyebrow">Storage</div>
                     <h2>🗑️ Clear Cache</h2>
                     <p class="sub">Choose what to delete</p>

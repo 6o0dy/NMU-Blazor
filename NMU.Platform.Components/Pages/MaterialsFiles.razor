@@ -132,7 +132,7 @@ else
     <div class="subject-picker-overlay" @onclick="CloseLecturerDialog">
         <div class="subject-picker-card" @onclick:stopPropagation>
             <div class="subject-picker-header">
-                <button class="btn-small-icon" @onclick="CloseLecturerDialog">&times;</button>
+                <button class="btn-small-icon" @onclick="CloseLecturerDialog" aria-label="إغلاق">&times;</button>
                 <h3>Select Lecturer</h3>
             </div>
             <div class="subject-picker-body">
@@ -160,7 +160,7 @@ else
     <div class="subject-picker-overlay" @onclick="CloseSubFolderDialog">
         <div class="subject-picker-card" @onclick:stopPropagation>
             <div class="subject-picker-header">
-                <button class="btn-small-icon" @onclick="CloseSubFolderDialog">&times;</button>
+                <button class="btn-small-icon" @onclick="CloseSubFolderDialog" aria-label="إغلاق">&times;</button>
                 <h3>Select @(_currentFolder.ToUpper()) Content</h3>
             </div>
             <div class="subject-picker-body">

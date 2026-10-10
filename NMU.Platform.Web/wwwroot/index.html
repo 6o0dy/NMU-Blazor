@@ -19,7 +19,7 @@
     <meta property="og:title" content="NMU-CE &amp; AIE | منصة مذاكرة هندسة الحاسوب والذكاء الاصطناعي" />
     <meta property="og:description" content="محاضرات وملفات PDF، فيديوهات شرح، بنك أسئلة وكويزات تفاعلية، ومعمل افتراضي لطلاب هندسة الحاسوب CE وهندسة الذكاء الاصطناعي AIE." />
     <meta property="og:url" content="https://www.nmu-ce.giize.com/" />
-    <meta property="og:image" content="https://www.nmu-ce.giize.com/_content/NMU.Platform.Components/logo.png" />
+    <meta property="og:image" content="https://www.nmu-ce.giize.com/logo.png" />
     <meta property="og:locale" content="ar_EG" />
     <meta property="og:locale:alternate" content="en_US" />
 
@@ -27,7 +27,7 @@
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="NMU-CE &amp; AIE | منصة مذاكرة هندسة الحاسوب والذكاء الاصطناعي" />
     <meta name="twitter:description" content="محاضرات وملفات PDF، فيديوهات شرح، بنك أسئلة وكويزات تفاعلية، ومعمل افتراضي لطلاب CE و AIE." />
-    <meta name="twitter:image" content="https://www.nmu-ce.giize.com/_content/NMU.Platform.Components/logo.png" />
+    <meta name="twitter:image" content="https://www.nmu-ce.giize.com/logo.png" />
 
     <!-- Structured data: WebSite + Organization + WebApplication + sections -->
     <script type="application/ld+json">
@@ -45,7 +45,7 @@
                 "@type": "Organization",
                 "name": "NMU-CE & AIE",
                 "url": "https://www.nmu-ce.giize.com/",
-                "logo": "https://www.nmu-ce.giize.com/_content/NMU.Platform.Components/logo.png"
+                "logo": "https://www.nmu-ce.giize.com/logo.png"
             },
             {
                 "@type": "WebApplication",
@@ -81,6 +81,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="preconnect" href="https://cdn.jsdelivr.net" />
     <link rel="dns-prefetch" href="https://archive.org" />
+    <link rel="preload" as="image" href="logo.png" fetchpriority="high" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="_content/NMU.Platform.Components/lib/fontawesome/webfonts/fa-solid-900.woff2" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="_content/NMU.Platform.Components/lib/fontawesome/webfonts/fa-brands-400.woff2" />
     <script>
         try { if (localStorage.getItem('nmu_theme') !== 'light') { document.documentElement.setAttribute('data-theme', 'dark'); var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', '#0a1120'); } } catch (e) {}
     </script>
@@ -93,7 +96,14 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="_content/NMU.Platform.Components/lib/fontawesome/css/all.min.css" />
+    <link rel="preload" as="style" href="_content/NMU.Platform.Components/lib/fontawesome/css/all.min.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="_content/NMU.Platform.Components/lib/fontawesome/css/all.min.css" /></noscript>
+    <style>
+        /* Swap in early so icon text never blocks rendering with invisible text. */
+        @font-face { font-family: "Font Awesome 6 Brands"; font-style: normal; font-weight: 400; font-display: swap; src: url("_content/NMU.Platform.Components/lib/fontawesome/webfonts/fa-brands-400.woff2") format("woff2"); }
+        @font-face { font-family: "Font Awesome 6 Free"; font-style: normal; font-weight: 400; font-display: swap; src: url("_content/NMU.Platform.Components/lib/fontawesome/webfonts/fa-regular-400.woff2") format("woff2"); }
+        @font-face { font-family: "Font Awesome 6 Free"; font-style: normal; font-weight: 900; font-display: swap; src: url("_content/NMU.Platform.Components/lib/fontawesome/webfonts/fa-solid-900.woff2") format("woff2"); }
+    </style>
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/theme.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/app.css" />
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/loading.css" />
@@ -102,24 +112,51 @@
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/shell.css" />
 
     <link rel="stylesheet" href="_content/NMU.Platform.Components/css/home.css" />
-    <link rel="stylesheet" href="_content/NMU.Platform.Components/css/materials.css" />
-    <link rel="stylesheet" href="_content/NMU.Platform.Components/css/files.css" />
-    <link rel="stylesheet" href="_content/NMU.Platform.Components/css/PDFviewer.css" />
-    <link rel="stylesheet" href="_content/NMU.Platform.Components/css/videos.css" />
-    <link rel="stylesheet" href="_content/NMU.Platform.Components/css/update.css" />
-    <link rel="stylesheet" href="_content/NMU.Platform.Components/css/videoplayer.css" />
-    <link rel="stylesheet" href="_content/NMU.Platform.Components/css/feedback.css" />
-    <link rel="stylesheet" href="_content/NMU.Platform.Components/css/laboratory.css" />
-    <link rel="stylesheet" href="_content/NMU.Platform.Components/css/youtube.css" />
-    <link rel="stylesheet" href="_content/NMU.Platform.Components/css/quiz.css" />
-    <link rel="stylesheet" href="_content/NMU.Platform.Components/css/quiz-blazor.css" />
-    <link rel="stylesheet" href="_content/NMU.Platform.Components/css/welcome.css" />
-    <link rel="stylesheet" href="_content/NMU.Platform.Components/css/notfound.css" />
-    <link rel="stylesheet" href="_content/NMU.Platform.Components/lib/prism/themes/prism-tomorrow.min.css" />
-    <link rel="stylesheet" href="_content/NMU.Platform.Components/lib/prism/plugins/line-numbers/prism-line-numbers.min.css" />
-    <link rel="stylesheet" href="NMU.Platform.Web.styles.css" />
+    <link rel="preload" as="style" href="_content/NMU.Platform.Components/css/materials.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="_content/NMU.Platform.Components/css/materials.css" /></noscript>
+    <link rel="preload" as="style" href="_content/NMU.Platform.Components/css/files.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="_content/NMU.Platform.Components/css/files.css" /></noscript>
+    <link rel="preload" as="style" href="_content/NMU.Platform.Components/css/PDFviewer.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="_content/NMU.Platform.Components/css/PDFviewer.css" /></noscript>
+    <link rel="preload" as="style" href="_content/NMU.Platform.Components/css/videos.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="_content/NMU.Platform.Components/css/videos.css" /></noscript>
+    <link rel="preload" as="style" href="_content/NMU.Platform.Components/css/update.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="_content/NMU.Platform.Components/css/update.css" /></noscript>
+    <link rel="preload" as="style" href="_content/NMU.Platform.Components/css/videoplayer.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="_content/NMU.Platform.Components/css/videoplayer.css" /></noscript>
+    <link rel="preload" as="style" href="_content/NMU.Platform.Components/css/feedback.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="_content/NMU.Platform.Components/css/feedback.css" /></noscript>
+    <link rel="preload" as="style" href="_content/NMU.Platform.Components/css/laboratory.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="_content/NMU.Platform.Components/css/laboratory.css" /></noscript>
+    <link rel="preload" as="style" href="_content/NMU.Platform.Components/css/youtube.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="_content/NMU.Platform.Components/css/youtube.css" /></noscript>
+    <link rel="preload" as="style" href="_content/NMU.Platform.Components/css/quiz.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="_content/NMU.Platform.Components/css/quiz.css" /></noscript>
+    <link rel="preload" as="style" href="_content/NMU.Platform.Components/css/quiz-blazor.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="_content/NMU.Platform.Components/css/quiz-blazor.css" /></noscript>
+    <link rel="preload" as="style" href="_content/NMU.Platform.Components/css/welcome.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="_content/NMU.Platform.Components/css/welcome.css" /></noscript>
+    <link rel="preload" as="style" href="_content/NMU.Platform.Components/css/notfound.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="_content/NMU.Platform.Components/css/notfound.css" /></noscript>
+    <link rel="preload" as="style" href="_content/NMU.Platform.Components/lib/prism/themes/prism-tomorrow.min.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="_content/NMU.Platform.Components/lib/prism/themes/prism-tomorrow.min.css" /></noscript>
+    <link rel="preload" as="style" href="_content/NMU.Platform.Components/lib/prism/plugins/line-numbers/prism-line-numbers.min.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="_content/NMU.Platform.Components/lib/prism/plugins/line-numbers/prism-line-numbers.min.css" /></noscript>
+    <link rel="preload" as="style" href="NMU.Platform.Web.styles.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="NMU.Platform.Web.styles.css" /></noscript>
     <link rel="icon" href="favicon.ico" />
     <link rel="apple-touch-icon" href="favicon.ico" />
+
+    <style>
+        /* Web-only contrast fix: deep-brand button background in dark mode so
+           white text keeps a 4.5:1+ ratio (native apps keep their own styling). */
+        [data-theme="dark"] .save-btn {
+            background: #931a23;
+        }
+        [data-theme="dark"] .save-btn:hover {
+            background: #7a1520;
+        }
+    </style>
 
     <style>
         #loading-placeholder {
@@ -164,7 +201,7 @@
 <body>
     <div id="app">
         <div id="loading-placeholder">
-            <img src="_content/NMU.Platform.Components/logo.png" alt="NMU-CE &amp; AIE logo" />
+            <img src="logo.png" alt="NMU-CE &amp; AIE logo" width="80" height="80" fetchpriority="high" decoding="async" />
             <h1>NMU-CE &amp; AIE</h1>
             <p>منصة مذاكرة لطلاب هندسة الحاسوب (CE) وهندسة الذكاء الاصطناعي (AIE): محاضرات وملفات PDF، فيديوهات شرح، بنك أسئلة وكويزات تفاعلية، ومعمل افتراضي.</p>
             <nav aria-label="NMU-CE &amp; AIE sections">
@@ -196,14 +233,7 @@
     </noscript>
 
     <script src="_content/NMU.Platform.Components/lib/pako/pako.min.js"></script>
-    <script src="_content/NMU.Platform.Components/lib/d3/d3.min.js"></script>
-    <script src="_content/NMU.Platform.Components/lib/function-plot/function-plot.min.js"></script>
-    <script src="_content/NMU.Platform.Components/lib/pdf.min.js"></script>
-    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = null;</script>
-    <script src="_content/NMU.Platform.Components/lib/prism/prism.min.js"></script>
-    <script src="_content/NMU.Platform.Components/lib/prism/plugins/line-numbers/prism-line-numbers.min.js"></script>
-    <script src="_content/NMU.Platform.Components/lib/prism/components/prism-csharp.min.js"></script>
-    <script src="_content/NMU.Platform.Components/js/app.js?v=20261010-1"></script>
+    <script src="_content/NMU.Platform.Components/js/app.js?v=20261010-2"></script>
     <script src="_content/NMU.Platform.Components/js/videoPlayer.js"></script>
     <script src="_content/NMU.Platform.Components/js/youtubePlayer.js"></script>
     <script src="_content/NMU.Platform.Components/js/quiz-interop.js"></script>

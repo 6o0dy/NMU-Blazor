@@ -1,4 +1,47 @@
 window.quizInterop = {
+    _libBase: '_content/NMU.Platform.Components/lib/',
+    _scriptCache: {},
+
+    // Heavy third-party libs (d3, function-plot, Prism) are fetched on first
+    // use instead of blocking the initial page load. In native apps they are
+    // preloaded globally, so these guards resolve instantly there.
+    _loadScript: function (src) {
+        var cache = window.quizInterop._scriptCache;
+        if (cache[src]) return cache[src];
+        var p = new Promise(function (resolve, reject) {
+            var s = document.createElement('script');
+            s.src = src;
+            s.onload = function () { resolve(); };
+            s.onerror = function () { delete cache[src]; reject(new Error('Script load failed: ' + src)); };
+            document.head.appendChild(s);
+        });
+        cache[src] = p;
+        return p;
+    },
+
+    _ensurePrism: function () {
+        var self = (this && this._loadScript) ? this : window.quizInterop;
+        if (window.Prism) return Promise.resolve();
+        var b = self._libBase + 'prism/';
+        return self._loadScript(b + 'prism.min.js')
+            .then(function () { return self._loadScript(b + 'plugins/line-numbers/prism-line-numbers.min.js'); })
+            .then(function () { return self._loadScript(b + 'components/prism-csharp.min.js'); });
+    },
+
+    _ensureD3: function () {
+        var self = (this && this._loadScript) ? this : window.quizInterop;
+        if (window.d3) return Promise.resolve();
+        return self._loadScript(self._libBase + 'd3/d3.min.js');
+    },
+
+    _ensureFunctionPlot: function () {
+        var self = (this && this._loadScript) ? this : window.quizInterop;
+        return self._ensureD3().then(function () {
+            if (window.functionPlot) return;
+            return self._loadScript(self._libBase + 'function-plot/function-plot.min.js');
+        });
+    },
+
     typesetMathJax: function () {
         if (window.MathJax && window.MathJax.typesetPromise) {
             return window.MathJax.typesetPromise().catch(function () { });
@@ -20,19 +63,25 @@ window.quizInterop = {
     },
 
     highlightAllCode: function () {
-        if (window.Prism) {
+        var self = (this && this._ensurePrism) ? this : window.quizInterop;
+        return self._ensurePrism().then(function () {
             setTimeout(function () { Prism.highlightAll(); }, 50);
-        }
+        }).catch(function () { });
     },
 
     highlightCodeBlock: function (elementId) {
-        var el = document.getElementById(elementId);
-        if (el && window.Prism) {
-            setTimeout(function () { Prism.highlightElement(el); }, 50);
-        }
+        var self = (this && this._ensurePrism) ? this : window.quizInterop;
+        return self._ensurePrism().then(function () {
+            var el = document.getElementById(elementId);
+            if (el) {
+                setTimeout(function () { Prism.highlightElement(el); }, 50);
+            }
+        }).catch(function () { });
     },
 
     renderBarChart: function (graphDataJson, targetId, width) {
+        var self = (this && this._ensureD3) ? this : window.quizInterop;
+        return self._ensureD3().then(function () {
         try {
             var data = typeof graphDataJson === 'string' ? JSON.parse(graphDataJson) : graphDataJson;
             var target = '#' + targetId;
@@ -64,9 +113,12 @@ window.quizInterop = {
             svg.append("g").attr("transform", "translate(0," + chartH + ")").call(d3.svg.axis().scale(x).orient("bottom"));
             svg.append("g").call(d3.svg.axis().scale(y).orient("left").ticks(5));
         } catch (e) { console.error('Bar chart error:', e); }
+        }).catch(function () { });
     },
 
     renderHistogram: function (graphDataJson, targetId, width) {
+        var self = (this && this._ensureD3) ? this : window.quizInterop;
+        return self._ensureD3().then(function () {
         try {
             var data = typeof graphDataJson === 'string' ? JSON.parse(graphDataJson) : graphDataJson;
             var target = '#' + targetId;
@@ -98,9 +150,12 @@ window.quizInterop = {
             svg.append("g").attr("transform", "translate(0," + chartH + ")").call(d3.svg.axis().scale(x).orient("bottom"));
             svg.append("g").call(d3.svg.axis().scale(y).orient("left").ticks(5));
         } catch (e) { console.error('Histogram error:', e); }
+        }).catch(function () { });
     },
 
     renderPieChart: function (graphDataJson, targetId, width) {
+        var self = (this && this._ensureD3) ? this : window.quizInterop;
+        return self._ensureD3().then(function () {
         try {
             var data = typeof graphDataJson === 'string' ? JSON.parse(graphDataJson) : graphDataJson;
             var target = '#' + targetId;
@@ -125,9 +180,12 @@ window.quizInterop = {
                 .attr("text-anchor", "middle").text(function (d) { return d.data.label; })
                 .style("fill", "#fff").style("font-size", "14px").style("font-weight", "bold");
         } catch (e) { console.error('Pie chart error:', e); }
+        }).catch(function () { });
     },
 
     renderLineChart: function (graphDataJson, targetId, width) {
+        var self = (this && this._ensureD3) ? this : window.quizInterop;
+        return self._ensureD3().then(function () {
         try {
             var data = typeof graphDataJson === 'string' ? JSON.parse(graphDataJson) : graphDataJson;
             var target = '#' + targetId;
@@ -157,9 +215,12 @@ window.quizInterop = {
                 .attr("cy", function (d) { return y(d.value); })
                 .attr("r", 5).style("fill", "var(--accent)");
         } catch (e) { console.error('Line chart error:', e); }
+        }).catch(function () { });
     },
 
     renderFunctionPlot: function (fn, targetId, width) {
+        var self = (this && this._ensureFunctionPlot) ? this : window.quizInterop;
+        return self._ensureFunctionPlot().then(function () {
         try {
             var target = '#' + targetId;
             var container = document.querySelector(target);
@@ -174,6 +235,7 @@ window.quizInterop = {
                 data: [{ fn: fn, color: 'var(--primary)' }]
             });
         } catch (e) { console.error('Function plot error:', e); }
+        }).catch(function () { });
     },
 
     renderCircuitDiagram: function (latexCode, targetId) {

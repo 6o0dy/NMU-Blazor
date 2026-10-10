@@ -1,3 +1,5 @@
+@inject IPlatformService Platform
+
 <div id="loading-screen" style="display: @(IsVisible ? "flex" : "none")">
     <div class="loader-container">
         <div class="loader-ring"></div>
@@ -10,7 +12,7 @@
             </circle>
         </svg>
         <div class="loader-logo">
-            <img src="_content/NMU.Platform.Components/logo.png" alt="NMU-CE & AIE" />
+            <img src="@(Platform.IsWeb ? "logo.png" : "_content/NMU.Platform.Components/logo.png")" alt="NMU-CE & AIE" />
         </div>
         <div class="loader-glow"></div>
     </div>
